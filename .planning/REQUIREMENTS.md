@@ -95,20 +95,45 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CONT-01 | Phase TBD | Pending |
-| ING-01 | Phase TBD | Pending |
-| CLSF-01 | Phase TBD | Pending |
-| AUD-01 | Phase TBD | Pending |
-| WB-01 | Phase TBD | Pending |
-| TAX-01 | Phase TBD | Pending |
-| MCP-01 | Phase TBD | Pending |
-| REL-01 | Phase TBD | Pending |
+| CONT-01 | Phase 1 | Pending |
+| CONT-02 | Phase 1 | Pending |
+| CONT-03 | Phase 1 | Pending |
+| CONT-04 | Phase 1 | Pending |
+| ING-01 | Phase 2 | Pending |
+| ING-02 | Phase 2 | Pending |
+| ING-03 | Phase 2 | Pending |
+| ING-04 | Phase 2 | Pending |
+| CLSF-01 | Phase 3 | Pending |
+| CLSF-02 | Phase 3 | Pending |
+| CLSF-03 | Phase 3 | Pending |
+| CLSF-04 | Phase 3 | Pending |
+| AUD-01 | Phase 4 | Pending |
+| AUD-02 | Phase 4 | Pending |
+| AUD-03 | Phase 4 | Pending |
+| AUD-04 | Phase 4 | Pending |
+| WB-01 | Phase 5 | Pending |
+| WB-02 | Phase 5 | Pending |
+| WB-03 | Phase 5 | Pending |
+| TAX-01 | Phase 5 | Pending |
+| TAX-02 | Phase 5 | Pending |
+| TAX-03 | Phase 5 | Pending |
+| TAX-04 | Phase 5 | Pending |
+| MCP-01 | Phase 2 | Pending |
+| MCP-02 | Phase 4 | Pending |
+| MCP-03 | Phase 3 | Pending |
+| MCP-04 | Phase 5 | Pending |
+| MCP-05 | Phase 2 | Pending |
+| MCP-06 | Phase 1 | Pending |
+| MCP-07 | Phase 3 | Pending |
+| REL-01 | Phase 6 | Pending |
+| REL-02 | Phase 6 | Pending |
+| REL-03 | Phase 6 | Pending |
 
 **Coverage:**
 - v1 requirements: 33 total
-- Mapped to phases: 0
-- Unmapped: 33 ⚠
+- Mapped to phases: 33
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-28*
-*Last updated: 2026-03-28 after initial definition*
+*Last updated: 2026-03-28 after roadmap mapping*
