@@ -1,0 +1,18 @@
+[package]
+name = "ledger-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+rust_xlsxwriter = "0.79"
+calamine = "0.26"
+thiserror = "1"
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile = "3"

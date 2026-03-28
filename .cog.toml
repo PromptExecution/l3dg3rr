@@ -1,0 +1,17 @@
+from_latest_tag = true
+ignore_merge_commits = true
+generate_mono_repository_global_tag = false
+branch_whitelist = ["main", "master", "feature/.*", "gsd/.*"]
+tag_prefix = "v"
+
+[changelog]
+path = "CHANGELOG.md"
+template = "remote"
+
+[commit_types]
+feat = { changelog_title = "Features" }
+fix = { changelog_title = "Fixes" }
+docs = { changelog_title = "Documentation" }
+chore = { changelog_title = "Maintenance" }
+refactor = { changelog_title = "Refactors" }
+test = { changelog_title = "Tests" }

@@ -1,0 +1,8 @@
+# Rust build outputs
+target/
+
+# Local codex/runtime metadata
+.codex/
+
+# Editor/backup artifacts
+*~

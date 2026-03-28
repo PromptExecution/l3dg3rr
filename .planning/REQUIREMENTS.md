@@ -7,10 +7,10 @@
 
 ### Contracts
 
-- [ ] **CONT-01**: User can initialize a workbook with locked required sheets (`META.config`, `ACCT.registry`, `CAT.taxonomy`, `SCHED.C`, `SCHED.D`, `SCHED.E`, `FBAR.accounts`, `FLAGS.open`, `FLAGS.resolved`, `AUDIT.log`)
-- [ ] **CONT-02**: User can configure session context from `manifest.toml` without loading full workbook state
-- [ ] **CONT-03**: User can ingest only files that match `VENDOR--ACCOUNT--YYYY-MM--DOCTYPE` naming convention
-- [ ] **CONT-04**: User can reject malformed input with clear validation errors before any ledger mutation
+- [x] **CONT-01**: User can initialize a workbook with locked required sheets (`META.config`, `ACCT.registry`, `CAT.taxonomy`, `SCHED.C`, `SCHED.D`, `SCHED.E`, `FBAR.accounts`, `FLAGS.open`, `FLAGS.resolved`, `AUDIT.log`)
+- [x] **CONT-02**: User can configure session context from `manifest.toml` without loading full workbook state
+- [x] **CONT-03**: User can ingest only files that match `VENDOR--ACCOUNT--YYYY-MM--DOCTYPE` naming convention
+- [x] **CONT-04**: User can reject malformed input with clear validation errors before any ledger mutation
 
 ### Ingestion
 
@@ -53,7 +53,7 @@
 - [ ] **MCP-03**: User can call `query_flags(year, status)` through MCP and retrieve actionable review queue data
 - [ ] **MCP-04**: User can call `get_schedule_summary(year, schedule)` through MCP for CPA-facing summaries
 - [ ] **MCP-05**: User can call `get_raw_context(rkyv_ref)` through MCP for source evidence lookup
-- [ ] **MCP-06**: User can call `list_accounts()` through MCP to enumerate configured account definitions
+- [x] **MCP-06**: User can call `list_accounts()` through MCP to enumerate configured account definitions
 - [ ] **MCP-07**: User can call `run_rhai_rule(rule_file, sample_tx)` through MCP for rule validation workflows
 
 ### Packaging and Release
@@ -95,10 +95,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CONT-01 | Phase 1 | Pending |
-| CONT-02 | Phase 1 | Pending |
-| CONT-03 | Phase 1 | Pending |
-| CONT-04 | Phase 1 | Pending |
+| CONT-01 | Phase 1 | Complete |
+| CONT-02 | Phase 1 | Complete |
+| CONT-03 | Phase 1 | Complete |
+| CONT-04 | Phase 1 | Complete |
 | ING-01 | Phase 2 | Pending |
 | ING-02 | Phase 2 | Pending |
 | ING-03 | Phase 2 | Pending |
@@ -123,7 +123,7 @@
 | MCP-03 | Phase 3 | Pending |
 | MCP-04 | Phase 5 | Pending |
 | MCP-05 | Phase 2 | Pending |
-| MCP-06 | Phase 1 | Pending |
+| MCP-06 | Phase 1 | Complete |
 | MCP-07 | Phase 3 | Pending |
 | REL-01 | Phase 6 | Pending |
 | REL-02 | Phase 6 | Pending |
@@ -136,4 +136,4 @@
 
 ---
 *Requirements defined: 2026-03-28*
-*Last updated: 2026-03-28 after roadmap mapping*
+*Last updated: 2026-03-28 after Phase 1 contract bootstrap implementation*

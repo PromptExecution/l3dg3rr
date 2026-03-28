@@ -10,7 +10,7 @@ This roadmap delivers a local-first, Excel-first tax ledger by locking contracts
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 1: Contracts & Session Bootstrap** - Lock workbook/session contracts and input preflight before ledger mutation.
+- [x] **Phase 1: Contracts & Session Bootstrap** - Lock workbook/session contracts and input preflight before ledger mutation.
 - [ ] **Phase 2: Deterministic Ingestion Pipeline** - Convert renamed PDFs into idempotent transaction rows with source context linkage.
 - [ ] **Phase 3: Rule-Driven Classification & Flagging** - Apply/test Rhai rules and produce actionable review queues.
 - [ ] **Phase 4: Audit Integrity & Safe Reconciliation** - Enforce append-only mutation history and decimal-safe invariants.
@@ -84,8 +84,8 @@ This roadmap delivers a local-first, Excel-first tax ledger by locking contracts
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Contracts & Session Bootstrap | 0/TBD | Not started | - |
-| 2. Deterministic Ingestion Pipeline | 0/TBD | Not started | - |
+| 1. Contracts & Session Bootstrap | 1/1 | Complete | 2026-03-28 |
+| 2. Deterministic Ingestion Pipeline | 0/TBD | Next | - |
 | 3. Rule-Driven Classification & Flagging | 0/TBD | Not started | - |
 | 4. Audit Integrity & Safe Reconciliation | 0/TBD | Not started | - |
 | 5. CPA Workbook Outputs | 0/TBD | Not started | - |
