@@ -85,7 +85,7 @@ This roadmap delivers a local-first, Excel-first tax ledger by locking contracts
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Contracts & Session Bootstrap | 1/1 | Complete | 2026-03-28 |
-| 2. Deterministic Ingestion Pipeline | 1/TBD | In Progress | - |
+| 2. Deterministic Ingestion Pipeline | 2/TBD | In Progress | - |
 | 3. Rule-Driven Classification & Flagging | 0/TBD | Not started | - |
 | 4. Audit Integrity & Safe Reconciliation | 0/TBD | Not started | - |
 | 5. CPA Workbook Outputs | 0/TBD | Not started | - |

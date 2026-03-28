@@ -12,7 +12,7 @@ See: .planning/PROJECT.md (updated 2026-03-28)
 Phase: 2 of 6 (Deterministic Ingestion Pipeline)
 Plan: 0 of TBD in current phase
 Status: Phase 1 complete; ready to plan
-Last activity: 2026-03-28 - Started Phase 2 deterministic ingest implementation (stable tx-id + idempotent replay tests passing)
+Last activity: 2026-03-28 - Pivoted Phase 2 to rustledger-compatible plain-text journal ingest; deterministic/replay-safe tests passing
 
 Progress: [██░░░░░░░░] 17%
 
@@ -46,6 +46,7 @@ Recent decisions affecting current work:
 - Phase 1: Lock workbook/session contracts and filename preflight before ingest mutation paths.
 - Phase 2-5: Keep Excel as truth, with deterministic ingest -> classification -> audit -> tax outputs delivery order.
 - Phase 1 implementation used TDD-first workflow with an explicit turbo MCP contract (`list_accounts`) and Postel-style parsing normalization.
+- Phase 2 implementation pivoted to rustledger-compatible Beancount journal output for Git-native compatibility.
 
 ### Pending Todos
 

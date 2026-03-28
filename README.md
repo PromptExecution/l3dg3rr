@@ -1,4 +1,4 @@
-# tax-ledger (Phase 1 bootstrap)
+# tax-ledger (Autonomous MVP build)
 
 Rust workspace for a local-first, Excel-first tax ledger system.
 
@@ -7,7 +7,8 @@ Rust workspace for a local-first, Excel-first tax ledger system.
 - Contract-first filename preflight (`VENDOR--ACCOUNT--YYYY-MM--DOCTYPE`)
 - Session manifest parsing and account listing
 - Workbook initialization with required sheet names
-- Idiomatic turbo MCP interface surface for `list_accounts`
+- Git-friendly plain-text ingest output via Beancount journal entries (rustledger-compatible)
+- Idiomatic turbo MCP interface surface for `list_accounts` and `ingest_statement_rows`
 
 ## Quickstart
 

@@ -53,6 +53,7 @@ Primary use case is catching up three years of unfiled U.S. expat returns with C
 | `rust_xlsxwriter` + `calamine` for workbook roundtrip | Strong write features plus pure-Rust cross-platform read path | — Pending |
 | `rkyv` snapshot sidecars for parsed document context | Fast, bounded-context retrieval for agent verification workflows | — Pending |
 | Rhai scripts for classification/flag logic | Runtime-editable, diffable rules without recompilation | — Pending |
+| Rustledger-compatible plain-text journal as ingest persistence layer | Maximizes Git-native diffability and plain-text accounting interoperability | — Pending |
 | HelixDB is projection over workbook truth | Relationship queries without displacing accountant-facing source of truth | — Pending |
 | Local-first architecture (no Postgres/cloud dependency) | Privacy and low-ops constraints from use case | — Pending |
 | MCP wrapper is first-class integration contract | Agent operation depends on stable callable tool semantics | — Pending |

@@ -1,4 +1,7 @@
 use std::collections::BTreeSet;
+use std::path::Path;
+
+use crate::journal::{append_entries, JournalTransaction};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransactionInput {
@@ -35,6 +38,24 @@ impl IngestedLedger {
         }
 
         out
+    }
+
+    pub fn ingest_to_journal(
+        &mut self,
+        rows: &[TransactionInput],
+        journal_path: &Path,
+    ) -> Result<Vec<IngestedTransaction>, std::io::Error> {
+        let inserted = self.ingest(rows);
+        let entries: Vec<JournalTransaction> = inserted
+            .iter()
+            .filter_map(|tx| {
+                rows.iter()
+                    .find(|row| deterministic_tx_id(row) == tx.tx_id)
+                    .map(JournalTransaction::from_input)
+            })
+            .collect();
+        append_entries(journal_path, &entries)?;
+        Ok(inserted)
     }
 }
 
