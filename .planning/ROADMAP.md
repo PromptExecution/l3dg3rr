@@ -90,3 +90,14 @@ This roadmap delivers a local-first, Excel-first tax ledger by locking contracts
 | 4. Audit Integrity & Safe Reconciliation | 0/TBD | Not started | - |
 | 5. CPA Workbook Outputs | 0/TBD | Not started | - |
 | 6. Local Deployment & Release Readiness | 0/TBD | Not started | - |
+
+## Backlog
+
+### Phase 999.1: CI + Release Automation Hardening (BACKLOG)
+
+**Goal:** Add robust CI coverage and public status badges (including container build), enforce conventional commits with hooks, and implement a streamlined cocogitto-driven release workflow gated by passing CI. Include web research/examples before implementation to avoid bespoke patterns.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with `$gsd-review-backlog` when ready)
