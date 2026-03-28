@@ -21,10 +21,10 @@
 
 ### Classification
 
-- [ ] **CLSF-01**: User can load classification rules from `rules/classify.rhai` at runtime without recompiling
-- [ ] **CLSF-02**: User can assign tax category and confidence score to each transaction using rule execution
-- [ ] **CLSF-03**: User can flag transactions requiring review when confidence or policy thresholds fail
-- [ ] **CLSF-04**: User can test candidate Rhai rules against sample transactions before applying changes
+- [x] **CLSF-01**: User can load classification rules from `rules/classify.rhai` at runtime without recompiling
+- [x] **CLSF-02**: User can assign tax category and confidence score to each transaction using rule execution
+- [x] **CLSF-03**: User can flag transactions requiring review when confidence or policy thresholds fail
+- [x] **CLSF-04**: User can test candidate Rhai rules against sample transactions before applying changes
 
 ### Audit and Safety
 
@@ -50,11 +50,11 @@
 
 - [x] **MCP-01**: User can call `ingest_pdf(path)` through MCP and receive deterministic transaction IDs
 - [ ] **MCP-02**: User can call `classify_transaction(tx_id, category, confidence, note)` through MCP and record audit output
-- [ ] **MCP-03**: User can call `query_flags(year, status)` through MCP and retrieve actionable review queue data
+- [x] **MCP-03**: User can call `query_flags(year, status)` through MCP and retrieve actionable review queue data
 - [ ] **MCP-04**: User can call `get_schedule_summary(year, schedule)` through MCP for CPA-facing summaries
 - [x] **MCP-05**: User can call `get_raw_context(rkyv_ref)` through MCP for source evidence lookup
 - [x] **MCP-06**: User can call `list_accounts()` through MCP to enumerate configured account definitions
-- [ ] **MCP-07**: User can call `run_rhai_rule(rule_file, sample_tx)` through MCP for rule validation workflows
+- [x] **MCP-07**: User can call `run_rhai_rule(rule_file, sample_tx)` through MCP for rule validation workflows
 
 ### Packaging and Release
 
@@ -103,10 +103,10 @@
 | ING-02 | Phase 2 | Complete |
 | ING-03 | Phase 2 | Complete |
 | ING-04 | Phase 2 | Complete |
-| CLSF-01 | Phase 3 | Pending |
-| CLSF-02 | Phase 3 | Pending |
-| CLSF-03 | Phase 3 | Pending |
-| CLSF-04 | Phase 3 | Pending |
+| CLSF-01 | Phase 3 | Complete |
+| CLSF-02 | Phase 3 | Complete |
+| CLSF-03 | Phase 3 | Complete |
+| CLSF-04 | Phase 3 | Complete |
 | AUD-01 | Phase 4 | Pending |
 | AUD-02 | Phase 4 | Pending |
 | AUD-03 | Phase 4 | Pending |
@@ -120,11 +120,11 @@
 | TAX-04 | Phase 5 | Pending |
 | MCP-01 | Phase 2 | Complete |
 | MCP-02 | Phase 4 | Pending |
-| MCP-03 | Phase 3 | Pending |
+| MCP-03 | Phase 3 | Complete |
 | MCP-04 | Phase 5 | Pending |
 | MCP-05 | Phase 2 | Complete |
 | MCP-06 | Phase 1 | Complete |
-| MCP-07 | Phase 3 | Pending |
+| MCP-07 | Phase 3 | Complete |
 | REL-01 | Phase 6 | Pending |
 | REL-02 | Phase 6 | Pending |
 | REL-03 | Phase 6 | Pending |
@@ -136,4 +136,4 @@
 
 ---
 *Requirements defined: 2026-03-28*
-*Last updated: 2026-03-29 after Phase 2 deterministic ingestion completion verification*
+*Last updated: 2026-03-29 after Phase 3 classification completion verification*

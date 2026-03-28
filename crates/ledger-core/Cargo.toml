@@ -11,6 +11,7 @@ rust_xlsxwriter = "0.79"
 calamine = "0.26"
 thiserror = "1"
 blake3 = "1"
+rhai = "1.24.0"
 
 [lints]
 workspace = true

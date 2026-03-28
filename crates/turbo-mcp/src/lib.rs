@@ -1,6 +1,8 @@
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use ledger_core::classify::{ClassificationEngine, FlagStatus, SampleTransaction};
 use ledger_core::filename::{FilenameError, StatementFilename};
 use ledger_core::ingest::{IngestedLedger, TransactionInput};
 use ledger_core::manifest::Manifest;
@@ -56,6 +58,76 @@ pub struct GetRawContextResponse {
     pub bytes: Vec<u8>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SampleTxRequest {
+    pub tx_id: String,
+    pub account_id: String,
+    pub date: String,
+    pub amount: String,
+    pub description: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunRhaiRuleRequest {
+    pub rule_file: PathBuf,
+    pub sample_tx: SampleTxRequest,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RunRhaiRuleResponse {
+    pub category: String,
+    pub confidence: f64,
+    pub review: bool,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClassifyIngestedRequest {
+    pub rule_file: PathBuf,
+    pub review_threshold: f64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClassifiedTxResponse {
+    pub tx_id: String,
+    pub category: String,
+    pub confidence: f64,
+    pub needs_review: bool,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClassifyIngestedResponse {
+    pub classifications: Vec<ClassifiedTxResponse>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FlagStatusRequest {
+    Open,
+    Resolved,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QueryFlagsRequest {
+    pub year: i32,
+    pub status: FlagStatusRequest,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FlagRecordResponse {
+    pub tx_id: String,
+    pub year: i32,
+    pub status: FlagStatusRequest,
+    pub reason: String,
+    pub category: String,
+    pub confidence: f64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct QueryFlagsResponse {
+    pub flags: Vec<FlagRecordResponse>,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ToolError {
     #[error("invalid input: {0}")]
@@ -80,11 +152,24 @@ pub trait TurboLedgerTools {
     fn ingest_pdf(&self, request: IngestPdfRequest) -> Result<IngestPdfResponse, ToolError>;
     fn get_raw_context(&self, request: GetRawContextRequest)
         -> Result<GetRawContextResponse, ToolError>;
+    fn run_rhai_rule(&self, request: RunRhaiRuleRequest) -> Result<RunRhaiRuleResponse, ToolError>;
+    fn classify_ingested(
+        &self,
+        request: ClassifyIngestedRequest,
+    ) -> Result<ClassifyIngestedResponse, ToolError>;
+    fn query_flags(&self, request: QueryFlagsRequest) -> Result<QueryFlagsResponse, ToolError>;
+}
+
+#[derive(Debug, Default)]
+struct ClassificationState {
+    tx_rows: BTreeMap<String, TransactionInput>,
+    engine: ClassificationEngine,
 }
 
 pub struct TurboLedgerService {
     manifest: Manifest,
     ingest_state: Mutex<IngestedLedger>,
+    classification_state: Mutex<ClassificationState>,
 }
 
 impl TurboLedgerService {
@@ -93,6 +178,7 @@ impl TurboLedgerService {
         Ok(Self {
             manifest,
             ingest_state: Mutex::new(IngestedLedger::default()),
+            classification_state: Mutex::new(ClassificationState::default()),
         })
     }
 
@@ -129,17 +215,34 @@ impl TurboLedgerTools for TurboLedgerService {
         &self,
         request: IngestStatementRowsRequest,
     ) -> Result<IngestStatementRowsResponse, ToolError> {
-        let mut state = self
-            .ingest_state
+        let inserted = {
+            let mut state = self
+                .ingest_state
+                .lock()
+                .map_err(|_| ToolError::Internal("ingest lock poisoned".to_string()))?;
+            state
+                .ingest_to_journal_and_workbook(
+                    &request.rows,
+                    &request.journal_path,
+                    &request.workbook_path,
+                )
+                .map_err(|e| ToolError::Internal(e.to_string()))?
+        };
+
+        let mut by_id = BTreeMap::<String, TransactionInput>::new();
+        for row in &request.rows {
+            by_id.insert(ledger_core::ingest::deterministic_tx_id(row), row.clone());
+        }
+        let mut classification = self
+            .classification_state
             .lock()
-            .map_err(|_| ToolError::Internal("ingest lock poisoned".to_string()))?;
-        let inserted = state
-            .ingest_to_journal_and_workbook(
-                &request.rows,
-                &request.journal_path,
-                &request.workbook_path,
-            )
-            .map_err(|e| ToolError::Internal(e.to_string()))?;
+            .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?;
+        for tx in &inserted {
+            if let Some(row) = by_id.get(&tx.tx_id) {
+                classification.tx_rows.insert(tx.tx_id.clone(), row.clone());
+            }
+        }
+
         let tx_ids = inserted.iter().map(|row| row.tx_id.clone()).collect::<Vec<_>>();
         Ok(IngestStatementRowsResponse {
             inserted_count: tx_ids.len(),
@@ -186,5 +289,89 @@ impl TurboLedgerTools for TurboLedgerService {
     ) -> Result<GetRawContextResponse, ToolError> {
         let bytes = std::fs::read(&request.rkyv_ref).map_err(|e| ToolError::Internal(e.to_string()))?;
         Ok(GetRawContextResponse { bytes })
+    }
+
+    fn run_rhai_rule(&self, request: RunRhaiRuleRequest) -> Result<RunRhaiRuleResponse, ToolError> {
+        let sample = SampleTransaction {
+            tx_id: request.sample_tx.tx_id,
+            account_id: request.sample_tx.account_id,
+            date: request.sample_tx.date,
+            amount: request.sample_tx.amount,
+            description: request.sample_tx.description,
+        };
+        let classification = self
+            .classification_state
+            .lock()
+            .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?
+            .engine
+            .run_rule_from_file(&request.rule_file, &sample)
+            .map_err(|e| ToolError::InvalidInput(e.to_string()))?;
+
+        Ok(RunRhaiRuleResponse {
+            category: classification.category,
+            confidence: classification.confidence,
+            review: classification.needs_review,
+            reason: classification.reason,
+        })
+    }
+
+    fn classify_ingested(
+        &self,
+        request: ClassifyIngestedRequest,
+    ) -> Result<ClassifyIngestedResponse, ToolError> {
+        let mut classification = self
+            .classification_state
+            .lock()
+            .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?;
+
+        let rows = classification.tx_rows.values().cloned().collect::<Vec<_>>();
+        let batch = classification
+            .engine
+            .classify_rows_from_file(&request.rule_file, &rows, request.review_threshold)
+            .map_err(|e| ToolError::InvalidInput(e.to_string()))?;
+
+        Ok(ClassifyIngestedResponse {
+            classifications: batch
+                .classifications
+                .into_iter()
+                .map(|c| ClassifiedTxResponse {
+                    tx_id: c.tx_id,
+                    category: c.category,
+                    confidence: c.confidence,
+                    needs_review: c.needs_review,
+                    reason: c.reason,
+                })
+                .collect(),
+        })
+    }
+
+    fn query_flags(&self, request: QueryFlagsRequest) -> Result<QueryFlagsResponse, ToolError> {
+        let status = match request.status {
+            FlagStatusRequest::Open => FlagStatus::Open,
+            FlagStatusRequest::Resolved => FlagStatus::Resolved,
+        };
+        let flags = self
+            .classification_state
+            .lock()
+            .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?
+            .engine
+            .query_flags(request.year, status);
+
+        Ok(QueryFlagsResponse {
+            flags: flags
+                .into_iter()
+                .map(|f| FlagRecordResponse {
+                    tx_id: f.tx_id,
+                    year: f.year,
+                    status: match f.status {
+                        FlagStatus::Open => FlagStatusRequest::Open,
+                        FlagStatus::Resolved => FlagStatusRequest::Resolved,
+                    },
+                    reason: f.reason,
+                    category: f.category,
+                    confidence: f.confidence,
+                })
+                .collect(),
+        })
     }
 }
