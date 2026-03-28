@@ -8,6 +8,15 @@ tax-ledger is a local-first personal financial document intelligence system focu
 
 Convert raw historical financial PDFs into accountant-usable, auditable Excel tax records without sending private data to third-party SaaS.
 
+## Current Milestone: v1.1 FDKMS Integrity
+
+**Goal:** Evolve l3dg3rr into a financial document management knowledge system (FDKMS) that gives AI agents high-confidence, reconcilable, ontology-structured transaction truth for US expat tax workflows.
+
+**Target features:**
+- Docling/docling-mcp driven statement ingestion normalization with provenance.
+- Ontological data model for accounts, entities, documents, events, and tax semantics.
+- Error-intolerant verification pipeline using double-entry reconciliation, Moku hierarchical state machine, and Disintegrate event log.
+
 ## Requirements
 
 ### Validated
@@ -22,9 +31,12 @@ Convert raw historical financial PDFs into accountant-usable, auditable Excel ta
 
 ### Active
 
-- [ ] Stand up v2 graph projection and parity checks over workbook truth (GPH-01..03)
-- [ ] Add Axum API + Leptos dashboard surface for review and analytics (API-01..03)
-- [ ] Define automation extension scope for document retrieval and compliance variants (AUT-01..02)
+- [ ] Build docling/docling-mcp ingestion workflow for statements with deterministic extraction + source provenance.
+- [ ] Define and persist FDKMS ontology entities/relations for financial document knowledge operations.
+- [ ] Implement double-entry validation and automated reconciliation gates to prevent transaction drift.
+- [ ] Orchestrate ingestion/classification/reconciliation lifecycle with `moku` hierarchical state machine.
+- [ ] Persist mutation and pipeline lifecycle events via `disintegrate` event-sourcing audit log.
+- [ ] Deliver AI-assist surfaces for US expat tax scenarios using ontology-backed query and evidence retrieval.
 
 ### Out of Scope
 
@@ -77,4 +89,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-29 after v1.0 milestone completion*
+*Last updated: 2026-03-29 after v1.1 milestone kickoff*
