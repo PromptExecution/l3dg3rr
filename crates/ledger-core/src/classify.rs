@@ -133,6 +133,17 @@ impl ClassificationEngine {
             .collect()
     }
 
+    pub fn record_review_flag(
+        &mut self,
+        tx_id: String,
+        date: &str,
+        reason: String,
+        category: String,
+        confidence: f64,
+    ) {
+        self.upsert_open_flag(tx_id, derive_year(date), reason, category, confidence);
+    }
+
     fn upsert_open_flag(
         &mut self,
         tx_id: String,

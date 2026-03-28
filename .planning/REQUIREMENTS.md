@@ -28,10 +28,10 @@
 
 ### Audit and Safety
 
-- [ ] **AUD-01**: User can get append-only audit entries for every transaction mutation with timestamp, actor, field, old value, and new value
-- [ ] **AUD-02**: User can edit transaction classifications in Excel and reconcile those edits back into the service audit trail
-- [ ] **AUD-03**: User can rely on decimal-safe arithmetic for all money operations (no float-backed currency values)
-- [ ] **AUD-04**: User can detect and report invariant violations for amount parsing, hash determinism, and schema conformance
+- [x] **AUD-01**: User can get append-only audit entries for every transaction mutation with timestamp, actor, field, old value, and new value
+- [x] **AUD-02**: User can edit transaction classifications in Excel and reconcile those edits back into the service audit trail
+- [x] **AUD-03**: User can rely on decimal-safe arithmetic for all money operations (no float-backed currency values)
+- [x] **AUD-04**: User can detect and report invariant violations for amount parsing, hash determinism, and schema conformance
 
 ### Workbook UX
 
@@ -49,7 +49,7 @@
 ### MCP Interface
 
 - [x] **MCP-01**: User can call `ingest_pdf(path)` through MCP and receive deterministic transaction IDs
-- [ ] **MCP-02**: User can call `classify_transaction(tx_id, category, confidence, note)` through MCP and record audit output
+- [x] **MCP-02**: User can call `classify_transaction(tx_id, category, confidence, note)` through MCP and record audit output
 - [x] **MCP-03**: User can call `query_flags(year, status)` through MCP and retrieve actionable review queue data
 - [ ] **MCP-04**: User can call `get_schedule_summary(year, schedule)` through MCP for CPA-facing summaries
 - [x] **MCP-05**: User can call `get_raw_context(rkyv_ref)` through MCP for source evidence lookup
@@ -107,10 +107,10 @@
 | CLSF-02 | Phase 3 | Complete |
 | CLSF-03 | Phase 3 | Complete |
 | CLSF-04 | Phase 3 | Complete |
-| AUD-01 | Phase 4 | Pending |
-| AUD-02 | Phase 4 | Pending |
-| AUD-03 | Phase 4 | Pending |
-| AUD-04 | Phase 4 | Pending |
+| AUD-01 | Phase 4 | Complete |
+| AUD-02 | Phase 4 | Complete |
+| AUD-03 | Phase 4 | Complete |
+| AUD-04 | Phase 4 | Complete |
 | WB-01 | Phase 5 | Pending |
 | WB-02 | Phase 5 | Pending |
 | WB-03 | Phase 5 | Pending |
@@ -119,7 +119,7 @@
 | TAX-03 | Phase 5 | Pending |
 | TAX-04 | Phase 5 | Pending |
 | MCP-01 | Phase 2 | Complete |
-| MCP-02 | Phase 4 | Pending |
+| MCP-02 | Phase 4 | Complete |
 | MCP-03 | Phase 3 | Complete |
 | MCP-04 | Phase 5 | Pending |
 | MCP-05 | Phase 2 | Complete |
@@ -136,4 +136,4 @@
 
 ---
 *Requirements defined: 2026-03-28*
-*Last updated: 2026-03-29 after Phase 3 classification completion verification*
+*Last updated: 2026-03-29 after Phase 4 audit/reconciliation completion verification*

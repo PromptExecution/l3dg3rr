@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-03-28)
 
 **Core value:** Convert raw historical financial PDFs into accountant-usable, auditable Excel tax records without sending private data to third-party SaaS.
-**Current focus:** Phase 4 - Audit Integrity & Safe Reconciliation
+**Current focus:** Phase 5 - CPA Workbook Outputs
 
 ## Current Position
 
-Phase: 4 of 6 (Audit Integrity & Safe Reconciliation)
+Phase: 5 of 6 (CPA Workbook Outputs)
 Plan: 0 of TBD in current phase
-Status: Phase 3 complete; ready to plan
-Last activity: 2026-03-29 - Completed runtime Rhai classification and MCP flag/rule-test contracts with passing workspace tests
+Status: Phase 4 complete; ready to plan
+Last activity: 2026-03-29 - Completed audit/reconciliation mutation path with decimal-safe and invariant checks
 
-Progress: [█████░░░░░] 50%
+Progress: [███████░░░] 66%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
+- Total plans completed: 4
 - Average duration: 1 session
 - Total execution time: 0.8 hours
 
@@ -30,9 +30,10 @@ Progress: [█████░░░░░] 50%
 | 1 | 1 | 1 session | 1 session |
 | 2 | 1 | 1 session | 1 session |
 | 3 | 1 | 1 session | 1 session |
+| 4 | 1 | 1 session | 1 session |
 
 **Recent Trend:**
-- Last 5 plans: 4 complete
+- Last 5 plans: 5 complete
 - Trend: Up
 
 *Updated after each plan completion*
@@ -50,6 +51,7 @@ Recent decisions affecting current work:
 - Phase 2 implementation pivoted to rustledger-compatible Beancount journal output for Git-native compatibility.
 - Phase 2 completion validated ING-01..04 and MCP-01/MCP-05 with passing targeted and workspace-wide tests before status promotion.
 - Phase 3 implemented runtime Rhai classification, low-confidence review queue flags, and MCP contracts for `query_flags` and `run_rhai_rule`.
+- Phase 4 implemented append-only audit entries, Excel reconciliation path, and invariant/decimal-safe classification mutation checks.
 
 ### Pending Todos
 
@@ -62,5 +64,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-29 00:00
-Stopped at: Completed 03-01 implementation/verification artifacts; advanced focus to Phase 4 planning
+Stopped at: Completed 04-01 implementation/verification artifacts; advanced focus to Phase 5 planning
 Resume file: None

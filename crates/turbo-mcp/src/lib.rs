@@ -1,11 +1,13 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Mutex;
 
 use ledger_core::classify::{ClassificationEngine, FlagStatus, SampleTransaction};
 use ledger_core::filename::{FilenameError, StatementFilename};
-use ledger_core::ingest::{IngestedLedger, TransactionInput};
+use ledger_core::ingest::{deterministic_tx_id, IngestedLedger, TransactionInput};
 use ledger_core::manifest::Manifest;
+use rust_decimal::Decimal;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccountSummary {
@@ -128,6 +130,51 @@ pub struct QueryFlagsResponse {
     pub flags: Vec<FlagRecordResponse>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClassifyTransactionRequest {
+    pub tx_id: String,
+    pub category: String,
+    pub confidence: String,
+    pub note: Option<String>,
+    pub actor: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReconcileExcelClassificationRequest {
+    pub tx_id: String,
+    pub category: String,
+    pub confidence: String,
+    pub actor: String,
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QueryAuditLogRequest;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuditEntryResponse {
+    pub timestamp: String,
+    pub actor: String,
+    pub tx_id: String,
+    pub field: String,
+    pub old_value: Option<String>,
+    pub new_value: String,
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClassifyTransactionResponse {
+    pub tx_id: String,
+    pub category: String,
+    pub confidence: String,
+    pub audit_entries: Vec<AuditEntryResponse>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QueryAuditLogResponse {
+    pub entries: Vec<AuditEntryResponse>,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ToolError {
     #[error("invalid input: {0}")]
@@ -158,11 +205,39 @@ pub trait TurboLedgerTools {
         request: ClassifyIngestedRequest,
     ) -> Result<ClassifyIngestedResponse, ToolError>;
     fn query_flags(&self, request: QueryFlagsRequest) -> Result<QueryFlagsResponse, ToolError>;
+    fn classify_transaction(
+        &self,
+        request: ClassifyTransactionRequest,
+    ) -> Result<ClassifyTransactionResponse, ToolError>;
+    fn reconcile_excel_classification(
+        &self,
+        request: ReconcileExcelClassificationRequest,
+    ) -> Result<ClassifyTransactionResponse, ToolError>;
+    fn query_audit_log(&self, request: QueryAuditLogRequest) -> Result<QueryAuditLogResponse, ToolError>;
+}
+
+#[derive(Debug, Clone)]
+struct StoredClassification {
+    category: String,
+    confidence: Decimal,
+}
+
+#[derive(Debug, Clone)]
+struct AuditEntry {
+    timestamp: String,
+    actor: String,
+    tx_id: String,
+    field: String,
+    old_value: Option<String>,
+    new_value: String,
+    note: Option<String>,
 }
 
 #[derive(Debug, Default)]
 struct ClassificationState {
     tx_rows: BTreeMap<String, TransactionInput>,
+    classifications: BTreeMap<String, StoredClassification>,
+    audit_log: Vec<AuditEntry>,
     engine: ClassificationEngine,
 }
 
@@ -231,7 +306,7 @@ impl TurboLedgerTools for TurboLedgerService {
 
         let mut by_id = BTreeMap::<String, TransactionInput>::new();
         for row in &request.rows {
-            by_id.insert(ledger_core::ingest::deterministic_tx_id(row), row.clone());
+            by_id.insert(deterministic_tx_id(row), row.clone());
         }
         let mut classification = self
             .classification_state
@@ -373,5 +448,164 @@ impl TurboLedgerTools for TurboLedgerService {
                 })
                 .collect(),
         })
+    }
+
+    fn classify_transaction(
+        &self,
+        request: ClassifyTransactionRequest,
+    ) -> Result<ClassifyTransactionResponse, ToolError> {
+        let mut classification = self
+            .classification_state
+            .lock()
+            .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?;
+
+        let tx_row = classification
+            .tx_rows
+            .get(&request.tx_id)
+            .cloned()
+            .ok_or_else(|| ToolError::InvalidInput("unknown tx_id".to_string()))?;
+
+        validate_invariants(&tx_row, &request.tx_id, &request.category)?;
+        let confidence = parse_confidence(&request.confidence)?;
+
+        let old = classification.classifications.get(&request.tx_id).cloned();
+        let mut new_entries = Vec::new();
+        let timestamp = now_timestamp();
+
+        if old.as_ref().map(|c| c.category.as_str()) != Some(request.category.as_str()) {
+            let entry = AuditEntry {
+                timestamp: timestamp.clone(),
+                actor: request.actor.clone(),
+                tx_id: request.tx_id.clone(),
+                field: "category".to_string(),
+                old_value: old.as_ref().map(|c| c.category.clone()),
+                new_value: request.category.clone(),
+                note: request.note.clone(),
+            };
+            classification.audit_log.push(entry.clone());
+            new_entries.push(to_audit_response(entry));
+        }
+
+        if old.as_ref().map(|c| c.confidence) != Some(confidence) {
+            let entry = AuditEntry {
+                timestamp,
+                actor: request.actor.clone(),
+                tx_id: request.tx_id.clone(),
+                field: "confidence".to_string(),
+                old_value: old.as_ref().map(|c| c.confidence.to_string()),
+                new_value: confidence.to_string(),
+                note: request.note.clone(),
+            };
+            classification.audit_log.push(entry.clone());
+            new_entries.push(to_audit_response(entry));
+        }
+
+        classification.classifications.insert(
+            request.tx_id.clone(),
+            StoredClassification {
+                category: request.category.clone(),
+                confidence,
+            },
+        );
+
+        if confidence < Decimal::from_str("0.80").expect("valid decimal literal")
+            || request.category.eq_ignore_ascii_case("uncategorized")
+        {
+            classification.engine.record_review_flag(
+                request.tx_id.clone(),
+                &tx_row.date,
+                "manual classification requires review".to_string(),
+                request.category.clone(),
+                confidence.to_string().parse::<f64>().unwrap_or(0.0),
+            );
+        }
+
+        Ok(ClassifyTransactionResponse {
+            tx_id: request.tx_id,
+            category: request.category,
+            confidence: confidence.to_string(),
+            audit_entries: new_entries,
+        })
+    }
+
+    fn reconcile_excel_classification(
+        &self,
+        request: ReconcileExcelClassificationRequest,
+    ) -> Result<ClassifyTransactionResponse, ToolError> {
+        self.classify_transaction(ClassifyTransactionRequest {
+            tx_id: request.tx_id,
+            category: request.category,
+            confidence: request.confidence,
+            note: request.note,
+            actor: request.actor,
+        })
+    }
+
+    fn query_audit_log(&self, _request: QueryAuditLogRequest) -> Result<QueryAuditLogResponse, ToolError> {
+        let entries = self
+            .classification_state
+            .lock()
+            .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?
+            .audit_log
+            .clone();
+        Ok(QueryAuditLogResponse {
+            entries: entries.into_iter().map(to_audit_response).collect(),
+        })
+    }
+}
+
+fn parse_confidence(input: &str) -> Result<Decimal, ToolError> {
+    let confidence = Decimal::from_str(input)
+        .map_err(|_| ToolError::InvalidInput("confidence must be a valid decimal".to_string()))?;
+    if confidence < Decimal::ZERO || confidence > Decimal::ONE {
+        return Err(ToolError::InvalidInput(
+            "confidence must be between 0 and 1".to_string(),
+        ));
+    }
+    Ok(confidence)
+}
+
+fn validate_invariants(row: &TransactionInput, tx_id: &str, category: &str) -> Result<(), ToolError> {
+    if category.trim().is_empty() {
+        return Err(ToolError::InvalidInput("category must not be empty".to_string()));
+    }
+    Decimal::from_str(row.amount.trim())
+        .map_err(|_| ToolError::InvalidInput("invalid amount decimal".to_string()))?;
+
+    if deterministic_tx_id(row) != tx_id {
+        return Err(ToolError::InvalidInput(
+            "tx_id invariant violation: deterministic hash mismatch".to_string(),
+        ));
+    }
+
+    let parts: Vec<&str> = row.date.split('-').collect();
+    if parts.len() != 3
+        || parts[0].parse::<u32>().is_err()
+        || parts[1].parse::<u32>().is_err()
+        || parts[2].parse::<u32>().is_err()
+    {
+        return Err(ToolError::InvalidInput(
+            "schema invariant violation: date must be YYYY-MM-DD".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn now_timestamp() -> String {
+    match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Ok(d) => format!("{}", d.as_secs()),
+        Err(_) => "0".to_string(),
+    }
+}
+
+fn to_audit_response(entry: AuditEntry) -> AuditEntryResponse {
+    AuditEntryResponse {
+        timestamp: entry.timestamp,
+        actor: entry.actor,
+        tx_id: entry.tx_id,
+        field: entry.field,
+        old_value: entry.old_value,
+        new_value: entry.new_value,
+        note: entry.note,
     }
 }
