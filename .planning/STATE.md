@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-03-28)
 
 **Core value:** Convert raw historical financial PDFs into accountant-usable, auditable Excel tax records without sending private data to third-party SaaS.
-**Current focus:** Milestone completion audit
+**Current focus:** Milestone v1.0 archived; awaiting next milestone definition
 
 ## Current Position
 
 Phase: 6 of 6 (Local Deployment & Release Readiness)
 Plan: 1 of 1 in current phase
-Status: All roadmap phases complete; ready for milestone audit/archival
-Last activity: 2026-03-29 - Completed CI/release automation and BDD e2e flow validation
+Status: v1.0 milestone completed and archived
+Last activity: 2026-03-29 - Archived v1.0 roadmap/requirements and prepared next-milestone handoff
 
 Progress: [██████████] 100%
 
@@ -68,5 +68,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-29 00:00
-Stopped at: Completed 06-01 implementation/verification artifacts; next step milestone audit/completion
+Stopped at: Completed `$gsd-complete-milestone`; next step `$gsd-new-milestone`
 Resume file: None
