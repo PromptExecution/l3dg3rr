@@ -35,23 +35,23 @@
 
 ### Workbook UX
 
-- [ ] **WB-01**: User can open workbook transaction tables with Excel Table formatting for filter/sort and pivot compatibility
-- [ ] **WB-02**: User can pick categories from Excel dropdown validation backed by taxonomy enum values
-- [ ] **WB-03**: User can view unresolved and resolved flags in dedicated sheets without manual filtering across all transaction sheets
+- [x] **WB-01**: User can open workbook transaction tables with Excel Table formatting for filter/sort and pivot compatibility
+- [x] **WB-02**: User can pick categories from Excel dropdown validation backed by taxonomy enum values
+- [x] **WB-03**: User can view unresolved and resolved flags in dedicated sheets without manual filtering across all transaction sheets
 
 ### Tax Outputs
 
-- [ ] **TAX-01**: User can generate Schedule C summary values from categorized transaction data
-- [ ] **TAX-02**: User can generate Schedule D summary values including crypto/bad-debt categories where tagged
-- [ ] **TAX-03**: User can generate Schedule E summary values for rental-related categories
-- [ ] **TAX-04**: User can generate FBAR account/year maximum USD balance views for accountant review
+- [x] **TAX-01**: User can generate Schedule C summary values from categorized transaction data
+- [x] **TAX-02**: User can generate Schedule D summary values including crypto/bad-debt categories where tagged
+- [x] **TAX-03**: User can generate Schedule E summary values for rental-related categories
+- [x] **TAX-04**: User can generate FBAR account/year maximum USD balance views for accountant review
 
 ### MCP Interface
 
 - [x] **MCP-01**: User can call `ingest_pdf(path)` through MCP and receive deterministic transaction IDs
 - [x] **MCP-02**: User can call `classify_transaction(tx_id, category, confidence, note)` through MCP and record audit output
 - [x] **MCP-03**: User can call `query_flags(year, status)` through MCP and retrieve actionable review queue data
-- [ ] **MCP-04**: User can call `get_schedule_summary(year, schedule)` through MCP for CPA-facing summaries
+- [x] **MCP-04**: User can call `get_schedule_summary(year, schedule)` through MCP for CPA-facing summaries
 - [x] **MCP-05**: User can call `get_raw_context(rkyv_ref)` through MCP for source evidence lookup
 - [x] **MCP-06**: User can call `list_accounts()` through MCP to enumerate configured account definitions
 - [x] **MCP-07**: User can call `run_rhai_rule(rule_file, sample_tx)` through MCP for rule validation workflows
@@ -111,17 +111,17 @@
 | AUD-02 | Phase 4 | Complete |
 | AUD-03 | Phase 4 | Complete |
 | AUD-04 | Phase 4 | Complete |
-| WB-01 | Phase 5 | Pending |
-| WB-02 | Phase 5 | Pending |
-| WB-03 | Phase 5 | Pending |
-| TAX-01 | Phase 5 | Pending |
-| TAX-02 | Phase 5 | Pending |
-| TAX-03 | Phase 5 | Pending |
-| TAX-04 | Phase 5 | Pending |
+| WB-01 | Phase 5 | Complete |
+| WB-02 | Phase 5 | Complete |
+| WB-03 | Phase 5 | Complete |
+| TAX-01 | Phase 5 | Complete |
+| TAX-02 | Phase 5 | Complete |
+| TAX-03 | Phase 5 | Complete |
+| TAX-04 | Phase 5 | Complete |
 | MCP-01 | Phase 2 | Complete |
 | MCP-02 | Phase 4 | Complete |
 | MCP-03 | Phase 3 | Complete |
-| MCP-04 | Phase 5 | Pending |
+| MCP-04 | Phase 5 | Complete |
 | MCP-05 | Phase 2 | Complete |
 | MCP-06 | Phase 1 | Complete |
 | MCP-07 | Phase 3 | Complete |
@@ -136,4 +136,4 @@
 
 ---
 *Requirements defined: 2026-03-28*
-*Last updated: 2026-03-29 after Phase 4 audit/reconciliation completion verification*
+*Last updated: 2026-03-29 after Phase 5 CPA output completion verification*

@@ -14,7 +14,7 @@ This roadmap delivers a local-first, Excel-first tax ledger by locking contracts
 - [x] **Phase 2: Deterministic Ingestion Pipeline** - Convert renamed PDFs into idempotent transaction rows with source context linkage.
 - [x] **Phase 3: Rule-Driven Classification & Flagging** - Apply/test Rhai rules and produce actionable review queues.
 - [x] **Phase 4: Audit Integrity & Safe Reconciliation** - Enforce append-only mutation history and decimal-safe invariants.
-- [ ] **Phase 5: CPA Workbook Outputs** - Deliver Excel-native usability plus Schedule/FBAR summaries.
+- [x] **Phase 5: CPA Workbook Outputs** - Deliver Excel-native usability plus Schedule/FBAR summaries.
 - [ ] **Phase 6: Local Deployment & Release Readiness** - Containerize, version, and validate the full MVP behavior end to end.
 
 ## Phase Details
@@ -88,7 +88,7 @@ This roadmap delivers a local-first, Excel-first tax ledger by locking contracts
 | 2. Deterministic Ingestion Pipeline | 1/1 | Complete | 2026-03-29 |
 | 3. Rule-Driven Classification & Flagging | 1/1 | Complete | 2026-03-29 |
 | 4. Audit Integrity & Safe Reconciliation | 1/1 | Complete | 2026-03-29 |
-| 5. CPA Workbook Outputs | 0/TBD | Not started | - |
+| 5. CPA Workbook Outputs | 1/1 | Complete | 2026-03-29 |
 | 6. Local Deployment & Release Readiness | 0/TBD | Not started | - |
 
 ## Backlog

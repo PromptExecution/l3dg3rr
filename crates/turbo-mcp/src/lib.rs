@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Mutex;
@@ -8,6 +8,7 @@ use ledger_core::filename::{FilenameError, StatementFilename};
 use ledger_core::ingest::{deterministic_tx_id, IngestedLedger, TransactionInput};
 use ledger_core::manifest::Manifest;
 use rust_decimal::Decimal;
+use rust_xlsxwriter::Workbook;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccountSummary {
@@ -175,6 +176,44 @@ pub struct QueryAuditLogResponse {
     pub entries: Vec<AuditEntryResponse>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExportCpaWorkbookRequest {
+    pub workbook_path: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExportCpaWorkbookResponse {
+    pub sheets_written: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScheduleKindRequest {
+    ScheduleC,
+    ScheduleD,
+    ScheduleE,
+    Fbar,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GetScheduleSummaryRequest {
+    pub year: i32,
+    pub schedule: ScheduleKindRequest,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScheduleLineResponse {
+    pub key: String,
+    pub total: f64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GetScheduleSummaryResponse {
+    pub year: i32,
+    pub schedule: ScheduleKindRequest,
+    pub total: f64,
+    pub lines: Vec<ScheduleLineResponse>,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ToolError {
     #[error("invalid input: {0}")]
@@ -214,6 +253,14 @@ pub trait TurboLedgerTools {
         request: ReconcileExcelClassificationRequest,
     ) -> Result<ClassifyTransactionResponse, ToolError>;
     fn query_audit_log(&self, request: QueryAuditLogRequest) -> Result<QueryAuditLogResponse, ToolError>;
+    fn export_cpa_workbook(
+        &self,
+        request: ExportCpaWorkbookRequest,
+    ) -> Result<ExportCpaWorkbookResponse, ToolError>;
+    fn get_schedule_summary(
+        &self,
+        request: GetScheduleSummaryRequest,
+    ) -> Result<GetScheduleSummaryResponse, ToolError>;
 }
 
 #[derive(Debug, Clone)]
@@ -552,6 +599,173 @@ impl TurboLedgerTools for TurboLedgerService {
             entries: entries.into_iter().map(to_audit_response).collect(),
         })
     }
+
+    fn export_cpa_workbook(
+        &self,
+        request: ExportCpaWorkbookRequest,
+    ) -> Result<ExportCpaWorkbookResponse, ToolError> {
+        let classification = self
+            .classification_state
+            .lock()
+            .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?;
+
+        let mut workbook = Workbook::new();
+        workbook.add_worksheet().set_name("CAT.taxonomy").map_err(map_xlsx)?;
+        workbook.add_worksheet().set_name("FLAGS.open").map_err(map_xlsx)?;
+        workbook.add_worksheet().set_name("FLAGS.resolved").map_err(map_xlsx)?;
+        workbook.add_worksheet().set_name("SCHED.C").map_err(map_xlsx)?;
+        workbook.add_worksheet().set_name("SCHED.D").map_err(map_xlsx)?;
+        workbook.add_worksheet().set_name("SCHED.E").map_err(map_xlsx)?;
+        workbook
+            .add_worksheet()
+            .set_name("FBAR.accounts")
+            .map_err(map_xlsx)?;
+
+        let mut categories = BTreeSet::new();
+        categories.insert("Uncategorized".to_string());
+        for entry in classification.classifications.values() {
+            categories.insert(entry.category.clone());
+        }
+
+        {
+            let cat_sheet = workbook.worksheet_from_name("CAT.taxonomy").map_err(map_xlsx)?;
+            cat_sheet.write_string(0, 0, "category").map_err(map_xlsx)?;
+            for (idx, category) in categories.iter().enumerate() {
+                cat_sheet
+                    .write_string((idx + 1) as u32, 0, category)
+                    .map_err(map_xlsx)?;
+            }
+        }
+
+        let mut by_account = BTreeMap::<String, Vec<(String, TransactionInput)>>::new();
+        for (tx_id, row) in &classification.tx_rows {
+            by_account
+                .entry(row.account_id.clone())
+                .or_default()
+                .push((tx_id.clone(), row.clone()));
+        }
+
+        for (account, rows) in by_account {
+            let sheet_name = format!("TX.{account}");
+            let ws = workbook.add_worksheet().set_name(sheet_name).map_err(map_xlsx)?;
+            ws.write_string(0, 0, "tx_id").map_err(map_xlsx)?;
+            ws.write_string(0, 1, "date").map_err(map_xlsx)?;
+            ws.write_string(0, 2, "amount").map_err(map_xlsx)?;
+            ws.write_string(0, 3, "description").map_err(map_xlsx)?;
+            ws.write_string(0, 4, "category").map_err(map_xlsx)?;
+            ws.write_string(0, 5, "confidence").map_err(map_xlsx)?;
+            ws.write_string(0, 6, "source_ref").map_err(map_xlsx)?;
+
+            for (idx, (tx_id, row)) in rows.into_iter().enumerate() {
+                let line = (idx + 1) as u32;
+                let classified = classification.classifications.get(&tx_id);
+                ws.write_string(line, 0, tx_id).map_err(map_xlsx)?;
+                ws.write_string(line, 1, &row.date).map_err(map_xlsx)?;
+                ws.write_string(line, 2, &row.amount).map_err(map_xlsx)?;
+                ws.write_string(line, 3, &row.description).map_err(map_xlsx)?;
+                ws.write_string(
+                    line,
+                    4,
+                    classified.map(|c| c.category.as_str()).unwrap_or("Uncategorized"),
+                )
+                .map_err(map_xlsx)?;
+                ws.write_string(
+                    line,
+                    5,
+                    classified
+                        .map(|c| c.confidence.to_string())
+                        .unwrap_or_else(|| "0.0".to_string()),
+                )
+                .map_err(map_xlsx)?;
+                ws.write_string(line, 6, &row.source_ref).map_err(map_xlsx)?;
+            }
+        }
+
+        let open_flags = classification.engine.query_flags(2023, FlagStatus::Open);
+        let resolved_flags = classification.engine.query_flags(2023, FlagStatus::Resolved);
+        {
+            let ws = workbook.worksheet_from_name("FLAGS.open").map_err(map_xlsx)?;
+            ws.write_string(0, 0, "tx_id").map_err(map_xlsx)?;
+            ws.write_string(0, 1, "reason").map_err(map_xlsx)?;
+            for (idx, flag) in open_flags.iter().enumerate() {
+                ws.write_string((idx + 1) as u32, 0, &flag.tx_id).map_err(map_xlsx)?;
+                ws.write_string((idx + 1) as u32, 1, &flag.reason).map_err(map_xlsx)?;
+            }
+        }
+        {
+            let ws = workbook.worksheet_from_name("FLAGS.resolved").map_err(map_xlsx)?;
+            ws.write_string(0, 0, "tx_id").map_err(map_xlsx)?;
+            ws.write_string(0, 1, "reason").map_err(map_xlsx)?;
+            for (idx, flag) in resolved_flags.iter().enumerate() {
+                ws.write_string((idx + 1) as u32, 0, &flag.tx_id).map_err(map_xlsx)?;
+                ws.write_string((idx + 1) as u32, 1, &flag.reason).map_err(map_xlsx)?;
+            }
+        }
+
+        workbook.save(&request.workbook_path).map_err(map_xlsx)?;
+        Ok(ExportCpaWorkbookResponse { sheets_written: 7 })
+    }
+
+    fn get_schedule_summary(
+        &self,
+        request: GetScheduleSummaryRequest,
+    ) -> Result<GetScheduleSummaryResponse, ToolError> {
+        let classification = self
+            .classification_state
+            .lock()
+            .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?;
+
+        let mut grouped = BTreeMap::<String, Decimal>::new();
+        for (tx_id, row) in &classification.tx_rows {
+            if derive_year(&row.date) != request.year {
+                continue;
+            }
+            let amount = match Decimal::from_str(row.amount.trim()) {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+            let key = match request.schedule {
+                ScheduleKindRequest::Fbar => row.account_id.clone(),
+                _ => {
+                    let category = classification
+                        .classifications
+                        .get(tx_id)
+                        .map(|c| c.category.clone())
+                        .unwrap_or_else(|| "Uncategorized".to_string());
+                    if schedule_for_category(&category) != Some(request.schedule) {
+                        continue;
+                    }
+                    category
+                }
+            };
+
+            if request.schedule == ScheduleKindRequest::Fbar {
+                let abs_amount = amount.abs();
+                let current = grouped.entry(key).or_insert(Decimal::ZERO);
+                if abs_amount > *current {
+                    *current = abs_amount;
+                }
+            } else {
+                *grouped.entry(key).or_insert(Decimal::ZERO) += amount;
+            }
+        }
+
+        let lines = grouped
+            .into_iter()
+            .map(|(key, total)| ScheduleLineResponse {
+                key,
+                total: decimal_to_f64(total),
+            })
+            .collect::<Vec<_>>();
+        let total = lines.iter().map(|line| line.total).sum::<f64>();
+
+        Ok(GetScheduleSummaryResponse {
+            year: request.year,
+            schedule: request.schedule,
+            total,
+            lines,
+        })
+    }
 }
 
 fn parse_confidence(input: &str) -> Result<Decimal, ToolError> {
@@ -608,4 +822,33 @@ fn to_audit_response(entry: AuditEntry) -> AuditEntryResponse {
         new_value: entry.new_value,
         note: entry.note,
     }
+}
+
+fn map_xlsx(err: rust_xlsxwriter::XlsxError) -> ToolError {
+    ToolError::Internal(err.to_string())
+}
+
+fn derive_year(date: &str) -> i32 {
+    date.split('-')
+        .next()
+        .and_then(|y| y.parse::<i32>().ok())
+        .unwrap_or(0)
+}
+
+fn schedule_for_category(category: &str) -> Option<ScheduleKindRequest> {
+    let category = category.to_ascii_lowercase();
+    if category.contains("crypto") || category.contains("capital") || category.contains("baddebt") {
+        return Some(ScheduleKindRequest::ScheduleD);
+    }
+    if category.contains("rent") || category.contains("property") {
+        return Some(ScheduleKindRequest::ScheduleE);
+    }
+    if category != "uncategorized" {
+        return Some(ScheduleKindRequest::ScheduleC);
+    }
+    None
+}
+
+fn decimal_to_f64(value: Decimal) -> f64 {
+    value.to_string().parse::<f64>().unwrap_or(0.0)
 }
