@@ -1,3 +1,26 @@
+## Purpose & Capability (Agent Quick Guide)
+
+Use this section first, then read `README.md` for current scope/status details.
+
+### Purpose
+
+`l3dg3rr` is an agent-native financial document management knowledge system (FDKMS) for local-first ingest of financial statements into deterministic, auditable ledger outputs.
+
+### Core capabilities
+
+- Parse and validate statement ingest sessions from contract-first filenames.
+- Normalize extracted rows into git-friendly ledger artifacts.
+- Enforce deterministic financial integrity constraints (double-entry and validation rails).
+- Expose a concise MCP-facing interface for account listing and ingest operations.
+- Support agent workflows for U.S. expat tax prep context with auditable outputs.
+
+### Agent operating boundaries
+
+- Prefer existing ecosystem tools/libraries over custom reinvention when they satisfy requirements.
+- Keep interfaces obvious for small, non-finetuned models: explicit state, deterministic outputs, and concise status hints.
+- Preserve local-first and reproducibility constraints; avoid hidden side effects.
+- Record durable lessons and user decisions back into `AGENTS.md` when they change future execution quality.
+
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
 

@@ -5,6 +5,10 @@
 
 Rust workspace for a local-first, Excel-first tax ledger system.
 
+## Agent Guide
+
+See [AGENTS.md](AGENTS.md) for agent-facing purpose, capability boundaries, operating expectations, and persistent session-learning rules.
+
 ## Current scope
 
 - Contract-first filename preflight (`VENDOR--ACCOUNT--YYYY-MM--DOCTYPE`)
