@@ -2,62 +2,45 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-28)
+See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Convert raw historical financial PDFs into accountant-usable, auditable Excel tax records without sending private data to third-party SaaS.
-**Current focus:** Phase 2 - Deterministic Ingestion Pipeline
+**Current focus:** Phase 7 - Docling Statement Ingestion Canonicalization
 
 ## Current Position
 
-Phase: 2 of 6 (Deterministic Ingestion Pipeline)
+Phase: 7 of 12 (Docling Statement Ingestion Canonicalization)
 Plan: 0 of TBD in current phase
-Status: Phase 1 complete; ready to plan
-Last activity: 2026-03-28 - Pivoted Phase 2 to rustledger-compatible plain-text journal ingest; deterministic/replay-safe tests passing
+Status: Milestone v1.1 defined; ready for planning
+Last activity: 2026-03-29 - Started milestone v1.1 FDKMS Integrity and generated requirements/roadmap
 
-Progress: [██░░░░░░░░] 17%
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
-**Velocity:**
-- Total plans completed: 2
-- Average duration: 1 session
-- Total execution time: 0.8 hours
-
-**By Phase:**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 1 | 1 | 1 session | 1 session |
-| 2 | 1 | 1 session | 1 session |
-
-**Recent Trend:**
-- Last 5 plans: 2 complete
-- Trend: Up
-
-*Updated after each plan completion*
+**Velocity (historical):**
+- Previous milestone plans completed: 6
+- Previous milestone duration: 1 session
 
 ## Accumulated Context
 
 ### Decisions
 
-Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
-
-- Phase 1: Lock workbook/session contracts and filename preflight before ingest mutation paths.
-- Phase 2-5: Keep Excel as truth, with deterministic ingest -> classification -> audit -> tax outputs delivery order.
-- Phase 1 implementation used TDD-first workflow with an explicit turbo MCP contract (`list_accounts`) and Postel-style parsing normalization.
-- Phase 2 implementation pivoted to rustledger-compatible Beancount journal output for Git-native compatibility.
+- Continue phase numbering from prior milestone (starts at Phase 7).
+- New milestone centers on FDKMS integrity: docling ingestion + ontology + reconciliation + HSM + event sourcing.
+- Preserve local-first and accountant-auditable workflow guarantees.
 
 ### Pending Todos
 
-None yet.
+- Create Phase 7 CONTEXT/PLAN and begin implementation.
 
 ### Blockers/Concerns
 
-None yet.
+None recorded.
 
 ## Session Continuity
 
-Last session: 2026-03-28 00:00
-Stopped at: Phase 1 implementation complete; ready for Phase 2 planning
+Last session: 2026-03-29
+Stopped at: Milestone definition complete; next step `$gsd-plan-phase 7`
 Resume file: None
+

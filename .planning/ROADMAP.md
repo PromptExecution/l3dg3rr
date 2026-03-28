@@ -1,92 +1,91 @@
 # Roadmap: tax-ledger
 
+## Milestones
+
+- ✅ **v1.0 MVP** — Phases 1-6 shipped 2026-03-29 ([archive](./milestones/v1.0-ROADMAP.md))
+- 🚧 **v1.1 FDKMS Integrity** — Phases 7-12 (in progress)
+
 ## Overview
 
-This roadmap delivers a local-first, Excel-first tax ledger by locking contracts first, then shipping deterministic ingest/classification/audit flows, then packaging the system for repeatable local operation and release.
+Milestone v1.1 evolves l3dg3rr into a financial document management knowledge system (FDKMS) optimized for AI-assisted US expat tax workflows with ontology-structured truth, strict reconciliation guarantees, and event-sourced auditability.
 
 ## Phases
 
-**Phase Numbering:**
-- Integer phases (1, 2, 3): Planned milestone work
-- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
-
-- [x] **Phase 1: Contracts & Session Bootstrap** - Lock workbook/session contracts and input preflight before ledger mutation.
-- [ ] **Phase 2: Deterministic Ingestion Pipeline** - Convert renamed PDFs into idempotent transaction rows with source context linkage.
-- [ ] **Phase 3: Rule-Driven Classification & Flagging** - Apply/test Rhai rules and produce actionable review queues.
-- [ ] **Phase 4: Audit Integrity & Safe Reconciliation** - Enforce append-only mutation history and decimal-safe invariants.
-- [ ] **Phase 5: CPA Workbook Outputs** - Deliver Excel-native usability plus Schedule/FBAR summaries.
-- [ ] **Phase 6: Local Deployment & Release Readiness** - Containerize, version, and validate the full MVP behavior end to end.
+- [ ] **Phase 7: Docling Statement Ingestion Canonicalization** - Integrate docling/docling-mcp ingestion into deterministic canonical transaction candidates.
+- [ ] **Phase 8: Ontological Knowledge Graph Layer** - Persist/query ontology entities and relations for documents, transactions, and evidence chains.
+- [ ] **Phase 9: Double-Entry Reconciliation Gates** - Enforce balancing and reconciliation checks before transaction truth commitment.
+- [ ] **Phase 10: Moku Hierarchical State Machine Orchestration** - Implement guarded hierarchical pipeline state transitions and resumability.
+- [ ] **Phase 11: Disintegrate Event-Sourced Audit Backbone** - Persist and replay domain events for full lifecycle reconstruction and audit queries.
+- [ ] **Phase 12: US Expat Tax Agent Assist Surfaces** - Expose structured tax-assist outputs and explainable evidence retrieval for agents.
 
 ## Phase Details
 
-### Phase 1: Contracts & Session Bootstrap
-**Goal**: Users can start from a locked workbook/session contract and only ingest files that pass naming and validation gates.
-**Depends on**: Nothing (first phase)
-**Requirements**: CONT-01, CONT-02, CONT-03, CONT-04, MCP-06
-**Success Criteria** (what must be TRUE):
-  1. User can initialize a workbook with all required locked sheet names present and ready for downstream flows.
-  2. User can load session context from `manifest.toml` and list configured accounts without opening full workbook state.
-  3. User can submit only files matching the required naming convention, and malformed names are rejected before any data mutation.
-**Plans**: TBD
+### Phase 7: Docling Statement Ingestion Canonicalization
+**Goal**: Ingest statements via docling/docling-mcp into canonical transaction candidates with deterministic IDs and provenance.
+**Depends on**: Phase 6
+**Requirements**: DOC-01, DOC-02, DOC-03
+**Success Criteria**:
+  1. Statement ingestion via docling/docling-mcp yields canonical candidate rows with provenance metadata.
+  2. Canonical field mapping is deterministic and stable across re-runs.
+  3. Replaying same source produces no duplicate candidates.
 
-### Phase 2: Deterministic Ingestion Pipeline
-**Goal**: Users can ingest statement PDFs into deterministic workbook transactions with replay-safe IDs and source evidence retrieval.
-**Depends on**: Phase 1
-**Requirements**: ING-01, ING-02, ING-03, ING-04, MCP-01, MCP-05
-**Success Criteria** (what must be TRUE):
-  1. User can ingest a renamed statement PDF and get transaction rows in the correct `TX.<account-id>` sheet.
-  2. User can re-run ingest on the same statement and receive the same transaction IDs with no duplicate rows.
-  3. User can retrieve source document context from the `.rkyv` reference for any ingested transaction.
-**Plans**: TBD
+### Phase 8: Ontological Knowledge Graph Layer
+**Goal**: Build ontology entities/relations for document-to-transaction-to-tax semantics and machine-readable query.
+**Depends on**: Phase 7
+**Requirements**: ONTO-01, ONTO-02, ONTO-03
+**Success Criteria**:
+  1. Core ontology entities and relations persist with referential integrity.
+  2. Relationship queries cover full evidence chains.
+  3. Ontology data is serializable for AI agent workflows.
 
-### Phase 3: Rule-Driven Classification & Flagging
-**Goal**: Users can classify transactions from runtime-editable rules and maintain a reliable queue of records needing review.
-**Depends on**: Phase 2
-**Requirements**: CLSF-01, CLSF-02, CLSF-03, CLSF-04, MCP-03, MCP-07
-**Success Criteria** (what must be TRUE):
-  1. User can load and run Rhai classification rules at runtime, including testing candidate rules on sample transactions.
-  2. User can assign category and confidence per transaction through rule execution without recompiling the service.
-  3. User can produce and query unresolved/review flags by year and status through MCP.
-**Plans**: TBD
+### Phase 9: Double-Entry Reconciliation Gates
+**Goal**: Ensure no transaction commits without passing double-entry and reconciliation validations.
+**Depends on**: Phase 8
+**Requirements**: RECON-01, RECON-02, RECON-03
+**Success Criteria**:
+  1. Double-entry constraints block imbalanced commits.
+  2. Reconciliation checks validate source totals vs committed postings.
+  3. Invariant failures return explicit blocking diagnostics.
 
-### Phase 4: Audit Integrity & Safe Reconciliation
-**Goal**: Users can trust every transaction/classification mutation is auditable, replayable, and protected by strict money/invariant safety checks.
-**Depends on**: Phase 3
-**Requirements**: AUD-01, AUD-02, AUD-03, AUD-04, MCP-02
-**Success Criteria** (what must be TRUE):
-  1. User can see append-only audit entries for each mutation with timestamp, actor, field change, and old/new values.
-  2. User can update classifications in Excel and reconcile those edits back into the service with matching audit records.
-  3. User can rely on decimal-safe money operations and receive explicit errors when invariant checks fail.
-**Plans**: TBD
+### Phase 10: Moku Hierarchical State Machine Orchestration
+**Goal**: Represent pipeline lifecycle with moku HSM and enforce guarded/resumable transitions.
+**Depends on**: Phase 9
+**Requirements**: HSM-01, HSM-02, HSM-03
+**Success Criteria**:
+  1. Pipeline states and substates are encoded in moku HSM.
+  2. Invalid transitions are blocked by guard checks.
+  3. Interrupted runs resume from valid prior state.
 
-### Phase 5: CPA Workbook Outputs
-**Goal**: Users can hand accountants a workbook with usable transaction tables, controlled category entry, review flag sheets, and Schedule/FBAR summaries.
-**Depends on**: Phase 4
-**Requirements**: WB-01, WB-02, WB-03, TAX-01, TAX-02, TAX-03, TAX-04, MCP-04
-**Success Criteria** (what must be TRUE):
-  1. User can work with transaction tables using Excel-native filter/sort/pivot behavior.
-  2. User can select valid categories from workbook validation dropdowns backed by the taxonomy contract.
-  3. User can access unresolved and resolved flags in dedicated sheets.
-  4. User can generate and retrieve Schedule C, Schedule D, Schedule E, and FBAR summary outputs for CPA review.
-**Plans**: TBD
+### Phase 11: Disintegrate Event-Sourced Audit Backbone
+**Goal**: Persist/replay lifecycle events using disintegrate for reconstructable domain truth.
+**Depends on**: Phase 10
+**Requirements**: EVT-01, EVT-02, EVT-03
+**Success Criteria**:
+  1. Domain events are append-only and typed across lifecycle operations.
+  2. Entity state reconstruction from event streams is deterministic.
+  3. Audit history queries support transaction/document/time slicing.
 
-### Phase 6: Local Deployment & Release Readiness
-**Goal**: Users can run, verify, and version the MVP consistently as a local containerized product.
-**Depends on**: Phase 5
-**Requirements**: REL-01, REL-02, REL-03
-**Success Criteria** (what must be TRUE):
-  1. User can run the system locally in Docker with mounted workbook, rules, and tax-year directories.
-  2. User can create versioned releases and changelogs through the Cocogitto workflow.
-  3. User can execute an end-to-end MVP test that validates ingest, classify, audit, and schedule output behavior.
-**Plans**: TBD
+### Phase 12: US Expat Tax Agent Assist Surfaces
+**Goal**: Deliver ontology-backed, reconciled, explainable outputs for US expat tax AI agent workflows.
+**Depends on**: Phase 11
+**Requirements**: TAXA-01, TAXA-02, TAXA-03
+**Success Criteria**:
+  1. Schedule/FBAR tax-assist outputs derive from reconciled ontology truth.
+  2. Agents can retrieve explainable evidence chains for tax reasoning.
+  3. Ambiguous scenarios are flagged for human review with linked provenance.
 
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Contracts & Session Bootstrap | 1/1 | Complete | 2026-03-28 |
-| 2. Deterministic Ingestion Pipeline | 2/TBD | In Progress | - |
-| 3. Rule-Driven Classification & Flagging | 0/TBD | Not started | - |
-| 4. Audit Integrity & Safe Reconciliation | 0/TBD | Not started | - |
-| 5. CPA Workbook Outputs | 0/TBD | Not started | - |
-| 6. Local Deployment & Release Readiness | 0/TBD | Not started | - |
+| 7. Docling Statement Ingestion Canonicalization | 0/TBD | Not started | - |
+| 8. Ontological Knowledge Graph Layer | 0/TBD | Not started | - |
+| 9. Double-Entry Reconciliation Gates | 0/TBD | Not started | - |
+| 10. Moku Hierarchical State Machine Orchestration | 0/TBD | Not started | - |
+| 11. Disintegrate Event-Sourced Audit Backbone | 0/TBD | Not started | - |
+| 12. US Expat Tax Agent Assist Surfaces | 0/TBD | Not started | - |
+
+## Backlog
+
+- Phase 999.1: CI + Release Automation Hardening (deferred from prior cycle; can be promoted if needed)
+

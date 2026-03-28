@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main, milestone/**, feature/**]
+  pull_request:
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo test
+        run: cargo test --workspace --all-targets --all-features
+
+      - name: Run MVP E2E flow
+        run: ./scripts/e2e_mvp.sh
+
+      - name: Build container
+        run: docker build -t tax-ledger:ci .
+

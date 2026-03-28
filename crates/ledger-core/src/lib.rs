@@ -1,3 +1,4 @@
+pub mod classify;
 pub mod filename;
 pub mod ingest;
 pub mod journal;

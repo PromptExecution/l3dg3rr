@@ -118,6 +118,19 @@ Use these entry points:
 Do not make direct repo edits outside a GSD workflow unless the user explicitly asks to bypass it.
 <!-- GSD:workflow-end -->
 
+## Session Learning Capture (Mandatory)
+
+All future agents working in this repository must consider whether the session produced reusable guidance, tradeoff decisions, constraints, or lessons learned.
+
+When meaningful new guidance appears, agents must distill it into concise, durable entries in `AGENTS.md` so it persists across sessions.
+
+Capture should focus on:
+- User-stated preferences that affect implementation or process
+- Architectural or workflow decisions with lasting impact
+- Pitfalls discovered and the preferred resolution pattern
+
+Avoid noisy transcript-style notes. Record only stable guidance that improves future execution quality.
+
 
 
 <!-- GSD:profile-start -->

@@ -8,22 +8,35 @@ tax-ledger is a local-first personal financial document intelligence system focu
 
 Convert raw historical financial PDFs into accountant-usable, auditable Excel tax records without sending private data to third-party SaaS.
 
+## Current Milestone: v1.1 FDKMS Integrity
+
+**Goal:** Evolve l3dg3rr into a financial document management knowledge system (FDKMS) that gives AI agents high-confidence, reconcilable, ontology-structured transaction truth for US expat tax workflows.
+
+**Target features:**
+- Docling/docling-mcp driven statement ingestion normalization with provenance.
+- Ontological data model for accounts, entities, documents, events, and tax semantics.
+- Error-intolerant verification pipeline using double-entry reconciliation, Moku hierarchical state machine, and Disintegrate event log.
+
 ## Requirements
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ Contract-first workbook/session bootstrap and filename preflight — v1.0
+- ✓ Deterministic ingest with source-evidence retrieval — v1.0
+- ✓ Runtime Rhai classification and review queue workflows — v1.0
+- ✓ Append-only mutation audit and reconciliation pathways — v1.0
+- ✓ CPA workbook outputs and Schedule/FBAR summaries — v1.0
+- ✓ MCP operator surface for ingest/classify/query/summary/context — v1.0
+- ✓ Local containerized run path with CI/release automation — v1.0
 
 ### Active
 
-- [ ] Ingest renamed statement PDFs and write deterministic transaction rows into `TX.*` sheets in `tax-ledger.xlsx`
-- [ ] Enforce strict monetary correctness with `rust_decimal` domain types and no floating-point money usage
-- [ ] Apply Rhai classification rules from git-tracked rule files and persist category + confidence outputs
-- [ ] Persist append-only audit history for all transaction mutations and classification changes
-- [ ] Generate workbook schema with locked sheet names, table formatting, and Excel validation dropdowns from enum-backed taxonomy
-- [ ] Produce Schedule C/D/E and FBAR-focused outputs from workbook data in CPA-reviewable form
-- [ ] Expose stable MCP tool surface for ingest/classify/query/summary/context workflows
-- [ ] Support containerized local deployment and reproducible versioned releases
+- [ ] Build docling/docling-mcp ingestion workflow for statements with deterministic extraction + source provenance.
+- [ ] Define and persist FDKMS ontology entities/relations for financial document knowledge operations.
+- [ ] Implement double-entry validation and automated reconciliation gates to prevent transaction drift.
+- [ ] Orchestrate ingestion/classification/reconciliation lifecycle with `moku` hierarchical state machine.
+- [ ] Persist mutation and pipeline lifecycle events via `disintegrate` event-sourcing audit log.
+- [ ] Deliver AI-assist surfaces for US expat tax scenarios using ontology-backed query and evidence retrieval.
 
 ### Out of Scope
 
@@ -34,7 +47,7 @@ Convert raw historical financial PDFs into accountant-usable, auditable Excel ta
 
 ## Context
 
-Primary use case is catching up three years of unfiled U.S. expat returns with CPA handoff constraints. The architecture is intentionally Excel-centric (`rust_xlsxwriter` write path + `calamine` read path), with AI-assisted classification through MCP tooling and human audit in spreadsheet form. Core technical choices from the brief include: `rkyv` document snapshots for rapid source-context retrieval, `blake3` content-addressed transaction IDs for idempotent re-ingest, `rhai` for runtime-editable classification logic, and HelixDB as a query projection over workbook truth. The design must maintain deterministic ingest, schema-bound validation, and a transparent audit trail suitable for accountant review.
+Primary use case remains catching up unfiled U.S. expat returns with CPA handoff constraints. v1.0 shipped the end-to-end local-first MVP: deterministic ingest, runtime classification, audit-safe mutation history, workbook outputs, schedule summaries, and CI/release readiness. Next evolution focuses on v2 graph/API/UI extension work while preserving workbook-as-truth and deterministic financial behavior.
 
 ## Constraints
 
@@ -49,14 +62,14 @@ Primary use case is catching up three years of unfiled U.S. expat returns with C
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Excel is the primary audit and handoff interface | Matches CPA workflows and practical auditability expectations | — Pending |
-| `rust_xlsxwriter` + `calamine` for workbook roundtrip | Strong write features plus pure-Rust cross-platform read path | — Pending |
-| `rkyv` snapshot sidecars for parsed document context | Fast, bounded-context retrieval for agent verification workflows | — Pending |
-| Rhai scripts for classification/flag logic | Runtime-editable, diffable rules without recompilation | — Pending |
-| Rustledger-compatible plain-text journal as ingest persistence layer | Maximizes Git-native diffability and plain-text accounting interoperability | — Pending |
-| HelixDB is projection over workbook truth | Relationship queries without displacing accountant-facing source of truth | — Pending |
-| Local-first architecture (no Postgres/cloud dependency) | Privacy and low-ops constraints from use case | — Pending |
-| MCP wrapper is first-class integration contract | Agent operation depends on stable callable tool semantics | — Pending |
+| Excel is the primary audit and handoff interface | Matches CPA workflows and practical auditability expectations | ✓ Adopted in v1.0 |
+| `rust_xlsxwriter` + `calamine` for workbook roundtrip | Strong write features plus pure-Rust cross-platform read path | ✓ Adopted in v1.0 |
+| `rkyv` snapshot sidecars for parsed document context | Fast, bounded-context retrieval for agent verification workflows | ✓ Adopted in v1.0 |
+| Rhai scripts for classification/flag logic | Runtime-editable, diffable rules without recompilation | ✓ Adopted in v1.0 |
+| Rustledger-compatible plain-text journal as ingest persistence layer | Maximizes Git-native diffability and plain-text accounting interoperability | ✓ Adopted in v1.0 |
+| HelixDB is projection over workbook truth | Relationship queries without displacing accountant-facing source of truth | — Pending v2 |
+| Local-first architecture (no Postgres/cloud dependency) | Privacy and low-ops constraints from use case | ✓ Adopted in v1.0 |
+| MCP wrapper is first-class integration contract | Agent operation depends on stable callable tool semantics | ✓ Adopted in v1.0 |
 
 ## Evolution
 
@@ -76,4 +89,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-28 after initialization*
+*Last updated: 2026-03-29 after v1.1 milestone kickoff*
