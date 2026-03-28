@@ -379,19 +379,52 @@ impl TurboLedgerTools for TurboLedgerService {
             .ok_or_else(|| ToolError::InvalidInput("pdf_path must have a valid filename".to_string()))?;
         let _parsed = self.validate_source_filename(file_name)?;
 
+        // Derive the allowed base directory from the workbook path to prevent path traversal.
+        let allowed_base = request
+            .workbook_path
+            .parent()
+            .ok_or_else(|| ToolError::InvalidInput("workbook_path must have a parent directory".to_string()))?
+            .to_path_buf();
+
         for row in &request.extracted_rows {
             let source_path = std::path::Path::new(&row.source_ref);
-            if source_path.exists() {
+            let resolved = if source_path.is_absolute() {
+                // Absolute paths are allowed only if they reside within the allowed base directory.
+                // Reject any `..` components that could escape the base via lexical traversal.
+                if source_path.components().any(|c| c == std::path::Component::ParentDir) {
+                    return Err(ToolError::InvalidInput(format!(
+                        "source_ref '{}' contains path traversal components",
+                        row.source_ref
+                    )));
+                }
+                if !source_path.starts_with(&allowed_base) {
+                    return Err(ToolError::InvalidInput(format!(
+                        "source_ref '{}' resolves outside the allowed directory",
+                        row.source_ref
+                    )));
+                }
+                source_path.to_path_buf()
+            } else {
+                // Relative paths must not contain `..` components.
+                if source_path.components().any(|c| c == std::path::Component::ParentDir) {
+                    return Err(ToolError::InvalidInput(format!(
+                        "source_ref '{}' contains path traversal components",
+                        row.source_ref
+                    )));
+                }
+                allowed_base.join(source_path)
+            };
+            if resolved.exists() {
                 continue;
             }
-            if let Some(parent) = source_path.parent() {
+            if let Some(parent) = resolved.parent() {
                 std::fs::create_dir_all(parent).map_err(|e| ToolError::Internal(e.to_string()))?;
             }
             let bytes = request
                 .raw_context_bytes
                 .as_deref()
                 .ok_or_else(|| ToolError::InvalidInput("raw_context_bytes required when source_ref file does not exist".to_string()))?;
-            std::fs::write(source_path, bytes).map_err(|e| ToolError::Internal(e.to_string()))?;
+            std::fs::write(&resolved, bytes).map_err(|e| ToolError::Internal(e.to_string()))?;
         }
 
         let response = self.ingest_statement_rows(IngestStatementRowsRequest {
@@ -452,18 +485,53 @@ impl TurboLedgerTools for TurboLedgerService {
             .classify_rows_from_file(&request.rule_file, &rows, request.review_threshold)
             .map_err(|e| ToolError::InvalidInput(e.to_string()))?;
 
+        let timestamp = now_timestamp();
+        let mut results = Vec::with_capacity(batch.classifications.len());
+        for c in batch.classifications {
+            let confidence = Decimal::try_from(c.confidence)
+                .unwrap_or(Decimal::ZERO);
+            let old = classification.classifications.get(&c.tx_id).cloned();
+            // Emit audit entries for every change, including first classifications (old_value: None).
+            if old.as_ref().map(|e| e.category.as_str()) != Some(c.category.as_str()) {
+                classification.audit_log.push(AuditEntry {
+                    timestamp: timestamp.clone(),
+                    actor: "rhai-rule".to_string(),
+                    tx_id: c.tx_id.clone(),
+                    field: "category".to_string(),
+                    old_value: old.as_ref().map(|e| e.category.clone()),
+                    new_value: c.category.clone(),
+                    note: Some(c.reason.clone()),
+                });
+            }
+            if old.as_ref().map(|e| e.confidence) != Some(confidence) {
+                classification.audit_log.push(AuditEntry {
+                    timestamp: timestamp.clone(),
+                    actor: "rhai-rule".to_string(),
+                    tx_id: c.tx_id.clone(),
+                    field: "confidence".to_string(),
+                    old_value: old.as_ref().map(|e| e.confidence.to_string()),
+                    new_value: confidence.to_string(),
+                    note: Some(c.reason.clone()),
+                });
+            }
+            classification.classifications.insert(
+                c.tx_id.clone(),
+                StoredClassification {
+                    category: c.category.clone(),
+                    confidence,
+                },
+            );
+            results.push(ClassifiedTxResponse {
+                tx_id: c.tx_id,
+                category: c.category,
+                confidence: c.confidence,
+                needs_review: c.needs_review,
+                reason: c.reason,
+            });
+        }
+
         Ok(ClassifyIngestedResponse {
-            classifications: batch
-                .classifications
-                .into_iter()
-                .map(|c| ClassifiedTxResponse {
-                    tx_id: c.tx_id,
-                    category: c.category,
-                    confidence: c.confidence,
-                    needs_review: c.needs_review,
-                    reason: c.reason,
-                })
-                .collect(),
+            classifications: results,
         })
     }
 
@@ -609,6 +677,8 @@ impl TurboLedgerTools for TurboLedgerService {
             .lock()
             .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?;
 
+        let active_year = self.manifest.session.active_year;
+
         let mut workbook = Workbook::new();
         workbook.add_worksheet().set_name("CAT.taxonomy").map_err(map_xlsx)?;
         workbook.add_worksheet().set_name("FLAGS.open").map_err(map_xlsx)?;
@@ -620,6 +690,8 @@ impl TurboLedgerTools for TurboLedgerService {
             .add_worksheet()
             .set_name("FBAR.accounts")
             .map_err(map_xlsx)?;
+        // 7 fixed base sheets written so far; TX.* sheets are added per account below.
+        let mut sheets_written: usize = 7;
 
         let mut categories = BTreeSet::new();
         categories.insert("Uncategorized".to_string());
@@ -648,6 +720,7 @@ impl TurboLedgerTools for TurboLedgerService {
         for (account, rows) in by_account {
             let sheet_name = format!("TX.{account}");
             let ws = workbook.add_worksheet().set_name(sheet_name).map_err(map_xlsx)?;
+            sheets_written += 1;
             ws.write_string(0, 0, "tx_id").map_err(map_xlsx)?;
             ws.write_string(0, 1, "date").map_err(map_xlsx)?;
             ws.write_string(0, 2, "amount").map_err(map_xlsx)?;
@@ -681,8 +754,8 @@ impl TurboLedgerTools for TurboLedgerService {
             }
         }
 
-        let open_flags = classification.engine.query_flags(2023, FlagStatus::Open);
-        let resolved_flags = classification.engine.query_flags(2023, FlagStatus::Resolved);
+        let open_flags = classification.engine.query_flags(active_year as i32, FlagStatus::Open);
+        let resolved_flags = classification.engine.query_flags(active_year as i32, FlagStatus::Resolved);
         {
             let ws = workbook.worksheet_from_name("FLAGS.open").map_err(map_xlsx)?;
             ws.write_string(0, 0, "tx_id").map_err(map_xlsx)?;
@@ -703,7 +776,7 @@ impl TurboLedgerTools for TurboLedgerService {
         }
 
         workbook.save(&request.workbook_path).map_err(map_xlsx)?;
-        Ok(ExportCpaWorkbookResponse { sheets_written: 7 })
+        Ok(ExportCpaWorkbookResponse { sheets_written })
     }
 
     fn get_schedule_summary(

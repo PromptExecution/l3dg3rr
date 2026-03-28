@@ -7,7 +7,7 @@ license.workspace = true
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
-rust_xlsxwriter = "0.79"
+rust_xlsxwriter = { workspace = true }
 calamine = "0.26"
 thiserror = "1"
 blake3 = "1"

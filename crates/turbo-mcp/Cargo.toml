@@ -7,7 +7,7 @@ license.workspace = true
 [dependencies]
 ledger-core = { path = "../ledger-core" }
 rust_decimal = "1.41.0"
-rust_xlsxwriter = "0.94.0"
+rust_xlsxwriter = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 thiserror = "1"
 

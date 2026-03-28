@@ -2,11 +2,9 @@
 set -euo pipefail
 
 echo "[e2e] running behavior-driven MVP flow tests"
-cargo test -p turbo-mcp --test e2e_bdd -- --nocapture
-cargo test -p turbo-mcp --test e2e_mvp_flow -- --nocapture
-cargo test -p turbo-mcp --test phase3_mcp_classification -- --nocapture
-cargo test -p turbo-mcp --test phase4_audit_integrity -- --nocapture
-cargo test -p turbo-mcp --test phase5_cpa_outputs -- --nocapture
+for test in e2e_bdd e2e_mvp_flow phase3_mcp_classification phase4_audit_integrity phase5_cpa_outputs; do
+    cargo test -p turbo-mcp --test "$test" -- --nocapture
+done
 
 echo "[e2e] all flow tests passed"
 
