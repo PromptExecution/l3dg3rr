@@ -21,6 +21,7 @@ pub struct ListAccountsResponse {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IngestStatementRowsRequest {
     pub journal_path: PathBuf,
+    pub workbook_path: PathBuf,
     pub rows: Vec<TransactionInput>,
 }
 
@@ -34,6 +35,8 @@ pub struct IngestStatementRowsResponse {
 pub struct IngestPdfRequest {
     pub pdf_path: String,
     pub journal_path: PathBuf,
+    pub workbook_path: PathBuf,
+    pub raw_context_bytes: Option<Vec<u8>>,
     pub extracted_rows: Vec<TransactionInput>,
 }
 
@@ -131,7 +134,11 @@ impl TurboLedgerTools for TurboLedgerService {
             .lock()
             .map_err(|_| ToolError::Internal("ingest lock poisoned".to_string()))?;
         let inserted = state
-            .ingest_to_journal(&request.rows, &request.journal_path)
+            .ingest_to_journal_and_workbook(
+                &request.rows,
+                &request.journal_path,
+                &request.workbook_path,
+            )
             .map_err(|e| ToolError::Internal(e.to_string()))?;
         let tx_ids = inserted.iter().map(|row| row.tx_id.clone()).collect::<Vec<_>>();
         Ok(IngestStatementRowsResponse {
@@ -146,8 +153,25 @@ impl TurboLedgerTools for TurboLedgerService {
             .and_then(|name| name.to_str())
             .ok_or_else(|| ToolError::InvalidInput("pdf_path must have a valid filename".to_string()))?;
         let _parsed = self.validate_source_filename(file_name)?;
+
+        for row in &request.extracted_rows {
+            let source_path = std::path::Path::new(&row.source_ref);
+            if source_path.exists() {
+                continue;
+            }
+            if let Some(parent) = source_path.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| ToolError::Internal(e.to_string()))?;
+            }
+            let bytes = request
+                .raw_context_bytes
+                .as_deref()
+                .ok_or_else(|| ToolError::InvalidInput("raw_context_bytes required when source_ref file does not exist".to_string()))?;
+            std::fs::write(source_path, bytes).map_err(|e| ToolError::Internal(e.to_string()))?;
+        }
+
         let response = self.ingest_statement_rows(IngestStatementRowsRequest {
             journal_path: request.journal_path,
+            workbook_path: request.workbook_path,
             rows: request.extracted_rows,
         })?;
         Ok(IngestPdfResponse {

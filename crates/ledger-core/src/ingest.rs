@@ -1,7 +1,8 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use crate::journal::{append_entries, JournalTransaction};
+use crate::workbook::{materialize_tx_projection, TxProjectionRow};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransactionInput {
@@ -21,6 +22,7 @@ pub struct IngestedTransaction {
 #[derive(Debug, Default)]
 pub struct IngestedLedger {
     seen: BTreeSet<String>,
+    projection_rows: Vec<TxProjectionRow>,
 }
 
 impl IngestedLedger {
@@ -55,6 +57,40 @@ impl IngestedLedger {
             })
             .collect();
         append_entries(journal_path, &entries)?;
+        Ok(inserted)
+    }
+
+    pub fn ingest_to_journal_and_workbook(
+        &mut self,
+        rows: &[TransactionInput],
+        journal_path: &Path,
+        workbook_path: &Path,
+    ) -> Result<Vec<IngestedTransaction>, std::io::Error> {
+        let inserted = self.ingest_to_journal(rows, journal_path)?;
+        if inserted.is_empty() {
+            return Ok(inserted);
+        }
+
+        let mut by_id = BTreeMap::<String, &TransactionInput>::new();
+        for row in rows {
+            by_id.insert(deterministic_tx_id(row), row);
+        }
+
+        for tx in &inserted {
+            if let Some(row) = by_id.get(&tx.tx_id) {
+                self.projection_rows.push(TxProjectionRow {
+                    tx_id: tx.tx_id.clone(),
+                    account_id: row.account_id.clone(),
+                    date: row.date.clone(),
+                    amount: row.amount.clone(),
+                    description: row.description.clone(),
+                    source_ref: row.source_ref.clone(),
+                });
+            }
+        }
+
+        materialize_tx_projection(workbook_path, &self.projection_rows)
+            .map_err(|e| std::io::Error::other(e.to_string()))?;
         Ok(inserted)
     }
 }

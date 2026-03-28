@@ -66,6 +66,7 @@ active_year = 2023
     let service = TurboLedgerService::from_manifest_str(manifest).unwrap();
     let tmp = tempfile::tempdir().unwrap();
     let journal_path = tmp.path().join("ledger.beancount");
+    let workbook_path = tmp.path().join("tax-ledger.xlsx");
 
     let rows = vec![TransactionInput {
         account_id: "WF-BH-CHK".to_string(),
@@ -78,12 +79,14 @@ active_year = 2023
     let first = service
         .ingest_statement_rows(IngestStatementRowsRequest {
             journal_path: journal_path.clone(),
+            workbook_path: workbook_path.clone(),
             rows: rows.clone(),
         })
         .unwrap();
     let second = service
         .ingest_statement_rows(IngestStatementRowsRequest {
             journal_path: journal_path.clone(),
+            workbook_path,
             rows,
         })
         .unwrap();
@@ -105,17 +108,20 @@ active_year = 2023
     let service = TurboLedgerService::from_manifest_str(manifest).unwrap();
     let tmp = tempfile::tempdir().unwrap();
     let journal_path = tmp.path().join("ledger.beancount");
+    let workbook_path = tmp.path().join("tax-ledger.xlsx");
 
     let response = service
         .ingest_pdf(IngestPdfRequest {
             pdf_path: "WF--BH-CHK--2023-01--statement.pdf".to_string(),
             journal_path,
+            workbook_path,
+            raw_context_bytes: Some(b"ctx".to_vec()),
             extracted_rows: vec![TransactionInput {
                 account_id: "WF-BH-CHK".to_string(),
                 date: "2023-01-15".to_string(),
                 amount: "-42.11".to_string(),
                 description: "Coffee Shop".to_string(),
-                source_ref: "2023-taxes/WF--BH-CHK--2023-01--statement.rkyv".to_string(),
+                source_ref: tmp.path().join("ctx.rkyv").display().to_string(),
             }],
         })
         .unwrap();

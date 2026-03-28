@@ -3,7 +3,7 @@ phase: 02-deterministic-ingestion-pipeline
 plan: 01
 type: execute
 wave: 1
-depends_on: ["01-contracts-session-bootstrap"]
+depends_on: []
 files_modified:
   - crates/ledger-core/Cargo.toml
   - crates/ledger-core/src/ingest.rs

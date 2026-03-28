@@ -14,10 +14,10 @@
 
 ### Ingestion
 
-- [ ] **ING-01**: User can ingest a renamed statement PDF from disk and materialize transaction rows into the corresponding `TX.<account-id>` sheet
-- [ ] **ING-02**: User can re-ingest the same statement without duplicate transactions (idempotent behavior)
-- [ ] **ING-03**: User can persist parsed document context as a `.rkyv` snapshot alongside the source PDF
-- [ ] **ING-04**: User can trace each ingested transaction back to its source document reference
+- [x] **ING-01**: User can ingest a renamed statement PDF from disk and materialize transaction rows into the corresponding `TX.<account-id>` sheet
+- [x] **ING-02**: User can re-ingest the same statement without duplicate transactions (idempotent behavior)
+- [x] **ING-03**: User can persist parsed document context as a `.rkyv` snapshot alongside the source PDF
+- [x] **ING-04**: User can trace each ingested transaction back to its source document reference
 
 ### Classification
 
@@ -48,11 +48,11 @@
 
 ### MCP Interface
 
-- [ ] **MCP-01**: User can call `ingest_pdf(path)` through MCP and receive deterministic transaction IDs
+- [x] **MCP-01**: User can call `ingest_pdf(path)` through MCP and receive deterministic transaction IDs
 - [ ] **MCP-02**: User can call `classify_transaction(tx_id, category, confidence, note)` through MCP and record audit output
 - [ ] **MCP-03**: User can call `query_flags(year, status)` through MCP and retrieve actionable review queue data
 - [ ] **MCP-04**: User can call `get_schedule_summary(year, schedule)` through MCP for CPA-facing summaries
-- [ ] **MCP-05**: User can call `get_raw_context(rkyv_ref)` through MCP for source evidence lookup
+- [x] **MCP-05**: User can call `get_raw_context(rkyv_ref)` through MCP for source evidence lookup
 - [x] **MCP-06**: User can call `list_accounts()` through MCP to enumerate configured account definitions
 - [ ] **MCP-07**: User can call `run_rhai_rule(rule_file, sample_tx)` through MCP for rule validation workflows
 
@@ -99,10 +99,10 @@
 | CONT-02 | Phase 1 | Complete |
 | CONT-03 | Phase 1 | Complete |
 | CONT-04 | Phase 1 | Complete |
-| ING-01 | Phase 2 | Pending |
-| ING-02 | Phase 2 | Pending |
-| ING-03 | Phase 2 | Pending |
-| ING-04 | Phase 2 | Pending |
+| ING-01 | Phase 2 | Complete |
+| ING-02 | Phase 2 | Complete |
+| ING-03 | Phase 2 | Complete |
+| ING-04 | Phase 2 | Complete |
 | CLSF-01 | Phase 3 | Pending |
 | CLSF-02 | Phase 3 | Pending |
 | CLSF-03 | Phase 3 | Pending |
@@ -118,11 +118,11 @@
 | TAX-02 | Phase 5 | Pending |
 | TAX-03 | Phase 5 | Pending |
 | TAX-04 | Phase 5 | Pending |
-| MCP-01 | Phase 2 | Pending |
+| MCP-01 | Phase 2 | Complete |
 | MCP-02 | Phase 4 | Pending |
 | MCP-03 | Phase 3 | Pending |
 | MCP-04 | Phase 5 | Pending |
-| MCP-05 | Phase 2 | Pending |
+| MCP-05 | Phase 2 | Complete |
 | MCP-06 | Phase 1 | Complete |
 | MCP-07 | Phase 3 | Pending |
 | REL-01 | Phase 6 | Pending |
@@ -136,4 +136,4 @@
 
 ---
 *Requirements defined: 2026-03-28*
-*Last updated: 2026-03-28 after Phase 1 contract bootstrap implementation*
+*Last updated: 2026-03-29 after Phase 2 deterministic ingestion completion verification*
