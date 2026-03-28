@@ -30,6 +30,29 @@ pub struct IngestStatementRowsResponse {
     pub tx_ids: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IngestPdfRequest {
+    pub pdf_path: String,
+    pub journal_path: PathBuf,
+    pub extracted_rows: Vec<TransactionInput>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IngestPdfResponse {
+    pub inserted_count: usize,
+    pub tx_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GetRawContextRequest {
+    pub rkyv_ref: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GetRawContextResponse {
+    pub bytes: Vec<u8>,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ToolError {
     #[error("invalid input: {0}")]
@@ -51,6 +74,9 @@ pub trait TurboLedgerTools {
         &self,
         request: IngestStatementRowsRequest,
     ) -> Result<IngestStatementRowsResponse, ToolError>;
+    fn ingest_pdf(&self, request: IngestPdfRequest) -> Result<IngestPdfResponse, ToolError>;
+    fn get_raw_context(&self, request: GetRawContextRequest)
+        -> Result<GetRawContextResponse, ToolError>;
 }
 
 pub struct TurboLedgerService {
@@ -112,5 +138,29 @@ impl TurboLedgerTools for TurboLedgerService {
             inserted_count: tx_ids.len(),
             tx_ids,
         })
+    }
+
+    fn ingest_pdf(&self, request: IngestPdfRequest) -> Result<IngestPdfResponse, ToolError> {
+        let file_name = std::path::Path::new(&request.pdf_path)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| ToolError::InvalidInput("pdf_path must have a valid filename".to_string()))?;
+        let _parsed = self.validate_source_filename(file_name)?;
+        let response = self.ingest_statement_rows(IngestStatementRowsRequest {
+            journal_path: request.journal_path,
+            rows: request.extracted_rows,
+        })?;
+        Ok(IngestPdfResponse {
+            inserted_count: response.inserted_count,
+            tx_ids: response.tx_ids,
+        })
+    }
+
+    fn get_raw_context(
+        &self,
+        request: GetRawContextRequest,
+    ) -> Result<GetRawContextResponse, ToolError> {
+        let bytes = std::fs::read(&request.rkyv_ref).map_err(|e| ToolError::Internal(e.to_string()))?;
+        Ok(GetRawContextResponse { bytes })
     }
 }

@@ -1,5 +1,8 @@
 use ledger_core::ingest::TransactionInput;
-use turbo_mcp::{IngestStatementRowsRequest, ListAccountsRequest, TurboLedgerService, TurboLedgerTools};
+use turbo_mcp::{
+    GetRawContextRequest, IngestPdfRequest, IngestStatementRowsRequest, ListAccountsRequest,
+    TurboLedgerService, TurboLedgerTools,
+};
 
 #[test]
 fn list_accounts_is_stable_and_obvious() {
@@ -90,4 +93,51 @@ active_year = 2023
 
     let content = std::fs::read_to_string(journal_path).unwrap();
     assert!(content.contains("txid:"));
+}
+
+#[test]
+fn ingest_pdf_validates_filename_and_ingests_rows() {
+    let manifest = r#"
+[session]
+workbook_path = "tax-ledger.xlsx"
+active_year = 2023
+"#;
+    let service = TurboLedgerService::from_manifest_str(manifest).unwrap();
+    let tmp = tempfile::tempdir().unwrap();
+    let journal_path = tmp.path().join("ledger.beancount");
+
+    let response = service
+        .ingest_pdf(IngestPdfRequest {
+            pdf_path: "WF--BH-CHK--2023-01--statement.pdf".to_string(),
+            journal_path,
+            extracted_rows: vec![TransactionInput {
+                account_id: "WF-BH-CHK".to_string(),
+                date: "2023-01-15".to_string(),
+                amount: "-42.11".to_string(),
+                description: "Coffee Shop".to_string(),
+                source_ref: "2023-taxes/WF--BH-CHK--2023-01--statement.rkyv".to_string(),
+            }],
+        })
+        .unwrap();
+
+    assert_eq!(response.inserted_count, 1);
+    assert_eq!(response.tx_ids.len(), 1);
+}
+
+#[test]
+fn get_raw_context_reads_rkyv_reference_bytes() {
+    let manifest = r#"
+[session]
+workbook_path = "tax-ledger.xlsx"
+active_year = 2023
+"#;
+    let service = TurboLedgerService::from_manifest_str(manifest).unwrap();
+    let tmp = tempfile::tempdir().unwrap();
+    let rkyv_ref = tmp.path().join("sample.rkyv");
+    std::fs::write(&rkyv_ref, b"rkyv-bytes").unwrap();
+
+    let response = service
+        .get_raw_context(GetRawContextRequest { rkyv_ref })
+        .unwrap();
+    assert_eq!(response.bytes, b"rkyv-bytes");
 }
