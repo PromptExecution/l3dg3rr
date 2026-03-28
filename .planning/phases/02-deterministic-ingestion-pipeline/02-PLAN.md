@@ -84,10 +84,17 @@ Output: passing Phase 2 TDD/integration tests for ING-01..04 + MCP-01/MCP-05 wit
 - [ ] Task 3 (depends on Task 2): Finalize MCP contracts and run full verification suite for Phase 2 requirements.
 </task_checklist>
 
+<requirements_traceability>
+- Task 1 covers ING-01, ING-02, ING-03, ING-04, MCP-01, MCP-05 by defining failing behavior tests.
+- Task 2 implements ING-01, ING-02, ING-03, ING-04 in `ledger-core` per D-01/D-02/D-03/D-04/D-05.
+- Task 3 implements/verifies MCP-01 and MCP-05 against the completed core ingest path.
+</requirements_traceability>
+
 <tasks>
 
 <task type="auto" tdd="true">
   <name>Task 1: Define remaining Phase 2 behavior as failing tests</name>
+  <read_first>.planning/phases/02-deterministic-ingestion-pipeline/02-CONTEXT.md, .planning/phases/02-deterministic-ingestion-pipeline/02-RESEARCH.md, crates/ledger-core/tests, crates/turbo-mcp/tests, crates/ledger-core/src/ingest.rs, crates/turbo-mcp/src/lib.rs</read_first>
   <files>crates/ledger-core/tests/phase2_ingest_pipeline_remaining.rs, crates/turbo-mcp/tests/phase2_mcp_contract_remaining.rs</files>
   <behavior>
     - Test 1 (ING-01, D-05): ingest from contract-valid PDF path writes Beancount entry and materializes `TX.<account-id>` row state.
@@ -100,11 +107,18 @@ Output: passing Phase 2 TDD/integration tests for ING-01..04 + MCP-01/MCP-05 wit
   <verify>
     <automated>cargo test -p ledger-core phase2_ingest_pipeline_remaining -- --nocapture ; cargo test -p turbo-mcp phase2_mcp_contract_remaining -- --nocapture</automated>
   </verify>
+  <acceptance_criteria>
+    - `rg -n "ING-01|ING-02|ING-03|ING-04" crates/ledger-core/tests/phase2_ingest_pipeline_remaining.rs` returns at least 4 matches.
+    - `rg -n "MCP-01|MCP-05" crates/turbo-mcp/tests/phase2_mcp_contract_remaining.rs` returns at least 2 matches.
+    - `cargo test -p ledger-core phase2_ingest_pipeline_remaining -- --nocapture` fails due to newly added RED-phase assertions.
+    - `cargo test -p turbo-mcp phase2_mcp_contract_remaining -- --nocapture` fails due to newly added RED-phase assertions.
+  </acceptance_criteria>
   <done>New tests fail for expected missing functionality and clearly describe required deterministic ingest behavior.</done>
 </task>
 
 <task type="auto" tdd="true">
   <name>Task 2: Implement deterministic ingest pipeline completion (core + persistence)</name>
+  <read_first>crates/ledger-core/src/ingest.rs, crates/ledger-core/src/journal.rs, crates/ledger-core/src/workbook.rs, crates/ledger-core/src/lib.rs, crates/ledger-core/tests/phase2_ingest_pipeline_remaining.rs, .planning/phases/02-deterministic-ingestion-pipeline/02-CONTEXT.md</read_first>
   <files>crates/ledger-core/Cargo.toml, crates/ledger-core/src/ingest.rs, crates/ledger-core/src/journal.rs, crates/ledger-core/src/workbook.rs, crates/ledger-core/src/lib.rs</files>
   <behavior>
     - Ingest path validates source filename before mutation (D-01).
@@ -117,11 +131,18 @@ Output: passing Phase 2 TDD/integration tests for ING-01..04 + MCP-01/MCP-05 wit
   <verify>
     <automated>cargo test -p ledger-core phase2_ingest -- --nocapture ; cargo test -p ledger-core phase2_rustledger_journal -- --nocapture ; cargo test -p ledger-core phase2_ingest_pipeline_remaining -- --nocapture</automated>
   </verify>
+  <acceptance_criteria>
+    - `cargo test -p ledger-core phase2_ingest -- --nocapture` passes.
+    - `cargo test -p ledger-core phase2_rustledger_journal -- --nocapture` passes.
+    - `cargo test -p ledger-core phase2_ingest_pipeline_remaining -- --nocapture` passes.
+    - `rg -n "source_ref|rkyv" crates/ledger-core/src/ingest.rs crates/ledger-core/src/journal.rs crates/ledger-core/src/workbook.rs` returns references in all ingest surfaces.
+  </acceptance_criteria>
   <done>All ledger-core ingest tests pass with deterministic/replay-safe behavior and explicit source evidence linkage.</done>
 </task>
 
 <task type="auto" tdd="true">
   <name>Task 3: Finalize MCP ingest/raw-context contract and run requirement-level verification</name>
+  <read_first>crates/turbo-mcp/src/lib.rs, crates/turbo-mcp/tests/interface.rs, crates/turbo-mcp/tests/phase2_mcp_contract_remaining.rs, crates/ledger-core/src/ingest.rs, .planning/phases/02-deterministic-ingestion-pipeline/02-RESEARCH.md</read_first>
   <files>crates/turbo-mcp/src/lib.rs, crates/turbo-mcp/tests/phase2_mcp_contract_remaining.rs, crates/turbo-mcp/tests/interface.rs</files>
   <behavior>
     - MCP `ingest_pdf` contract executes deterministic ingest flow and returns deterministic tx IDs (MCP-01).
@@ -132,6 +153,12 @@ Output: passing Phase 2 TDD/integration tests for ING-01..04 + MCP-01/MCP-05 wit
   <verify>
     <automated>cargo test -p turbo-mcp -- --nocapture ; cargo test --workspace -- --nocapture</automated>
   </verify>
+  <acceptance_criteria>
+    - `cargo test -p turbo-mcp -- --nocapture` passes.
+    - `cargo test --workspace -- --nocapture` passes.
+    - `rg -n "ingest_pdf|get_raw_context" crates/turbo-mcp/src/lib.rs` confirms both MCP contracts are implemented in a thin adapter path.
+    - `rg -n "MCP-01|MCP-05" crates/turbo-mcp/tests/phase2_mcp_contract_remaining.rs crates/turbo-mcp/tests/interface.rs` confirms requirement-tagged coverage.
+  </acceptance_criteria>
   <done>All MCP and workspace tests pass; Phase 2 requirements ING-01/02/03/04 and MCP-01/05 are verifiably satisfied.</done>
 </task>
 

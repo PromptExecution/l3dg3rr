@@ -6,3 +6,6 @@ target/
 
 # Editor/backup artifacts
 *~
+
+# Local planning input docs
+prd.md
