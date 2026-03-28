@@ -12,14 +12,14 @@ See: .planning/PROJECT.md (updated 2026-03-28)
 Phase: 2 of 6 (Deterministic Ingestion Pipeline)
 Plan: 0 of TBD in current phase
 Status: Phase 1 complete; ready to plan
-Last activity: 2026-03-28 - Completed Phase 1 contracts/bootstrap implementation with passing tests
+Last activity: 2026-03-28 - Started Phase 2 deterministic ingest implementation (stable tx-id + idempotent replay tests passing)
 
 Progress: [██░░░░░░░░] 17%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
+- Total plans completed: 2
 - Average duration: 1 session
 - Total execution time: 0.8 hours
 
@@ -28,9 +28,10 @@ Progress: [██░░░░░░░░] 17%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 | 1 | 1 session | 1 session |
+| 2 | 1 | 1 session | 1 session |
 
 **Recent Trend:**
-- Last 5 plans: 1 complete
+- Last 5 plans: 2 complete
 - Trend: Up
 
 *Updated after each plan completion*
