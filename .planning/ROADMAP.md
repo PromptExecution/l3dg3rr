@@ -15,7 +15,7 @@ This roadmap delivers a local-first, Excel-first tax ledger by locking contracts
 - [x] **Phase 3: Rule-Driven Classification & Flagging** - Apply/test Rhai rules and produce actionable review queues.
 - [x] **Phase 4: Audit Integrity & Safe Reconciliation** - Enforce append-only mutation history and decimal-safe invariants.
 - [x] **Phase 5: CPA Workbook Outputs** - Deliver Excel-native usability plus Schedule/FBAR summaries.
-- [ ] **Phase 6: Local Deployment & Release Readiness** - Containerize, version, and validate the full MVP behavior end to end.
+- [x] **Phase 6: Local Deployment & Release Readiness** - Containerize, version, and validate the full MVP behavior end to end.
 
 ## Phase Details
 
@@ -89,7 +89,7 @@ This roadmap delivers a local-first, Excel-first tax ledger by locking contracts
 | 3. Rule-Driven Classification & Flagging | 1/1 | Complete | 2026-03-29 |
 | 4. Audit Integrity & Safe Reconciliation | 1/1 | Complete | 2026-03-29 |
 | 5. CPA Workbook Outputs | 1/1 | Complete | 2026-03-29 |
-| 6. Local Deployment & Release Readiness | 0/TBD | Not started | - |
+| 6. Local Deployment & Release Readiness | 1/1 | Complete | 2026-03-29 |
 
 ## Backlog
 

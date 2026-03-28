@@ -58,9 +58,9 @@
 
 ### Packaging and Release
 
-- [ ] **REL-01**: User can run the system as a local Docker container with mounted workbook/rules/tax-year directories
-- [ ] **REL-02**: User can produce versioned releases and changelogs with Cocogitto-based workflow
-- [ ] **REL-03**: User can run a behavior-driven end-to-end MVP test flow that validates ingest, classify, audit, and schedule outputs
+- [x] **REL-01**: User can run the system as a local Docker container with mounted workbook/rules/tax-year directories
+- [x] **REL-02**: User can produce versioned releases and changelogs with Cocogitto-based workflow
+- [x] **REL-03**: User can run a behavior-driven end-to-end MVP test flow that validates ingest, classify, audit, and schedule outputs
 
 ## v2 Requirements
 
@@ -125,9 +125,9 @@
 | MCP-05 | Phase 2 | Complete |
 | MCP-06 | Phase 1 | Complete |
 | MCP-07 | Phase 3 | Complete |
-| REL-01 | Phase 6 | Pending |
-| REL-02 | Phase 6 | Pending |
-| REL-03 | Phase 6 | Pending |
+| REL-01 | Phase 6 | Complete |
+| REL-02 | Phase 6 | Complete |
+| REL-03 | Phase 6 | Complete |
 
 **Coverage:**
 - v1 requirements: 33 total
@@ -136,4 +136,4 @@
 
 ---
 *Requirements defined: 2026-03-28*
-*Last updated: 2026-03-29 after Phase 5 CPA output completion verification*
+*Last updated: 2026-03-29 after Phase 6 release-readiness completion verification*
