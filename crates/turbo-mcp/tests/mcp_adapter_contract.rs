@@ -60,3 +60,12 @@ fn doc_02_pipeline_status_shape_is_deterministic_and_concise() {
     assert_eq!(status.blockers, vec!["docling_unreachable".to_string()]);
     assert_eq!(status.next_hint, "resolve_blockers_then_retry");
 }
+
+// DOC-01 (D-03): Rustledger proxy surface must remain explicitly advertised in catalog.
+#[test]
+fn doc_01_rustledger_proxy_tool_name_is_exact_and_callable_target() {
+    let tools = turbo_mcp::mcp_adapter::tool_catalog();
+    assert!(tools
+        .iter()
+        .any(|name| name == "proxy_rustledger_ingest_statement_rows"));
+}

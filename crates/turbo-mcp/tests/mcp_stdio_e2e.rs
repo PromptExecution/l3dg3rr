@@ -106,6 +106,25 @@ fn build_ingest_arguments(base_dir: &std::path::Path) -> Value {
     })
 }
 
+fn build_rustledger_rows_arguments(base_dir: &std::path::Path) -> Value {
+    json!({
+        "journal_path": base_dir.join("ledger.beancount").display().to_string(),
+        "workbook_path": base_dir.join("tax-ledger.xlsx").display().to_string(),
+        "rows": [
+            {
+                "account_id": "WF-BH-CHK",
+                "date": "2023-01-15",
+                "amount": "-42.11",
+                "description": "Coffee Shop",
+                "source_ref": base_dir
+                    .join("WF--BH-CHK--2023-01--statement.rkyv")
+                    .display()
+                    .to_string()
+            }
+        ]
+    })
+}
+
 // DOC-01: ingest path must be executable through MCP tools/call only.
 #[test]
 fn doc_01_mcp_only_ingest_via_tools_call() {
@@ -199,4 +218,60 @@ fn doc_03_replay_idempotent_with_stable_tx_ids_over_mcp() {
         .as_array()
         .expect("second tx ids");
     assert_eq!(first_ids, second_ids);
+}
+
+// DOC-01/02/03 (D-03): Rustledger passthrough must be callable via MCP tools/call only.
+#[test]
+fn rustledger_proxy_ingest_statement_rows_over_transport() {
+    let mut client = McpStdioClient::spawn();
+    initialize_client(&mut client);
+
+    let tools = client.request("tools/list", json!({}));
+    let tool_names = tools["result"]["tools"]
+        .as_array()
+        .expect("tools list")
+        .iter()
+        .filter_map(|entry| entry.get("name").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+    assert!(tool_names.contains(&"proxy_rustledger_ingest_statement_rows"));
+
+    let tempdir = tempfile::tempdir().expect("tempdir");
+    let first = client.request(
+        "tools/call",
+        json!({
+            "name": "proxy_rustledger_ingest_statement_rows",
+            "arguments": build_rustledger_rows_arguments(tempdir.path())
+        }),
+    );
+    let second = client.request(
+        "tools/call",
+        json!({
+            "name": "proxy_rustledger_ingest_statement_rows",
+            "arguments": build_rustledger_rows_arguments(tempdir.path())
+        }),
+    );
+
+    assert_eq!(first["result"]["isError"], Value::Bool(false));
+    assert_eq!(first["result"]["content"][0]["json"]["inserted_count"], json!(1));
+    assert_eq!(second["result"]["content"][0]["json"]["inserted_count"], json!(0));
+
+    let first_ids = first["result"]["content"][0]["json"]["tx_ids"]
+        .as_array()
+        .expect("first tx ids");
+    let second_ids = second["result"]["content"][0]["json"]["tx_ids"]
+        .as_array()
+        .expect("second tx ids");
+    assert_eq!(first_ids, second_ids);
+
+    let canonical = &first["result"]["content"][0]["json"]["canonical_rows"][0];
+    assert_eq!(canonical["provider"], json!("rustledger"));
+    assert_eq!(canonical["backend_tool"], json!("ingest_statement_rows"));
+    assert!(canonical.get("account").is_some());
+    assert!(canonical.get("date").is_some());
+    assert!(canonical.get("amount").is_some());
+    assert!(canonical.get("description").is_some());
+    assert!(canonical.get("currency").is_some());
+    assert!(canonical.get("source_ref").is_some());
+    assert!(canonical.get("backend_version").is_some());
+    assert!(canonical.get("backend_call_id").is_some());
 }
