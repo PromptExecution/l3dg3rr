@@ -65,12 +65,14 @@ pub fn normalize_rows_with_provenance(
 ) -> Vec<Value> {
     rows.into_iter()
         .map(|row| {
+            let account_id = row.account_id;
+            let currency = infer_currency(&account_id);
             json!({
-                "account": row.account_id,
+                "account": account_id,
                 "date": row.date,
                 "amount": row.amount,
                 "description": row.description,
-                "currency": infer_currency(&row.source_ref),
+                "currency": currency,
                 "source_ref": row.source_ref,
                 "provider": provider,
                 "backend_tool": backend_tool,
@@ -96,6 +98,31 @@ pub fn map_tool_error(error: &ToolError) -> Value {
     }
 }
 
+pub fn unknown_tool_result(tool_name: &str) -> Value {
+    json!({
+        "content": [{
+            "type": "json",
+            "json": {
+                "isError": true,
+                "error_type": "InvalidInput",
+                "message": format!("unknown tool: {tool_name}")
+            }
+        }],
+        "isError": true
+    })
+}
+
+pub fn protocol_method_not_found(id: Value, method: &str) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": {
+            "code": -32601,
+            "message": format!("method not found: {method}")
+        }
+    })
+}
+
 pub struct McpAdapter<'a, T: TurboLedgerTools> {
     service: &'a T,
 }
@@ -117,8 +144,8 @@ impl<'a, T: TurboLedgerTools> McpAdapter<'a, T> {
     }
 }
 
-fn infer_currency(source_ref: &str) -> String {
-    let upper = source_ref.to_ascii_uppercase();
+fn infer_currency(account_id: &str) -> String {
+    let upper = account_id.to_ascii_uppercase();
     if upper.contains("BTC") {
         "BTC".to_string()
     } else {

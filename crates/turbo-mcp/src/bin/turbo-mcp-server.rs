@@ -74,27 +74,10 @@ fn handle_request(request: Value) -> Option<Value> {
                 Some(json!({
                     "jsonrpc": "2.0",
                     "id": id,
-                    "result": {
-                        "content": [{
-                            "type": "json",
-                            "json": {
-                                "isError": true,
-                                "error_type": "InvalidInput",
-                                "message": format!("unknown tool: {tool_name}")
-                            }
-                        }],
-                        "isError": true
-                    }
+                    "result": mcp_adapter::unknown_tool_result(tool_name)
                 }))
             }
         }
-        _ => Some(json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "error": {
-                "code": -32601,
-                "message": format!("method not found: {method}")
-            }
-        })),
+        _ => Some(mcp_adapter::protocol_method_not_found(id, method)),
     }
 }

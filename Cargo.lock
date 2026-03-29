@@ -1055,6 +1055,7 @@ dependencies = [
  "rust_decimal",
  "rust_xlsxwriter",
  "serde",
+ "serde_json",
  "tempfile",
  "thiserror 1.0.69",
 ]
