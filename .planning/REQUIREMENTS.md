@@ -13,8 +13,8 @@
 
 ### Ontology & Knowledge Model
 
-- [ ] **ONTO-01**: User can persist ontology entities for document, account, institution, transaction, tax-category, and evidence reference.
-- [ ] **ONTO-02**: User can query ontology relationships (document -> extracted tx -> reconciliation state -> tax treatment).
+- [x] **ONTO-01**: User can persist ontology entities for document, account, institution, transaction, tax-category, and evidence reference.
+- [x] **ONTO-02**: User can query ontology relationships (document -> extracted tx -> reconciliation state -> tax treatment).
 - [ ] **ONTO-03**: User can serialize ontology data in structured machine-readable form for AI agent consumption.
 
 ### Reconciliation & Verification
@@ -63,8 +63,8 @@
 | DOC-01 | Phase 13 | Complete |
 | DOC-02 | Phase 13 | Complete |
 | DOC-03 | Phase 13 | Complete |
-| ONTO-01 | Phase 14 | Pending |
-| ONTO-02 | Phase 14 | Pending |
+| ONTO-01 | Phase 14 | Complete |
+| ONTO-02 | Phase 14 | Complete |
 | ONTO-03 | Phase 14 | Pending |
 | RECON-01 | Phase 15 | Pending |
 | RECON-02 | Phase 15 | Pending |

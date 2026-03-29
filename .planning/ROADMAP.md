@@ -103,9 +103,9 @@ Plans:
 **Goal**: Persist/query ontology entities and serialize machine-readable structures for agents.
 **Depends on**: Phase 13
 **Requirements**: ONTO-01, ONTO-02, ONTO-03
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
-- [ ] 14-01-PLAN.md — Build ontology persistence/query foundation with referential integrity and ONTO-01/02 contract tests.
+- [x] 14-01-PLAN.md — Build ontology persistence/query foundation with referential integrity and ONTO-01/02 contract tests.
 - [ ] 14-02-PLAN.md — Expose ontology MCP query/export serialization with transport e2e verification and validation/runbook alignment.
 **Success Criteria**:
   1. Ontology entities persist with referential integrity.
@@ -159,7 +159,7 @@ Plans:
 | 11. Disintegrate Event-Sourced Audit Backbone | 0/TBD | Not started | - |
 | 12. US Expat Tax Agent Assist Surfaces | 0/TBD | Not started | - |
 | 13. MCP Boundary and Agent-Only Runtime Surface | 3/3 | Complete    | 2026-03-29 |
-| 14. Ontology Persistence and Query Surface | 0/TBD | Not started | - |
+| 14. Ontology Persistence and Query Surface | 1/2 | In Progress|  |
 | 15. Reconciliation and Commit Guardrails | 0/TBD | Not started | - |
 | 16. Moku HSM Deterministic Status and Resume | 0/TBD | Not started | - |
 | 17. Disintegrate Event-Sourced Lifecycle Backbone | 0/TBD | Not started | - |
