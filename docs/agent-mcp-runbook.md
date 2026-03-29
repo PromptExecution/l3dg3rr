@@ -1,4 +1,4 @@
-# Agent MCP Runbook (Phases 13-15)
+# Agent MCP Runbook (Phases 13-16)
 
 This runbook is MCP-only. Agent workflows must use MCP `initialize`, `notifications/initialized`, `tools/list`, and `tools/call` over stdio; no direct in-process service calls.
 
@@ -13,6 +13,9 @@ This runbook is MCP-only. Agent workflows must use MCP `initialize`, `notificati
 - `l3dg3rr_validate_reconciliation` executes explicit validate-stage reconciliation checks.
 - `l3dg3rr_reconcile_postings` executes explicit reconcile-stage totals checks.
 - `l3dg3rr_commit_guarded` enforces commit-stage guardrails with deterministic blocking diagnostics.
+- `l3dg3rr_hsm_transition` executes deterministic guarded lifecycle transitions.
+- `l3dg3rr_hsm_status` returns concise deterministic lifecycle Display hints.
+- `l3dg3rr_hsm_resume` resumes only from last valid checkpoint markers.
 
 ## Bootstrap
 
@@ -107,6 +110,26 @@ Expected behavior:
   `isError=true`, `error_type=ReconciliationBlocked`, `stage=commit`, stable `blocked_reasons`.
 - `tools/call` validate + reconcile + commit with matching totals and balanced postings yields deterministic ready payload:
   `isError=false`, `stage=commit`, `status=ready`, and stable `stage_marker`.
+
+## HSM Lifecycle + Resume (HSM-01/02/03)
+
+Run:
+
+```bash
+cargo test -p turbo-mcp --test hsm_contract -- --nocapture
+cargo test -p turbo-mcp --test hsm_resume_contract -- --nocapture
+cargo test -p turbo-mcp --test hsm_mcp_e2e -- --nocapture
+```
+
+Expected behavior:
+
+- `tools/list` includes `l3dg3rr_hsm_transition`, `l3dg3rr_hsm_status`, and `l3dg3rr_hsm_resume`.
+- Invalid transition over `tools/call` returns deterministic blocked payload with:
+  `isError=true`, `error_type=HsmTransitionBlocked`, `guard_reason=invalid_transition`, stable `transition_evidence`.
+- Invalid resume over `tools/call` returns deterministic blocked payload with:
+  `isError=true`, `error_type=HsmResumeBlocked`, stable sorted `blockers`.
+- Status and resume payloads include concise deterministic small-model hints:
+  `display_state`, `next_hint`, `resume_hint`, and sorted `blockers`.
 
 ## Troubleshooting
 
