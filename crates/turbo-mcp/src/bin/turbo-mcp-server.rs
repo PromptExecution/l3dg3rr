@@ -86,6 +86,14 @@ fn handle_request(request: Value) -> Option<Value> {
                         Some(format!("mcp-call-{id}")),
                     )
                 }
+                mcp_adapter::ONTOLOGY_QUERY_PATH_TOOL => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::ontology_query_path_tool_result(global_service(), &arguments)
+                }
+                mcp_adapter::ONTOLOGY_EXPORT_SNAPSHOT_TOOL => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::ontology_export_snapshot_tool_result(&arguments)
+                }
                 _ => mcp_adapter::unknown_tool_result(tool_name),
             };
             Some(json!({

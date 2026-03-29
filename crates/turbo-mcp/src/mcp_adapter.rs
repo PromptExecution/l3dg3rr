@@ -4,7 +4,13 @@ use ledger_core::ingest::{deterministic_tx_id, TransactionInput};
 use serde::Serialize;
 use serde_json::{json, Value};
 
-use crate::{IngestPdfRequest, IngestStatementRowsRequest, ToolError, TurboLedgerTools};
+use crate::{
+    IngestPdfRequest, IngestStatementRowsRequest, OntologyQueryPathRequest, OntologyStore,
+    ToolError, TurboLedgerService, TurboLedgerTools,
+};
+
+pub const ONTOLOGY_QUERY_PATH_TOOL: &str = "l3dg3rr_ontology_query_path";
+pub const ONTOLOGY_EXPORT_SNAPSHOT_TOOL: &str = "l3dg3rr_ontology_export_snapshot";
 
 pub const MCP_LIFECYCLE_METHODS: &[&str] = &["initialize", "tools/list", "tools/call"];
 
@@ -13,6 +19,8 @@ pub fn tool_catalog() -> Vec<String> {
         "proxy_docling_ingest_pdf".to_string(),
         "proxy_rustledger_ingest_statement_rows".to_string(),
         "l3dg3rr_get_pipeline_status".to_string(),
+        ONTOLOGY_QUERY_PATH_TOOL.to_string(),
+        ONTOLOGY_EXPORT_SNAPSHOT_TOOL.to_string(),
         "tools/list".to_string(),
         "tools/call".to_string(),
     ]
@@ -275,6 +283,80 @@ pub fn ingest_statement_rows_tool_result<T: TurboLedgerTools>(
     }
 }
 
+pub fn ontology_query_path_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+    let request = match parse_ontology_query_path_request(arguments) {
+        Ok(request) => request,
+        Err(err) => {
+            return json!({
+                "content": [{
+                    "type": "json",
+                    "json": map_tool_error(&err)
+                }],
+                "isError": true
+            });
+        }
+    };
+
+    match service.ontology_query_path_tool(request) {
+        Ok(response) => json!({
+            "content": [{
+                "type": "json",
+                "json": {
+                    "nodes": response.nodes,
+                    "edges": response.edges,
+                }
+            }],
+            "isError": false
+        }),
+        Err(err) => json!({
+            "content": [{
+                "type": "json",
+                "json": map_tool_error(&err)
+            }],
+            "isError": true
+        }),
+    }
+}
+
+pub fn ontology_export_snapshot_tool_result(arguments: &Value) -> Value {
+    let ontology_path = match parse_ontology_path(arguments) {
+        Ok(path) => path,
+        Err(err) => {
+            return json!({
+                "content": [{
+                    "type": "json",
+                    "json": map_tool_error(&err)
+                }],
+                "isError": true
+            });
+        }
+    };
+
+    match OntologyStore::load(&ontology_path) {
+        Ok(store) => json!({
+            "content": [{
+                "type": "json",
+                "json": {
+                    "entities": store.entities,
+                    "edges": store.edges,
+                    "snapshot": {
+                        "entity_count": store.entities.len(),
+                        "edge_count": store.edges.len(),
+                    }
+                }
+            }],
+            "isError": false
+        }),
+        Err(err) => json!({
+            "content": [{
+                "type": "json",
+                "json": map_tool_error(&err)
+            }],
+            "isError": true
+        }),
+    }
+}
+
 pub struct McpAdapter<'a, T: TurboLedgerTools> {
     service: &'a T,
 }
@@ -308,6 +390,37 @@ fn infer_currency(account_id: &str) -> String {
 fn required_str<'a>(obj: &'a Value, key: &str) -> Result<&'a str, ToolError> {
     obj.get(key).and_then(Value::as_str).ok_or_else(|| {
         ToolError::InvalidInput(format!("missing or invalid `{key}` in tool arguments"))
+    })
+}
+
+fn parse_ontology_path(arguments: &Value) -> Result<PathBuf, ToolError> {
+    Ok(PathBuf::from(required_str(arguments, "ontology_path")?))
+}
+
+fn parse_ontology_query_path_request(arguments: &Value) -> Result<OntologyQueryPathRequest, ToolError> {
+    let ontology_path = parse_ontology_path(arguments)?;
+    let from_entity_id = required_str(arguments, "from_entity_id")?.to_string();
+    let max_depth = match arguments.get("max_depth") {
+        None | Some(Value::Null) => None,
+        Some(Value::Number(num)) => {
+            let raw = num.as_u64().ok_or_else(|| {
+                ToolError::InvalidInput("`max_depth` must be a non-negative integer".to_string())
+            })?;
+            Some(usize::try_from(raw).map_err(|_| {
+                ToolError::InvalidInput("`max_depth` is too large for this platform".to_string())
+            })?)
+        }
+        _ => {
+            return Err(ToolError::InvalidInput(
+                "`max_depth` must be null or a non-negative integer".to_string(),
+            ))
+        }
+    };
+
+    Ok(OntologyQueryPathRequest {
+        ontology_path,
+        from_entity_id,
+        max_depth,
     })
 }
 
