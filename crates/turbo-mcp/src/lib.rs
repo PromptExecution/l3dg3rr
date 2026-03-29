@@ -10,6 +10,36 @@ use ledger_core::manifest::Manifest;
 use rust_decimal::Decimal;
 use rust_xlsxwriter::Workbook;
 
+pub mod mcp_adapter;
+pub mod events;
+pub mod hsm;
+pub mod ontology;
+pub mod reconciliation;
+pub mod tax_assist;
+pub use events::{
+    AppendEventResult, EventHistoryFilter, EventHistoryResponse, InMemoryLifecycleEventStore,
+    LifecycleEvent, LifecycleEventStore, ReplayProjection,
+};
+pub use hsm::{
+    HsmMachine, HsmResumeRequest, HsmResumeResponse, HsmStatusRequest, HsmStatusResponse,
+    HsmTransitionRequest, HsmTransitionResponse,
+};
+pub use ontology::{
+    OntologyEdge, OntologyEdgeInput, OntologyEntity, OntologyEntityInput, OntologyEntityKind,
+    OntologyQueryPathRequest, OntologyQueryPathResponse, OntologyStore,
+    OntologyUpsertEdgesRequest, OntologyUpsertEdgesResponse, OntologyUpsertEntitiesRequest,
+    OntologyUpsertEntitiesResponse,
+};
+pub use reconciliation::{
+    commit_stage, reconcile_stage, validate_stage, ReconciliationDiagnostic,
+    ReconciliationStageRequest, ReconciliationStageResponse,
+};
+pub use tax_assist::{
+    TaxAmbiguityRecord, TaxAmbiguityReviewRequest, TaxAmbiguityReviewResponse, TaxAssistRequest,
+    TaxAssistResponse, TaxAssistSummary, TaxEvidenceChainRequest, TaxEvidenceChainResponse,
+    TaxEvidenceCurrentState, TaxEvidenceEvent, TaxEvidenceRow, TaxEvidenceSource,
+};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccountSummary {
     pub account_id: String,
@@ -171,6 +201,20 @@ pub struct ClassifyTransactionResponse {
     pub audit_entries: Vec<AuditEntryResponse>,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ReplayLifecycleRequest {
+    pub tx_id: Option<String>,
+    pub document_ref: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ReplayLifecycleResponse {
+    pub reconstructed_state: String,
+    pub event_count: usize,
+    pub diagnostics: Vec<String>,
+    pub filter: EventHistoryFilter,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QueryAuditLogResponse {
     pub entries: Vec<AuditEntryResponse>,
@@ -292,6 +336,8 @@ pub struct TurboLedgerService {
     manifest: Manifest,
     ingest_state: Mutex<IngestedLedger>,
     classification_state: Mutex<ClassificationState>,
+    lifecycle_events: Mutex<InMemoryLifecycleEventStore>,
+    hsm_state: Mutex<HsmMachine>,
 }
 
 impl TurboLedgerService {
@@ -301,6 +347,8 @@ impl TurboLedgerService {
             manifest,
             ingest_state: Mutex::new(IngestedLedger::default()),
             classification_state: Mutex::new(ClassificationState::default()),
+            lifecycle_events: Mutex::new(InMemoryLifecycleEventStore::default()),
+            hsm_state: Mutex::new(HsmMachine::default()),
         })
     }
 
@@ -315,6 +363,456 @@ impl TurboLedgerService {
         Ok(ListAccountsResponse {
             accounts: self.list_accounts()?,
         })
+    }
+
+    pub fn ontology_upsert_entities(
+        &self,
+        request: OntologyUpsertEntitiesRequest,
+    ) -> Result<OntologyUpsertEntitiesResponse, ToolError> {
+        let mut store = OntologyStore::load(&request.ontology_path)?;
+        let response = store.upsert_entities(request.entities)?;
+        store.persist(&request.ontology_path)?;
+        Ok(response)
+    }
+
+    pub fn ontology_upsert_entities_tool(
+        &self,
+        request: OntologyUpsertEntitiesRequest,
+    ) -> Result<OntologyUpsertEntitiesResponse, ToolError> {
+        self.ontology_upsert_entities(request)
+    }
+
+    pub fn ontology_upsert_edges(
+        &self,
+        request: OntologyUpsertEdgesRequest,
+    ) -> Result<OntologyUpsertEdgesResponse, ToolError> {
+        let mut store = OntologyStore::load(&request.ontology_path)?;
+        let response = store.upsert_edges(request.edges)?;
+        store.persist(&request.ontology_path)?;
+        Ok(response)
+    }
+
+    pub fn ontology_upsert_edges_tool(
+        &self,
+        request: OntologyUpsertEdgesRequest,
+    ) -> Result<OntologyUpsertEdgesResponse, ToolError> {
+        self.ontology_upsert_edges(request)
+    }
+
+    pub fn ontology_query_path(
+        &self,
+        request: OntologyQueryPathRequest,
+    ) -> Result<OntologyQueryPathResponse, ToolError> {
+        let store = OntologyStore::load(&request.ontology_path)?;
+        store.query_path(&request.from_entity_id, request.max_depth)
+    }
+
+    pub fn ontology_query_path_tool(
+        &self,
+        request: OntologyQueryPathRequest,
+    ) -> Result<OntologyQueryPathResponse, ToolError> {
+        self.ontology_query_path(request)
+    }
+
+    pub fn validate_reconciliation_stage_tool(
+        &self,
+        request: ReconciliationStageRequest,
+    ) -> Result<ReconciliationStageResponse, ToolError> {
+        validate_stage(&request)
+    }
+
+    pub fn reconcile_reconciliation_stage_tool(
+        &self,
+        request: ReconciliationStageRequest,
+    ) -> Result<ReconciliationStageResponse, ToolError> {
+        reconcile_stage(&request)
+    }
+
+    pub fn commit_reconciliation_stage_tool(
+        &self,
+        request: ReconciliationStageRequest,
+    ) -> Result<ReconciliationStageResponse, ToolError> {
+        commit_stage(&request)
+    }
+
+    pub fn hsm_transition_tool(
+        &self,
+        request: HsmTransitionRequest,
+    ) -> Result<HsmTransitionResponse, ToolError> {
+        let requested = hsm::parse_node(&request.target_state, &request.target_substate)
+            .ok_or_else(|| {
+                ToolError::InvalidInput(
+                    "target_state/target_substate must match lifecycle vocabulary".to_string(),
+                )
+            })?;
+
+        let mut hsm = self
+            .hsm_state
+            .lock()
+            .map_err(|_| ToolError::Internal("hsm lock poisoned".to_string()))?;
+        let current = hsm.current;
+        if hsm::allowed_next_node(current) == Some(requested) {
+            hsm.current = requested;
+            hsm.last_valid_checkpoint = hsm::checkpoint_marker(requested);
+            return Ok(hsm::transition_advanced_response(requested));
+        }
+
+        Ok(hsm::transition_blocked_response(current, requested))
+    }
+
+    pub fn hsm_status_tool(
+        &self,
+        _request: HsmStatusRequest,
+    ) -> Result<HsmStatusResponse, ToolError> {
+        let hsm = self
+            .hsm_state
+            .lock()
+            .map_err(|_| ToolError::Internal("hsm lock poisoned".to_string()))?;
+        Ok(hsm::status_response(hsm.current, Vec::new()))
+    }
+
+    pub fn hsm_resume_tool(
+        &self,
+        request: HsmResumeRequest,
+    ) -> Result<HsmResumeResponse, ToolError> {
+        let mut hsm = self
+            .hsm_state
+            .lock()
+            .map_err(|_| ToolError::Internal("hsm lock poisoned".to_string()))?;
+        let Some(resume_node) = hsm::parse_checkpoint_marker(&request.state_marker) else {
+            return Ok(hsm::resume_response(
+                hsm.current,
+                false,
+                vec!["checkpoint_invalid".to_string()],
+            ));
+        };
+
+        if request.state_marker != hsm.last_valid_checkpoint {
+            return Ok(hsm::resume_response(
+                hsm.current,
+                false,
+                vec!["checkpoint_unknown".to_string()],
+            ));
+        }
+
+        hsm.current = resume_node;
+        Ok(hsm::resume_response(hsm.current, true, Vec::new()))
+    }
+
+    pub fn adjust_transaction(
+        &self,
+        request: ClassifyTransactionRequest,
+    ) -> Result<ClassifyTransactionResponse, ToolError> {
+        self.apply_classification_action(request, "adjustment")
+    }
+
+    pub fn event_history(
+        &self,
+        filter: EventHistoryFilter,
+    ) -> Result<EventHistoryResponse, ToolError> {
+        self.lifecycle_events
+            .lock()
+            .map_err(|_| ToolError::Internal("events lock poisoned".to_string()))?
+            .list_events(filter)
+    }
+
+    pub fn replay_lifecycle(
+        &self,
+        request: ReplayLifecycleRequest,
+    ) -> Result<ReplayLifecycleResponse, ToolError> {
+        let filter = EventHistoryFilter {
+            tx_id: request.tx_id,
+            document_ref: request.document_ref,
+            time_start: None,
+            time_end: None,
+        };
+        let history = self.event_history(filter.clone())?;
+        let projection = events::reconstruct_lifecycle(&history.events);
+        Ok(ReplayLifecycleResponse {
+            reconstructed_state: projection.reconstructed_state,
+            event_count: projection.event_count,
+            diagnostics: projection.diagnostics,
+            filter,
+        })
+    }
+
+    pub fn tax_assist_tool(
+        &self,
+        request: TaxAssistRequest,
+    ) -> Result<TaxAssistResponse, ToolError> {
+        let stage = self.reconcile_reconciliation_stage_tool(request.reconciliation)?;
+        let path = if stage.status == "passed" {
+            let ontology_path = request.ontology_path.clone();
+            let mut path = self.ontology_query_path_tool(OntologyQueryPathRequest {
+                ontology_path: ontology_path.clone(),
+                from_entity_id: request.from_entity_id.clone(),
+                max_depth: request.max_depth,
+            })?;
+            let store = OntologyStore::load(&ontology_path)?;
+            let entity_lookup = store
+                .entities
+                .iter()
+                .map(|node| (node.id.clone(), node.clone()))
+                .collect::<BTreeMap<_, _>>();
+            let mut existing_edge_ids = path
+                .edges
+                .iter()
+                .map(|edge| edge.id.clone())
+                .collect::<BTreeSet<_>>();
+            let mut existing_node_ids = path
+                .nodes
+                .iter()
+                .map(|node| node.id.clone())
+                .collect::<BTreeSet<_>>();
+            for edge in store
+                .edges
+                .into_iter()
+                    .filter(|edge| edge.from == request.from_entity_id)
+            {
+                if existing_edge_ids.insert(edge.id.clone()) {
+                    if !existing_node_ids.contains(&edge.to) {
+                        if let Some(node) = entity_lookup.get(&edge.to) {
+                            path.nodes.push(node.clone());
+                            existing_node_ids.insert(node.id.clone());
+                        }
+                    }
+                    path.edges.push(edge);
+                }
+            }
+            Some(path)
+        } else {
+            None
+        };
+        Ok(tax_assist::build_tax_assist_response(
+            &request.from_entity_id,
+            stage,
+            path,
+        ))
+    }
+
+    pub fn tax_evidence_chain_tool(
+        &self,
+        request: TaxEvidenceChainRequest,
+    ) -> Result<TaxEvidenceChainResponse, ToolError> {
+        let normalized_tx_id = request
+            .tx_id
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        let normalized_document_ref = request
+            .document_ref
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+
+        let path = self.ontology_query_path_tool(OntologyQueryPathRequest {
+            ontology_path: request.ontology_path,
+            from_entity_id: request.from_entity_id.clone(),
+            max_depth: None,
+        })?;
+        let history_filter = EventHistoryFilter {
+            tx_id: normalized_tx_id.clone(),
+            document_ref: normalized_document_ref.clone(),
+            time_start: None,
+            time_end: None,
+        };
+        let events = self.event_history(history_filter.clone())?;
+        let replay = self.replay_lifecycle(ReplayLifecycleRequest {
+            tx_id: history_filter.tx_id,
+            document_ref: history_filter.document_ref,
+        })?;
+
+        let mut ambiguity = path
+            .edges
+            .iter()
+            .filter(|edge| edge.relation == "ambiguity")
+            .map(|edge| TaxAmbiguityRecord {
+                tx_id: normalized_tx_id.clone().or_else(|| Some(edge.from.clone())),
+                review_state: "needs_review".to_string(),
+                reason: "ambiguous_tax_treatment".to_string(),
+                provenance_refs: edge
+                    .provenance
+                    .iter()
+                    .filter_map(|(key, value)| {
+                        if key.contains("source") || key.contains("ref") {
+                            Some(value.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>(),
+            })
+            .collect::<Vec<_>>();
+        ambiguity.sort_by(|a, b| {
+            a.tx_id
+                .cmp(&b.tx_id)
+                .then_with(|| a.review_state.cmp(&b.review_state))
+                .then_with(|| a.reason.cmp(&b.reason))
+        });
+        let mut provenance_refs = path
+            .edges
+            .iter()
+            .flat_map(|edge| edge.provenance.iter())
+            .filter_map(|(key, value)| {
+                if key.contains("source") || key.contains("ref") {
+                    Some(value.clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        provenance_refs.sort();
+        provenance_refs.dedup();
+        let mut node_ids = path.nodes.into_iter().map(|node| node.id).collect::<Vec<_>>();
+        node_ids.sort();
+        let mut edge_ids = path.edges.into_iter().map(|edge| edge.id).collect::<Vec<_>>();
+        edge_ids.sort();
+        let source = TaxEvidenceSource {
+            from_entity_id: request.from_entity_id,
+            node_ids,
+            edge_ids,
+            provenance_refs,
+        };
+        Ok(tax_assist::build_tax_evidence_chain_response(
+            source,
+            events,
+            replay,
+            ambiguity,
+        ))
+    }
+
+    pub fn tax_ambiguity_review_tool(
+        &self,
+        request: TaxAmbiguityReviewRequest,
+    ) -> Result<TaxAmbiguityReviewResponse, ToolError> {
+        let stage = self.reconcile_reconciliation_stage_tool(request.reconciliation)?;
+        let path = if stage.status == "passed" {
+            self.ontology_query_path_tool(OntologyQueryPathRequest {
+                ontology_path: request.ontology_path,
+                from_entity_id: request.from_entity_id,
+                max_depth: request.max_depth,
+            })?
+        } else {
+            OntologyQueryPathResponse {
+                nodes: Vec::new(),
+                edges: Vec::new(),
+            }
+        };
+        let assist = tax_assist::build_tax_assist_response("", stage.clone(), Some(path));
+        Ok(tax_assist::build_tax_ambiguity_review_response(
+            stage,
+            assist.ambiguity,
+        ))
+    }
+
+    fn append_lifecycle_event(
+        &self,
+        event_type: &str,
+        tx_id: Option<String>,
+        document_ref: Option<String>,
+        payload: BTreeMap<String, String>,
+    ) -> Result<AppendEventResult, ToolError> {
+        self.lifecycle_events
+            .lock()
+            .map_err(|_| ToolError::Internal("events lock poisoned".to_string()))?
+            .append_event(event_type, tx_id, document_ref, payload)
+    }
+
+    fn apply_classification_action(
+        &self,
+        request: ClassifyTransactionRequest,
+        event_type: &str,
+    ) -> Result<ClassifyTransactionResponse, ToolError> {
+        let (response, tx_row) = {
+            let mut classification = self
+                .classification_state
+                .lock()
+                .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?;
+
+            let tx_row = classification
+                .tx_rows
+                .get(&request.tx_id)
+                .cloned()
+                .ok_or_else(|| ToolError::InvalidInput("unknown tx_id".to_string()))?;
+
+            validate_invariants(&tx_row, &request.tx_id, &request.category)?;
+            let confidence = parse_confidence(&request.confidence)?;
+
+            let old = classification.classifications.get(&request.tx_id).cloned();
+            let mut new_entries = Vec::new();
+            let timestamp = now_timestamp();
+
+            if old.as_ref().map(|c| c.category.as_str()) != Some(request.category.as_str()) {
+                let entry = AuditEntry {
+                    timestamp: timestamp.clone(),
+                    actor: request.actor.clone(),
+                    tx_id: request.tx_id.clone(),
+                    field: "category".to_string(),
+                    old_value: old.as_ref().map(|c| c.category.clone()),
+                    new_value: request.category.clone(),
+                    note: request.note.clone(),
+                };
+                classification.audit_log.push(entry.clone());
+                new_entries.push(to_audit_response(entry));
+            }
+
+            if old.as_ref().map(|c| c.confidence) != Some(confidence) {
+                let entry = AuditEntry {
+                    timestamp,
+                    actor: request.actor.clone(),
+                    tx_id: request.tx_id.clone(),
+                    field: "confidence".to_string(),
+                    old_value: old.as_ref().map(|c| c.confidence.to_string()),
+                    new_value: confidence.to_string(),
+                    note: request.note.clone(),
+                };
+                classification.audit_log.push(entry.clone());
+                new_entries.push(to_audit_response(entry));
+            }
+
+            classification.classifications.insert(
+                request.tx_id.clone(),
+                StoredClassification {
+                    category: request.category.clone(),
+                    confidence,
+                },
+            );
+
+            if confidence < Decimal::from_str("0.80").expect("valid decimal literal")
+                || request.category.eq_ignore_ascii_case("uncategorized")
+            {
+                classification.engine.record_review_flag(
+                    request.tx_id.clone(),
+                    &tx_row.date,
+                    "manual classification requires review".to_string(),
+                    request.category.clone(),
+                    confidence.to_string().parse::<f64>().unwrap_or(0.0),
+                );
+            }
+
+            (
+                ClassifyTransactionResponse {
+                    tx_id: request.tx_id.clone(),
+                    category: request.category.clone(),
+                    confidence: confidence.to_string(),
+                    audit_entries: new_entries,
+                },
+                tx_row,
+            )
+        };
+
+        let mut payload = BTreeMap::new();
+        payload.insert("actor".to_string(), request.actor.clone());
+        payload.insert("category".to_string(), request.category.clone());
+        payload.insert("confidence".to_string(), request.confidence.clone());
+        payload.insert("date".to_string(), tx_row.date.clone());
+        payload.insert("note".to_string(), request.note.clone().unwrap_or_default());
+        self.append_lifecycle_event(
+            event_type,
+            Some(request.tx_id.clone()),
+            Some(tx_row.source_ref.clone()),
+            payload,
+        )?;
+
+        Ok(response)
     }
 }
 
@@ -363,6 +861,26 @@ impl TurboLedgerTools for TurboLedgerService {
             if let Some(row) = by_id.get(&tx.tx_id) {
                 classification.tx_rows.insert(tx.tx_id.clone(), row.clone());
             }
+        }
+        drop(classification);
+
+        for row in &request.rows {
+            let tx_id = deterministic_tx_id(row);
+            let mut payload = BTreeMap::new();
+            payload.insert("account_id".to_string(), row.account_id.clone());
+            payload.insert("amount".to_string(), row.amount.clone());
+            payload.insert("date".to_string(), row.date.clone());
+            payload.insert("description".to_string(), row.description.clone());
+            payload.insert(
+                "inserted".to_string(),
+                inserted.iter().any(|tx| tx.tx_id == tx_id).to_string(),
+            );
+            self.append_lifecycle_event(
+                "ingest",
+                Some(tx_id),
+                Some(row.source_ref.clone()),
+                payload,
+            )?;
         }
 
         let tx_ids = inserted.iter().map(|row| row.tx_id.clone()).collect::<Vec<_>>();
@@ -569,91 +1087,23 @@ impl TurboLedgerTools for TurboLedgerService {
         &self,
         request: ClassifyTransactionRequest,
     ) -> Result<ClassifyTransactionResponse, ToolError> {
-        let mut classification = self
-            .classification_state
-            .lock()
-            .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?;
-
-        let tx_row = classification
-            .tx_rows
-            .get(&request.tx_id)
-            .cloned()
-            .ok_or_else(|| ToolError::InvalidInput("unknown tx_id".to_string()))?;
-
-        validate_invariants(&tx_row, &request.tx_id, &request.category)?;
-        let confidence = parse_confidence(&request.confidence)?;
-
-        let old = classification.classifications.get(&request.tx_id).cloned();
-        let mut new_entries = Vec::new();
-        let timestamp = now_timestamp();
-
-        if old.as_ref().map(|c| c.category.as_str()) != Some(request.category.as_str()) {
-            let entry = AuditEntry {
-                timestamp: timestamp.clone(),
-                actor: request.actor.clone(),
-                tx_id: request.tx_id.clone(),
-                field: "category".to_string(),
-                old_value: old.as_ref().map(|c| c.category.clone()),
-                new_value: request.category.clone(),
-                note: request.note.clone(),
-            };
-            classification.audit_log.push(entry.clone());
-            new_entries.push(to_audit_response(entry));
-        }
-
-        if old.as_ref().map(|c| c.confidence) != Some(confidence) {
-            let entry = AuditEntry {
-                timestamp,
-                actor: request.actor.clone(),
-                tx_id: request.tx_id.clone(),
-                field: "confidence".to_string(),
-                old_value: old.as_ref().map(|c| c.confidence.to_string()),
-                new_value: confidence.to_string(),
-                note: request.note.clone(),
-            };
-            classification.audit_log.push(entry.clone());
-            new_entries.push(to_audit_response(entry));
-        }
-
-        classification.classifications.insert(
-            request.tx_id.clone(),
-            StoredClassification {
-                category: request.category.clone(),
-                confidence,
-            },
-        );
-
-        if confidence < Decimal::from_str("0.80").expect("valid decimal literal")
-            || request.category.eq_ignore_ascii_case("uncategorized")
-        {
-            classification.engine.record_review_flag(
-                request.tx_id.clone(),
-                &tx_row.date,
-                "manual classification requires review".to_string(),
-                request.category.clone(),
-                confidence.to_string().parse::<f64>().unwrap_or(0.0),
-            );
-        }
-
-        Ok(ClassifyTransactionResponse {
-            tx_id: request.tx_id,
-            category: request.category,
-            confidence: confidence.to_string(),
-            audit_entries: new_entries,
-        })
+        self.apply_classification_action(request, "classification")
     }
 
     fn reconcile_excel_classification(
         &self,
         request: ReconcileExcelClassificationRequest,
     ) -> Result<ClassifyTransactionResponse, ToolError> {
-        self.classify_transaction(ClassifyTransactionRequest {
-            tx_id: request.tx_id,
-            category: request.category,
-            confidence: request.confidence,
-            note: request.note,
-            actor: request.actor,
-        })
+        self.apply_classification_action(
+            ClassifyTransactionRequest {
+                tx_id: request.tx_id,
+                category: request.category,
+                confidence: request.confidence,
+                note: request.note,
+                actor: request.actor,
+            },
+            "reconciliation",
+        )
     }
 
     fn query_audit_log(&self, _request: QueryAuditLogRequest) -> Result<QueryAuditLogResponse, ToolError> {
