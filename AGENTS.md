@@ -1,3 +1,80 @@
+## Agent Quickstart (Read This First)
+
+This file is the persistent operator manual for future agents.  
+For product scope and status, read `README.md` first, then use this file for execution rules and MCP usage patterns.
+
+### Purpose (non-duplicate)
+
+`AGENTS.md` is intentionally operational. It should not restate the full product brief from the `## Project` section below.
+
+### MCP Capability Training (Concrete)
+
+Use `TurboLedgerService` in `crates/turbo-mcp/src/lib.rs` as the canonical contract.
+
+Core methods:
+- `list_accounts` / `list_accounts_tool`: enumerate account ids from manifest.
+- `validate_source_filename`: enforce `VENDOR--ACCOUNT--YYYY-MM--DOCTYPE.ext`.
+- `ingest_statement_rows`: idempotent journal/workbook ingest; returns deterministic `tx_ids`.
+- `ingest_pdf`: preflight filename + writes raw context bytes when missing + ingests rows.
+- `get_raw_context`: read bytes from `rkyv_ref`.
+- `run_rhai_rule`, `classify_ingested`, `query_flags`, `classify_transaction`, `reconcile_excel_classification`, `query_audit_log`.
+- `export_cpa_workbook`, `get_schedule_summary`.
+
+Concrete example 1 (account discovery):
+```rust
+let service = TurboLedgerService::from_manifest_str(manifest)?;
+let response = service.list_accounts_tool(ListAccountsRequest)?;
+assert_eq!(response.accounts[0].account_id, "WF-BH-CHK");
+```
+
+Concrete example 2 (idempotent ingest):
+```rust
+let first = service.ingest_statement_rows(IngestStatementRowsRequest {
+    journal_path,
+    workbook_path,
+    rows,
+})?;
+let second = service.ingest_statement_rows(IngestStatementRowsRequest {
+    journal_path,
+    workbook_path,
+    rows,
+})?;
+assert_eq!(first.inserted_count, 1);
+assert_eq!(second.inserted_count, 0);
+```
+
+Concrete example 3 (PDF ingest with raw context fallback write):
+```rust
+let response = service.ingest_pdf(IngestPdfRequest {
+    pdf_path: "WF--BH-CHK--2023-01--statement.pdf".to_string(),
+    journal_path,
+    workbook_path,
+    raw_context_bytes: Some(b"ctx".to_vec()),
+    extracted_rows,
+})?;
+assert_eq!(response.inserted_count, 1);
+```
+
+Concrete example 4 (classification edit with invariants + audit):
+```rust
+let updated = service.classify_transaction(ClassifyTransactionRequest {
+    tx_id,
+    category: "OfficeSupplies".to_string(),
+    confidence: "0.93".to_string(), // must be decimal in [0,1]
+    note: Some("manual correction".to_string()),
+    actor: "agent".to_string(),
+})?;
+assert_eq!(updated.category, "OfficeSupplies");
+```
+
+### Agent-Safe Usage Rules
+
+- Prefer Postel-style input handling at boundaries: accept practical input variance, normalize early, emit strict deterministic outputs.
+- Do not bypass invariant checks (`tx_id` hash match, decimal parse, date shape, confidence range).
+- Keep status/state outputs concise and obvious for small models; favor explicit fields over implicit behavior.
+- Before adding new custom infrastructure, confirm an existing crate/tool already solves it acceptably.
+- Distill durable session lessons back into this file when they affect future agent quality.
+
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
 
