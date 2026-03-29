@@ -426,6 +426,7 @@ impl TurboLedgerService {
         let current = hsm.current;
         if hsm::allowed_next_node(current) == Some(requested) {
             hsm.current = requested;
+            hsm.last_valid_checkpoint = hsm::checkpoint_marker(requested);
             return Ok(hsm::transition_advanced_response(requested));
         }
 
@@ -445,12 +446,30 @@ impl TurboLedgerService {
 
     pub fn hsm_resume_tool(
         &self,
-        _request: HsmResumeRequest,
+        request: HsmResumeRequest,
     ) -> Result<HsmResumeResponse, ToolError> {
-        let _ = &self.hsm_state;
-        Err(ToolError::Internal(
-            "hsm resume service wiring not implemented".to_string(),
-        ))
+        let mut hsm = self
+            .hsm_state
+            .lock()
+            .map_err(|_| ToolError::Internal("hsm lock poisoned".to_string()))?;
+        let Some(resume_node) = hsm::parse_checkpoint_marker(&request.state_marker) else {
+            return Ok(hsm::resume_response(
+                hsm.current,
+                false,
+                vec!["checkpoint_invalid".to_string()],
+            ));
+        };
+
+        if request.state_marker != hsm.last_valid_checkpoint {
+            return Ok(hsm::resume_response(
+                hsm.current,
+                false,
+                vec!["checkpoint_unknown".to_string()],
+            ));
+        }
+
+        hsm.current = resume_node;
+        Ok(hsm::resume_response(hsm.current, true, Vec::new()))
     }
 }
 
