@@ -129,6 +129,11 @@ Plans:
 **Goal**: Represent lifecycle states/substates with guarded transitions and resumability.
 **Depends on**: Phase 15
 **Requirements**: HSM-01, HSM-02, HSM-03
+**Plans:** 3 plans
+Plans:
+- [ ] 16-01-PLAN.md — Build HSM lifecycle state/substate and guarded transition service contracts with deterministic Display hints.
+- [ ] 16-02-PLAN.md — Implement checkpoint/resume determinism from last valid state marker without invariant bypass.
+- [ ] 16-03-PLAN.md — Expose HSM transition/status/resume over MCP transport and publish executable validation/runbook mapping.
 **Success Criteria**:
   1. Ingest->normalize->validate->reconcile->commit->summarize lifecycle is encoded in HSM.
   2. Invalid transitions fail via guards with explicit reasons.
@@ -165,7 +170,7 @@ Plans:
 | 13. MCP Boundary and Agent-Only Runtime Surface | 3/3 | Complete    | 2026-03-29 |
 | 14. Ontology Persistence and Query Surface | 2/2 | Complete   | 2026-03-29 |
 | 15. Reconciliation and Commit Guardrails | 2/2 | Complete   | 2026-03-29 |
-| 16. Moku HSM Deterministic Status and Resume | 0/TBD | Not started | - |
+| 16. Moku HSM Deterministic Status and Resume | 0/3 | Not started | - |
 | 17. Disintegrate Event-Sourced Lifecycle Backbone | 0/TBD | Not started | - |
 | 18. Tax Assist Evidence-Chain Interfaces | 0/TBD | Not started | - |
 
