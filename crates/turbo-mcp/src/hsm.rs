@@ -98,18 +98,64 @@ pub struct HsmStatusResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HsmResumeRequest {
+    pub state_marker: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HsmResumeResponse {
+    pub resumed: bool,
+    pub resume_from: String,
+    pub resume_hint: String,
+    pub blockers: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HsmMachine {
     pub current: LifecycleNode,
+    pub last_valid_checkpoint: String,
 }
 
 impl Default for HsmMachine {
     fn default() -> Self {
+        let current = LifecycleNode {
+            state: LifecycleState::Ingest,
+            substate: LifecycleSubstate::Pending,
+        };
         Self {
-            current: LifecycleNode {
-                state: LifecycleState::Ingest,
-                substate: LifecycleSubstate::Pending,
-            },
+            current,
+            last_valid_checkpoint: checkpoint_marker(current),
         }
+    }
+}
+
+pub fn checkpoint_marker(node: LifecycleNode) -> String {
+    format!("{}:{}:advanced", node.state.as_str(), node.substate.as_str())
+}
+
+pub fn parse_checkpoint_marker(marker: &str) -> Option<LifecycleNode> {
+    let mut parts = marker.split(':');
+    let state = parts.next()?;
+    let substate = parts.next()?;
+    let status = parts.next()?;
+    if status != "advanced" || parts.next().is_some() {
+        return None;
+    }
+    parse_node(state, substate)
+}
+
+pub fn resume_response(node: LifecycleNode, resumed: bool, mut blockers: Vec<String>) -> HsmResumeResponse {
+    blockers.sort();
+    blockers.dedup();
+    HsmResumeResponse {
+        resumed,
+        resume_from: checkpoint_marker(node),
+        resume_hint: if resumed {
+            next_hint_for(node)
+        } else {
+            format!("resume_from_{}", node.token())
+        },
+        blockers,
     }
 }
 
@@ -177,7 +223,7 @@ pub fn transition_advanced_response(node: LifecycleNode) -> HsmTransitionRespons
         status: "advanced".to_string(),
         guard_reason: None,
         transition_evidence: vec![format!("advanced_to={}", node.token())],
-        state_marker: format!("{}:{}:advanced", node.state.as_str(), node.substate.as_str()),
+        state_marker: checkpoint_marker(node),
     }
 }
 

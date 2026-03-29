@@ -14,7 +14,10 @@ pub mod mcp_adapter;
 pub mod hsm;
 pub mod ontology;
 pub mod reconciliation;
-pub use hsm::{HsmMachine, HsmStatusRequest, HsmStatusResponse, HsmTransitionRequest, HsmTransitionResponse};
+pub use hsm::{
+    HsmMachine, HsmResumeRequest, HsmResumeResponse, HsmStatusRequest, HsmStatusResponse,
+    HsmTransitionRequest, HsmTransitionResponse,
+};
 pub use ontology::{
     OntologyEdge, OntologyEdgeInput, OntologyEntity, OntologyEntityInput, OntologyEntityKind,
     OntologyQueryPathRequest, OntologyQueryPathResponse, OntologyStore,
@@ -438,6 +441,16 @@ impl TurboLedgerService {
             .lock()
             .map_err(|_| ToolError::Internal("hsm lock poisoned".to_string()))?;
         Ok(hsm::status_response(hsm.current, Vec::new()))
+    }
+
+    pub fn hsm_resume_tool(
+        &self,
+        _request: HsmResumeRequest,
+    ) -> Result<HsmResumeResponse, ToolError> {
+        let _ = &self.hsm_state;
+        Err(ToolError::Internal(
+            "hsm resume service wiring not implemented".to_string(),
+        ))
     }
 }
 
