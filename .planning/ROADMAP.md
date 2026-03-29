@@ -154,7 +154,7 @@ Plans:
 | 10. Moku Hierarchical State Machine Orchestration | 0/TBD | Not started | - |
 | 11. Disintegrate Event-Sourced Audit Backbone | 0/TBD | Not started | - |
 | 12. US Expat Tax Agent Assist Surfaces | 0/TBD | Not started | - |
-| 13. MCP Boundary and Agent-Only Runtime Surface | 3/3 | Complete   | 2026-03-29 |
+| 13. MCP Boundary and Agent-Only Runtime Surface | 3/3 | Complete    | 2026-03-29 |
 | 14. Ontology Persistence and Query Surface | 0/TBD | Not started | - |
 | 15. Reconciliation and Commit Guardrails | 0/TBD | Not started | - |
 | 16. Moku HSM Deterministic Status and Resume | 0/TBD | Not started | - |
