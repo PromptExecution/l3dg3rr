@@ -106,6 +106,14 @@ fn handle_request(request: Value) -> Option<Value> {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
                     mcp_adapter::hsm_tool_result(global_service(), tool_name, &arguments)
                 }
+                mcp_adapter::EVENT_HISTORY_TOOL => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::event_history_tool_result(global_service(), &arguments)
+                }
+                mcp_adapter::EVENT_REPLAY_TOOL => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::event_replay_tool_result(global_service(), &arguments)
+                }
                 _ => mcp_adapter::unknown_tool_result(tool_name),
             };
             Some(json!({

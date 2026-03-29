@@ -5,9 +5,9 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::{
-    HsmResumeRequest, HsmStatusRequest, HsmTransitionRequest, IngestPdfRequest,
+    EventHistoryFilter, HsmResumeRequest, HsmStatusRequest, HsmTransitionRequest, IngestPdfRequest,
     IngestStatementRowsRequest, OntologyQueryPathRequest, OntologyStore, ReconciliationStageRequest,
-    ToolError, TurboLedgerService, TurboLedgerTools,
+    ReplayLifecycleRequest, ToolError, TurboLedgerService, TurboLedgerTools,
 };
 
 pub const ONTOLOGY_QUERY_PATH_TOOL: &str = "l3dg3rr_ontology_query_path";
@@ -18,6 +18,8 @@ pub const RECON_COMMIT_TOOL: &str = "l3dg3rr_commit_guarded";
 pub const HSM_TRANSITION_TOOL: &str = "l3dg3rr_hsm_transition";
 pub const HSM_STATUS_TOOL: &str = "l3dg3rr_hsm_status";
 pub const HSM_RESUME_TOOL: &str = "l3dg3rr_hsm_resume";
+pub const EVENT_REPLAY_TOOL: &str = "l3dg3rr_event_replay";
+pub const EVENT_HISTORY_TOOL: &str = "l3dg3rr_event_history";
 
 pub const MCP_LIFECYCLE_METHODS: &[&str] = &["initialize", "tools/list", "tools/call"];
 
@@ -34,6 +36,8 @@ pub fn tool_catalog() -> Vec<String> {
         HSM_TRANSITION_TOOL.to_string(),
         HSM_STATUS_TOOL.to_string(),
         HSM_RESUME_TOOL.to_string(),
+        EVENT_REPLAY_TOOL.to_string(),
+        EVENT_HISTORY_TOOL.to_string(),
         "tools/list".to_string(),
         "tools/call".to_string(),
     ]
@@ -586,6 +590,119 @@ pub fn hsm_tool_result(service: &TurboLedgerService, tool_name: &str, arguments:
     }
 }
 
+pub fn event_history_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+    let filter = match parse_event_history_filter(arguments) {
+        Ok(filter) => filter,
+        Err(err) => {
+            return json!({
+                "content": [{
+                    "type": "json",
+                    "json": map_tool_error(&err)
+                }],
+                "isError": true
+            });
+        }
+    };
+
+    match service.event_history(filter.clone()) {
+        Ok(response) => {
+            let events = response
+                .events
+                .into_iter()
+                .map(|event| {
+                    json!({
+                        "event_id": event.event_id,
+                        "sequence": event.sequence,
+                        "event_type": event.event_type,
+                        "tx_id": event.tx_id,
+                        "document_ref": event.document_ref,
+                        "occurred_at": event.occurred_at,
+                        "payload": event.payload,
+                        "identity_inputs": event.identity_inputs,
+                    })
+                })
+                .collect::<Vec<_>>();
+
+            json!({
+                "content": [{
+                    "type": "json",
+                    "json": {
+                        "filter": {
+                            "tx_id": filter.tx_id,
+                            "document_ref": filter.document_ref,
+                            "time_start": filter.time_start,
+                            "time_end": filter.time_end,
+                        },
+                        "events": events,
+                    }
+                }],
+                "isError": false
+            })
+        }
+        Err(ToolError::InvalidInput(message)) if message.contains("time_start must be <= time_end") => json!({
+            "content": [{
+                "type": "json",
+                "json": {
+                    "isError": true,
+                    "error_type": "EventHistoryBlocked",
+                    "reason": "time_range_invalid",
+                    "message": message,
+                }
+            }],
+            "isError": true
+        }),
+        Err(err) => json!({
+            "content": [{
+                "type": "json",
+                "json": map_tool_error(&err)
+            }],
+            "isError": true
+        }),
+    }
+}
+
+pub fn event_replay_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+    let request = match parse_replay_lifecycle_request(arguments) {
+        Ok(request) => request,
+        Err(err) => {
+            return json!({
+                "content": [{
+                    "type": "json",
+                    "json": map_tool_error(&err)
+                }],
+                "isError": true
+            });
+        }
+    };
+
+    match service.replay_lifecycle(request) {
+        Ok(response) => json!({
+            "content": [{
+                "type": "json",
+                "json": {
+                    "reconstructed_state": response.reconstructed_state,
+                    "event_count": response.event_count,
+                    "diagnostics": response.diagnostics,
+                    "filter": {
+                        "tx_id": response.filter.tx_id,
+                        "document_ref": response.filter.document_ref,
+                        "time_start": response.filter.time_start,
+                        "time_end": response.filter.time_end,
+                    }
+                }
+            }],
+            "isError": false
+        }),
+        Err(err) => json!({
+            "content": [{
+                "type": "json",
+                "json": map_tool_error(&err)
+            }],
+            "isError": true
+        }),
+    }
+}
+
 pub struct McpAdapter<'a, T: TurboLedgerTools> {
     service: &'a T,
 }
@@ -678,6 +795,22 @@ fn parse_hsm_resume_request(arguments: &Value) -> Result<HsmResumeRequest, ToolE
     Ok(HsmResumeRequest { state_marker })
 }
 
+fn parse_event_history_filter(arguments: &Value) -> Result<EventHistoryFilter, ToolError> {
+    Ok(EventHistoryFilter {
+        tx_id: optional_str(arguments, "tx_id"),
+        document_ref: optional_str(arguments, "document_ref"),
+        time_start: optional_str(arguments, "time_start"),
+        time_end: optional_str(arguments, "time_end"),
+    })
+}
+
+fn parse_replay_lifecycle_request(arguments: &Value) -> Result<ReplayLifecycleRequest, ToolError> {
+    Ok(ReplayLifecycleRequest {
+        tx_id: optional_str(arguments, "tx_id"),
+        document_ref: optional_str(arguments, "document_ref"),
+    })
+}
+
 fn parse_optional_bytes(value: Option<&Value>) -> Result<Option<Vec<u8>>, ToolError> {
     match value {
         None | Some(Value::Null) => Ok(None),
@@ -709,7 +842,16 @@ fn parse_rows(value: Option<&Value>, field_name: &str) -> Result<Vec<Transaction
     rows.iter()
         .map(|row| {
             Ok(TransactionInput {
-                account_id: required_str(row, "account_id")?.to_string(),
+                account_id: row
+                    .get("account_id")
+                    .and_then(Value::as_str)
+                    .or_else(|| row.get("account").and_then(Value::as_str))
+                    .ok_or_else(|| {
+                        ToolError::InvalidInput(
+                            "missing or invalid `account_id` in tool arguments".to_string(),
+                        )
+                    })?
+                    .to_string(),
                 date: required_str(row, "date")?.to_string(),
                 amount: required_str(row, "amount")?.to_string(),
                 description: required_str(row, "description")?.to_string(),
@@ -717,6 +859,14 @@ fn parse_rows(value: Option<&Value>, field_name: &str) -> Result<Vec<Transaction
             })
         })
         .collect()
+}
+
+fn optional_str(obj: &Value, key: &str) -> Option<String> {
+    obj.get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
 }
 
 fn parse_string_array(value: Option<&Value>, field_name: &str) -> Result<Vec<String>, ToolError> {

@@ -93,10 +93,10 @@ fn ingest_one_row(client: &mut McpStdioClient, date: &str, description: &str, so
     let ingest = client.request(
         "tools/call",
         json!({
-            "name": "proxy_rustledger_ingest_statement_rows",
-            "arguments": {
-                "journal_path": "/tmp/tax-ledger/journal.beancount",
-                "workbook_path": "/tmp/tax-ledger/tax-ledger.xlsx",
+                "name": "proxy_rustledger_ingest_statement_rows",
+                "arguments": {
+                "journal_path": "/tmp/tax-ledger-journal.beancount",
+                "workbook_path": "/tmp/tax-ledger.xlsx",
                 "rows": [{
                     "account": "WF-BH-CHK",
                     "date": date,
