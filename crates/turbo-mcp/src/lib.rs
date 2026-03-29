@@ -594,14 +594,23 @@ impl TurboLedgerService {
         &self,
         request: TaxEvidenceChainRequest,
     ) -> Result<TaxEvidenceChainResponse, ToolError> {
+        let normalized_tx_id = request
+            .tx_id
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        let normalized_document_ref = request
+            .document_ref
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+
         let path = self.ontology_query_path_tool(OntologyQueryPathRequest {
             ontology_path: request.ontology_path,
             from_entity_id: request.from_entity_id.clone(),
             max_depth: None,
         })?;
         let history_filter = EventHistoryFilter {
-            tx_id: request.tx_id.clone(),
-            document_ref: request.document_ref.clone(),
+            tx_id: normalized_tx_id.clone(),
+            document_ref: normalized_document_ref.clone(),
             time_start: None,
             time_end: None,
         };
@@ -611,6 +620,33 @@ impl TurboLedgerService {
             document_ref: history_filter.document_ref,
         })?;
 
+        let mut ambiguity = path
+            .edges
+            .iter()
+            .filter(|edge| edge.relation == "ambiguity")
+            .map(|edge| TaxAmbiguityRecord {
+                tx_id: normalized_tx_id.clone().or_else(|| Some(edge.from.clone())),
+                review_state: "needs_review".to_string(),
+                reason: "ambiguous_tax_treatment".to_string(),
+                provenance_refs: edge
+                    .provenance
+                    .iter()
+                    .filter_map(|(key, value)| {
+                        if key.contains("source") || key.contains("ref") {
+                            Some(value.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>(),
+            })
+            .collect::<Vec<_>>();
+        ambiguity.sort_by(|a, b| {
+            a.tx_id
+                .cmp(&b.tx_id)
+                .then_with(|| a.review_state.cmp(&b.review_state))
+                .then_with(|| a.reason.cmp(&b.reason))
+        });
         let mut provenance_refs = path
             .edges
             .iter()
@@ -625,17 +661,21 @@ impl TurboLedgerService {
             .collect::<Vec<_>>();
         provenance_refs.sort();
         provenance_refs.dedup();
+        let mut node_ids = path.nodes.into_iter().map(|node| node.id).collect::<Vec<_>>();
+        node_ids.sort();
+        let mut edge_ids = path.edges.into_iter().map(|edge| edge.id).collect::<Vec<_>>();
+        edge_ids.sort();
         let source = TaxEvidenceSource {
             from_entity_id: request.from_entity_id,
-            node_ids: path.nodes.into_iter().map(|node| node.id).collect(),
-            edge_ids: path.edges.into_iter().map(|edge| edge.id).collect(),
+            node_ids,
+            edge_ids,
             provenance_refs,
         };
         Ok(tax_assist::build_tax_evidence_chain_response(
             source,
             events,
             replay,
-            Vec::new(),
+            ambiguity,
         ))
     }
 
