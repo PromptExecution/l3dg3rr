@@ -9,3 +9,6 @@ target/
 
 # Local planning input docs
 prd.md
+
+# Windows Mark-of-the-Web metadata files
+*:Zone.Identifier

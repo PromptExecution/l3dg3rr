@@ -10,7 +10,7 @@ progress:
   total_phases: 12
   completed_phases: 6
   total_plans: 16
-  completed_plans: 16
+  completed_plans: 8
   percent: 50
 ---
 
@@ -21,12 +21,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Convert raw historical financial PDFs into accountant-usable, auditable Excel tax records without sending private data to third-party SaaS.
-**Current focus:** Phase 14 — ontology-persistence-and-query-surface
+**Current focus:** Phase 18 — tax-assist MCP surfaces (complete)
 
 ## Current Position
 
-Phase: 13
-Plan: Not started
+Phase: 18
+Plan: 18-03-PLAN.md (complete)
 Status: Phase complete — ready for verification
 Last activity: 2026-03-29
 
