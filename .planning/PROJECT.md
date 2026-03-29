@@ -28,6 +28,7 @@ Convert raw historical financial PDFs into accountant-usable, auditable Excel ta
 - ✓ CPA workbook outputs and Schedule/FBAR summaries — v1.0
 - ✓ MCP operator surface for ingest/classify/query/summary/context — v1.0
 - ✓ Local containerized run path with CI/release automation — v1.0
+- ✓ Enforceable MCP transport boundary with passthrough/proxy abstractions for Docling and Rustledger surfaces — Phase 13 (v1.1)
 
 ### Active
 
@@ -48,6 +49,8 @@ Convert raw historical financial PDFs into accountant-usable, auditable Excel ta
 ## Context
 
 Primary use case remains catching up unfiled U.S. expat returns with CPA handoff constraints. v1.0 shipped the end-to-end local-first MVP: deterministic ingest, runtime classification, audit-safe mutation history, workbook outputs, schedule summaries, and CI/release readiness. Next evolution focuses on v2 graph/API/UI extension work while preserving workbook-as-truth and deterministic financial behavior.
+
+Current state: Phase 13 is complete with MCP-only subprocess validation gates and callable proxy routing for both docling and rustledger surface tools. Phase 14 now starts ontology persistence/query work on top of that boundary.
 
 ## Constraints
 
@@ -70,6 +73,7 @@ Primary use case remains catching up unfiled U.S. expat returns with CPA handoff
 | HelixDB is projection over workbook truth | Relationship queries without displacing accountant-facing source of truth | — Pending v2 |
 | Local-first architecture (no Postgres/cloud dependency) | Privacy and low-ops constraints from use case | ✓ Adopted in v1.0 |
 | MCP wrapper is first-class integration contract | Agent operation depends on stable callable tool semantics | ✓ Adopted in v1.0 |
+| Upstream MCP passthrough over reinvention | Reuse proven rustledger/docling interfaces and layer l3dg3rr abstractions above them | ✓ Adopted in Phase 13 |
 
 ## Evolution
 
@@ -89,4 +93,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-29 after v1.1 milestone kickoff*
+*Last updated: 2026-03-29 after Phase 13 completion*
