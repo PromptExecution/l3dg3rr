@@ -58,7 +58,8 @@ Progress: [█████░░░░░] 50%
 
 ### Pending Todos
 
-- Create Phase 14 CONTEXT/PLAN and begin implementation.
+- 1 pending todo (captured 2026-03-29):
+- Add Claude Cowork MCP install matrix and CI gate.
 
 ### Blockers/Concerns
 
