@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: FDKMS Integrity
 status: verifying
-stopped_at: Completed 17-03-PLAN.md
-last_updated: "2026-03-29T08:26:12.696Z"
+stopped_at: Completed 18-03-PLAN.md
+last_updated: "2026-03-29T08:49:47.651Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 12
-  completed_phases: 5
-  total_plans: 13
-  completed_plans: 13
+  completed_phases: 6
+  total_plans: 16
+  completed_plans: 16
   percent: 50
 ---
 
@@ -70,6 +70,9 @@ Progress: [█████░░░░░] 50%
 - [Phase 17]: Replay diagnostics surface deterministic sequence_gap/missing_predecessor/invalid_transition keys.
 - [Phase 17]: Event history invalid ranges return deterministic EventHistoryBlocked/time_range_invalid envelopes.
 - [Phase 17]: MCP event tools follow adapter constants plus server dispatch pattern.
+- [Phase 18]: Tax outputs remain blocked until reconciliation passes; ready outputs are ontology-derived and deterministic.
+- [Phase 18]: Evidence chains expose explicit source-events-current_state sections with preserved provenance and ambiguity links.
+- [Phase 18]: MCP transport now exposes l3dg3rr_tax_assist, l3dg3rr_tax_evidence_chain, and l3dg3rr_tax_ambiguity_review with deterministic envelopes.
 
 ### Pending Todos
 
@@ -82,6 +85,6 @@ Progress: [█████░░░░░] 50%
 
 ## Session Continuity
 
-Last session: 2026-03-29T08:26:12.689Z
-Stopped at: Completed 17-03-PLAN.md
+Last session: 2026-03-29T08:49:47.646Z
+Stopped at: Completed 18-03-PLAN.md
 Resume file: None

@@ -37,9 +37,9 @@
 
 ### US Expat Tax Agent Assist
 
-- [ ] **TAXA-01**: User can derive US expat tax-relevant structured outputs (Schedule C/D/E and FBAR evidence views) from reconciled ontology truth.
-- [ ] **TAXA-02**: AI agents can retrieve explainable evidence chains for tax decisions (source doc -> event log -> current state).
-- [ ] **TAXA-03**: User can flag scenarios with elevated tax ambiguity for human review with linked provenance.
+- [x] **TAXA-01**: User can derive US expat tax-relevant structured outputs (Schedule C/D/E and FBAR evidence views) from reconciled ontology truth.
+- [x] **TAXA-02**: AI agents can retrieve explainable evidence chains for tax decisions (source doc -> event log -> current state).
+- [x] **TAXA-03**: User can flag scenarios with elevated tax ambiguity for human review with linked provenance.
 
 ## v2 Requirements
 
@@ -75,9 +75,9 @@
 | EVT-01 | Phase 17 | Complete |
 | EVT-02 | Phase 17 | Complete |
 | EVT-03 | Phase 17 | Complete |
-| TAXA-01 | Phase 18 | Pending |
-| TAXA-02 | Phase 18 | Pending |
-| TAXA-03 | Phase 18 | Pending |
+| TAXA-01 | Phase 18 | Complete |
+| TAXA-02 | Phase 18 | Complete |
+| TAXA-03 | Phase 18 | Complete |
 
 **Coverage:**
 - v1 requirements: 18 total
