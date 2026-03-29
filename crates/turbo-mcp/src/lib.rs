@@ -20,7 +20,8 @@ pub use ontology::{
     OntologyUpsertEntitiesResponse,
 };
 pub use reconciliation::{
-    ReconciliationDiagnostic, ReconciliationStageRequest, ReconciliationStageResponse,
+    commit_stage, reconcile_stage, validate_stage, ReconciliationDiagnostic,
+    ReconciliationStageRequest, ReconciliationStageResponse,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -381,29 +382,23 @@ impl TurboLedgerService {
 
     pub fn validate_reconciliation_stage_tool(
         &self,
-        _request: ReconciliationStageRequest,
+        request: ReconciliationStageRequest,
     ) -> Result<ReconciliationStageResponse, ToolError> {
-        Err(ToolError::Internal(
-            "reconciliation validate stage not implemented".to_string(),
-        ))
+        validate_stage(&request)
     }
 
     pub fn reconcile_reconciliation_stage_tool(
         &self,
-        _request: ReconciliationStageRequest,
+        request: ReconciliationStageRequest,
     ) -> Result<ReconciliationStageResponse, ToolError> {
-        Err(ToolError::Internal(
-            "reconciliation reconcile stage not implemented".to_string(),
-        ))
+        reconcile_stage(&request)
     }
 
     pub fn commit_reconciliation_stage_tool(
         &self,
-        _request: ReconciliationStageRequest,
+        request: ReconciliationStageRequest,
     ) -> Result<ReconciliationStageResponse, ToolError> {
-        Err(ToolError::Internal(
-            "reconciliation commit stage not implemented".to_string(),
-        ))
+        commit_stage(&request)
     }
 }
 
