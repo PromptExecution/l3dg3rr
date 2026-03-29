@@ -10,6 +10,8 @@ use ledger_core::manifest::Manifest;
 use rust_decimal::Decimal;
 use rust_xlsxwriter::Workbook;
 
+pub mod mcp_adapter;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccountSummary {
     pub account_id: String,
