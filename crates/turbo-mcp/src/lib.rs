@@ -483,7 +483,7 @@ impl TurboLedgerService {
         &self,
         request: ClassifyTransactionRequest,
     ) -> Result<ClassifyTransactionResponse, ToolError> {
-        self.classify_transaction(request)
+        self.apply_classification_action(request, "adjustment")
     }
 
     pub fn event_history(
@@ -494,6 +494,118 @@ impl TurboLedgerService {
             .lock()
             .map_err(|_| ToolError::Internal("events lock poisoned".to_string()))?
             .list_events(filter)
+    }
+
+    fn append_lifecycle_event(
+        &self,
+        event_type: &str,
+        tx_id: Option<String>,
+        document_ref: Option<String>,
+        payload: BTreeMap<String, String>,
+    ) -> Result<AppendEventResult, ToolError> {
+        self.lifecycle_events
+            .lock()
+            .map_err(|_| ToolError::Internal("events lock poisoned".to_string()))?
+            .append_event(event_type, tx_id, document_ref, payload)
+    }
+
+    fn apply_classification_action(
+        &self,
+        request: ClassifyTransactionRequest,
+        event_type: &str,
+    ) -> Result<ClassifyTransactionResponse, ToolError> {
+        let (response, tx_row) = {
+            let mut classification = self
+                .classification_state
+                .lock()
+                .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?;
+
+            let tx_row = classification
+                .tx_rows
+                .get(&request.tx_id)
+                .cloned()
+                .ok_or_else(|| ToolError::InvalidInput("unknown tx_id".to_string()))?;
+
+            validate_invariants(&tx_row, &request.tx_id, &request.category)?;
+            let confidence = parse_confidence(&request.confidence)?;
+
+            let old = classification.classifications.get(&request.tx_id).cloned();
+            let mut new_entries = Vec::new();
+            let timestamp = now_timestamp();
+
+            if old.as_ref().map(|c| c.category.as_str()) != Some(request.category.as_str()) {
+                let entry = AuditEntry {
+                    timestamp: timestamp.clone(),
+                    actor: request.actor.clone(),
+                    tx_id: request.tx_id.clone(),
+                    field: "category".to_string(),
+                    old_value: old.as_ref().map(|c| c.category.clone()),
+                    new_value: request.category.clone(),
+                    note: request.note.clone(),
+                };
+                classification.audit_log.push(entry.clone());
+                new_entries.push(to_audit_response(entry));
+            }
+
+            if old.as_ref().map(|c| c.confidence) != Some(confidence) {
+                let entry = AuditEntry {
+                    timestamp,
+                    actor: request.actor.clone(),
+                    tx_id: request.tx_id.clone(),
+                    field: "confidence".to_string(),
+                    old_value: old.as_ref().map(|c| c.confidence.to_string()),
+                    new_value: confidence.to_string(),
+                    note: request.note.clone(),
+                };
+                classification.audit_log.push(entry.clone());
+                new_entries.push(to_audit_response(entry));
+            }
+
+            classification.classifications.insert(
+                request.tx_id.clone(),
+                StoredClassification {
+                    category: request.category.clone(),
+                    confidence,
+                },
+            );
+
+            if confidence < Decimal::from_str("0.80").expect("valid decimal literal")
+                || request.category.eq_ignore_ascii_case("uncategorized")
+            {
+                classification.engine.record_review_flag(
+                    request.tx_id.clone(),
+                    &tx_row.date,
+                    "manual classification requires review".to_string(),
+                    request.category.clone(),
+                    confidence.to_string().parse::<f64>().unwrap_or(0.0),
+                );
+            }
+
+            (
+                ClassifyTransactionResponse {
+                    tx_id: request.tx_id.clone(),
+                    category: request.category.clone(),
+                    confidence: confidence.to_string(),
+                    audit_entries: new_entries,
+                },
+                tx_row,
+            )
+        };
+
+        let mut payload = BTreeMap::new();
+        payload.insert("actor".to_string(), request.actor.clone());
+        payload.insert("category".to_string(), request.category.clone());
+        payload.insert("confidence".to_string(), request.confidence.clone());
+        payload.insert("date".to_string(), tx_row.date.clone());
+        payload.insert("note".to_string(), request.note.clone().unwrap_or_default());
+        self.append_lifecycle_event(
+            event_type,
+            Some(request.tx_id.clone()),
+            Some(tx_row.source_ref.clone()),
+            payload,
+        )?;
+
+        Ok(response)
     }
 }
 
@@ -542,6 +654,26 @@ impl TurboLedgerTools for TurboLedgerService {
             if let Some(row) = by_id.get(&tx.tx_id) {
                 classification.tx_rows.insert(tx.tx_id.clone(), row.clone());
             }
+        }
+        drop(classification);
+
+        for row in &request.rows {
+            let tx_id = deterministic_tx_id(row);
+            let mut payload = BTreeMap::new();
+            payload.insert("account_id".to_string(), row.account_id.clone());
+            payload.insert("amount".to_string(), row.amount.clone());
+            payload.insert("date".to_string(), row.date.clone());
+            payload.insert("description".to_string(), row.description.clone());
+            payload.insert(
+                "inserted".to_string(),
+                inserted.iter().any(|tx| tx.tx_id == tx_id).to_string(),
+            );
+            self.append_lifecycle_event(
+                "ingest",
+                Some(tx_id),
+                Some(row.source_ref.clone()),
+                payload,
+            )?;
         }
 
         let tx_ids = inserted.iter().map(|row| row.tx_id.clone()).collect::<Vec<_>>();
@@ -748,91 +880,23 @@ impl TurboLedgerTools for TurboLedgerService {
         &self,
         request: ClassifyTransactionRequest,
     ) -> Result<ClassifyTransactionResponse, ToolError> {
-        let mut classification = self
-            .classification_state
-            .lock()
-            .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?;
-
-        let tx_row = classification
-            .tx_rows
-            .get(&request.tx_id)
-            .cloned()
-            .ok_or_else(|| ToolError::InvalidInput("unknown tx_id".to_string()))?;
-
-        validate_invariants(&tx_row, &request.tx_id, &request.category)?;
-        let confidence = parse_confidence(&request.confidence)?;
-
-        let old = classification.classifications.get(&request.tx_id).cloned();
-        let mut new_entries = Vec::new();
-        let timestamp = now_timestamp();
-
-        if old.as_ref().map(|c| c.category.as_str()) != Some(request.category.as_str()) {
-            let entry = AuditEntry {
-                timestamp: timestamp.clone(),
-                actor: request.actor.clone(),
-                tx_id: request.tx_id.clone(),
-                field: "category".to_string(),
-                old_value: old.as_ref().map(|c| c.category.clone()),
-                new_value: request.category.clone(),
-                note: request.note.clone(),
-            };
-            classification.audit_log.push(entry.clone());
-            new_entries.push(to_audit_response(entry));
-        }
-
-        if old.as_ref().map(|c| c.confidence) != Some(confidence) {
-            let entry = AuditEntry {
-                timestamp,
-                actor: request.actor.clone(),
-                tx_id: request.tx_id.clone(),
-                field: "confidence".to_string(),
-                old_value: old.as_ref().map(|c| c.confidence.to_string()),
-                new_value: confidence.to_string(),
-                note: request.note.clone(),
-            };
-            classification.audit_log.push(entry.clone());
-            new_entries.push(to_audit_response(entry));
-        }
-
-        classification.classifications.insert(
-            request.tx_id.clone(),
-            StoredClassification {
-                category: request.category.clone(),
-                confidence,
-            },
-        );
-
-        if confidence < Decimal::from_str("0.80").expect("valid decimal literal")
-            || request.category.eq_ignore_ascii_case("uncategorized")
-        {
-            classification.engine.record_review_flag(
-                request.tx_id.clone(),
-                &tx_row.date,
-                "manual classification requires review".to_string(),
-                request.category.clone(),
-                confidence.to_string().parse::<f64>().unwrap_or(0.0),
-            );
-        }
-
-        Ok(ClassifyTransactionResponse {
-            tx_id: request.tx_id,
-            category: request.category,
-            confidence: confidence.to_string(),
-            audit_entries: new_entries,
-        })
+        self.apply_classification_action(request, "classification")
     }
 
     fn reconcile_excel_classification(
         &self,
         request: ReconcileExcelClassificationRequest,
     ) -> Result<ClassifyTransactionResponse, ToolError> {
-        self.classify_transaction(ClassifyTransactionRequest {
-            tx_id: request.tx_id,
-            category: request.category,
-            confidence: request.confidence,
-            note: request.note,
-            actor: request.actor,
-        })
+        self.apply_classification_action(
+            ClassifyTransactionRequest {
+                tx_id: request.tx_id,
+                category: request.category,
+                confidence: request.confidence,
+                note: request.note,
+                actor: request.actor,
+            },
+            "reconciliation",
+        )
     }
 
     fn query_audit_log(&self, _request: QueryAuditLogRequest) -> Result<QueryAuditLogResponse, ToolError> {
