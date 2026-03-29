@@ -92,17 +92,17 @@
 | TAXA-01 | Phase 18 | Complete |
 | TAXA-02 | Phase 18 | Complete |
 | TAXA-03 | Phase 18 | Complete |
-| CCONN-01 | Phase TBD | Pending |
-| CCONN-02 | Phase TBD | Pending |
-| CCONN-03 | Phase TBD | Pending |
-| CCONN-04 | Phase TBD | Pending |
-| CCONN-05 | Phase TBD | Pending |
-| CCONN-06 | Phase TBD | Pending |
+| CCONN-01 | Phase 19 | Pending |
+| CCONN-02 | Phase 20 | Pending |
+| CCONN-03 | Phase 21 | Pending |
+| CCONN-04 | Phase 19 | Pending |
+| CCONN-05 | Phase 21 | Pending |
+| CCONN-06 | Phase 20 | Pending |
 
 **Coverage:**
 - v1 requirements: 24 total
-- Mapped to phases: 18
-- Unmapped: 6 (v1.2 planning in progress)
+- Mapped to phases: 24
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-30*
