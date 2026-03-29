@@ -44,12 +44,12 @@ impl McpStdioClient {
     fn send_notification_initialized(&mut self) {
         let payload = json!({
             "jsonrpc": "2.0",
-            "id": self.next_id,
             "method": "notifications/initialized",
             "params": {},
         });
-        self.next_id += 1;
-        let _ = self.send_and_read(payload);
+        let line = serde_json::to_string(&payload).expect("serialize notification");
+        writeln!(self.stdin, "{line}").expect("write notification");
+        self.stdin.flush().expect("flush notification");
     }
 
     fn send_and_read(&mut self, payload: Value) -> Value {

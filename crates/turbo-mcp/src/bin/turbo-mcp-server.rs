@@ -1,7 +1,8 @@
 use std::io::{self, BufRead, Write};
+use std::sync::OnceLock;
 
 use serde_json::{json, Value};
-use turbo_mcp::mcp_adapter;
+use turbo_mcp::{mcp_adapter, TurboLedgerService};
 
 fn main() {
     // Serve a minimal stdio MCP transport boundary for initialize/tools/list/tools/call.
@@ -43,6 +44,7 @@ fn handle_request(request: Value) -> Option<Value> {
                 }
             }
         })),
+        "notifications/initialized" => None,
         "tools/list" => {
             let tools: Vec<Value> = mcp_adapter::tool_catalog()
                 .into_iter()
@@ -57,27 +59,41 @@ fn handle_request(request: Value) -> Option<Value> {
         "tools/call" => {
             let params = request.get("params").cloned().unwrap_or(Value::Null);
             let tool_name = params.get("name").and_then(Value::as_str).unwrap_or("");
-            if tool_name == "l3dg3rr_get_pipeline_status" {
-                let status = mcp_adapter::get_pipeline_status(true, true, true, Vec::new());
-                Some(json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "result": {
+            let result = match tool_name {
+                "l3dg3rr_get_pipeline_status" => {
+                    let status = mcp_adapter::get_pipeline_status(true, true, true, Vec::new());
+                    json!({
                         "content": [{
                             "type": "json",
                             "json": status
                         }],
                         "isError": false
-                    }
-                }))
-            } else {
-                Some(json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "result": mcp_adapter::unknown_tool_result(tool_name)
-                }))
-            }
+                    })
+                }
+                "proxy_docling_ingest_pdf" => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::ingest_pdf_tool_result(
+                        global_service(),
+                        &arguments,
+                        Some(format!("mcp-call-{id}")),
+                    )
+                }
+                _ => mcp_adapter::unknown_tool_result(tool_name),
+            };
+            Some(json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": result
+            }))
         }
         _ => Some(mcp_adapter::protocol_method_not_found(id, method)),
     }
+}
+
+fn global_service() -> &'static TurboLedgerService {
+    static SERVICE: OnceLock<TurboLedgerService> = OnceLock::new();
+    SERVICE.get_or_init(|| {
+        let manifest = "[session]\nworkbook_path=\"tax-ledger.xlsx\"\nactive_year=2023\n";
+        TurboLedgerService::from_manifest_str(manifest).expect("default manifest must parse")
+    })
 }
