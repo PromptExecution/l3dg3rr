@@ -1,4 +1,4 @@
-# Agent MCP Runbook (Phases 13-16)
+# Agent MCP Runbook (Phases 13-17)
 
 This runbook is MCP-only. Agent workflows must use MCP `initialize`, `notifications/initialized`, `tools/list`, and `tools/call` over stdio; no direct in-process service calls.
 
@@ -16,6 +16,8 @@ This runbook is MCP-only. Agent workflows must use MCP `initialize`, `notificati
 - `l3dg3rr_hsm_transition` executes deterministic guarded lifecycle transitions.
 - `l3dg3rr_hsm_status` returns concise deterministic lifecycle Display hints.
 - `l3dg3rr_hsm_resume` resumes only from last valid checkpoint markers.
+- `l3dg3rr_event_replay` reconstructs deterministic lifecycle state by tx/document scope.
+- `l3dg3rr_event_history` queries append-only lifecycle events filtered by tx/document/time.
 
 ## Bootstrap
 
@@ -130,6 +132,51 @@ Expected behavior:
   `isError=true`, `error_type=HsmResumeBlocked`, stable sorted `blockers`.
 - Status and resume payloads include concise deterministic small-model hints:
   `display_state`, `next_hint`, `resume_hint`, and sorted `blockers`.
+
+## Event Replay + History Filters (EVT-01/02/03)
+
+Run:
+
+```bash
+cargo test -p turbo-mcp --test events_contract -- --nocapture
+cargo test -p turbo-mcp --test events_replay_contract -- --nocapture
+cargo test -p turbo-mcp --test events_mcp_e2e -- --nocapture
+```
+
+Expected behavior:
+
+- `tools/list` includes `l3dg3rr_event_replay` and `l3dg3rr_event_history`.
+- `tools/call` on `l3dg3rr_event_history` accepts deterministic filters:
+  `tx_id`, `document_ref`, `time_start`, `time_end`.
+- Event payloads are append-only and sorted by deterministic sequence.
+- Invalid time range (`time_start > time_end`) returns a deterministic blocked envelope:
+  `isError=true`, `error_type=EventHistoryBlocked`, `reason=time_range_invalid`.
+
+Example `tools/call` request for history:
+
+```json
+{
+  "name": "l3dg3rr_event_history",
+  "arguments": {
+    "tx_id": "abc123",
+    "document_ref": "source/a.rkyv",
+    "time_start": "2023-01-01",
+    "time_end": "2023-01-31"
+  }
+}
+```
+
+Example `tools/call` request for replay:
+
+```json
+{
+  "name": "l3dg3rr_event_replay",
+  "arguments": {
+    "tx_id": "abc123",
+    "document_ref": "source/a.rkyv"
+  }
+}
+```
 
 ## Troubleshooting
 
