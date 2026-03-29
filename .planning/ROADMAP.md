@@ -157,6 +157,11 @@ Plans:
 **Goal**: Expose ontology+event-backed tax assist outputs with explainable evidence paths.
 **Depends on**: Phase 17
 **Requirements**: TAXA-01, TAXA-02, TAXA-03
+**Plans:** 3 plans
+Plans:
+- [ ] 18-01-PLAN.md — Define deterministic service-level tax-assist outputs and ambiguity review contracts from reconciled ontology truth.
+- [ ] 18-02-PLAN.md — Implement source->events->current-state evidence-chain retrieval contracts and service wiring.
+- [ ] 18-03-PLAN.md — Expose tax-assist/evidence MCP transport surfaces and publish executable validation mapping.
 **Success Criteria**:
   1. Tax assist outputs derive from reconciled ontology truth.
   2. Agents can retrieve evidence chains (source -> events -> current state).
@@ -177,7 +182,7 @@ Plans:
 | 15. Reconciliation and Commit Guardrails | 2/2 | Complete   | 2026-03-29 |
 | 16. Moku HSM Deterministic Status and Resume | 3/3 | Complete   | 2026-03-29 |
 | 17. Disintegrate Event-Sourced Lifecycle Backbone | 3/3 | Complete   | 2026-03-29 |
-| 18. Tax Assist Evidence-Chain Interfaces | 0/TBD | Not started | - |
+| 18. Tax Assist Evidence-Chain Interfaces | 0/3 | Not started | - |
 
 ## Backlog
 
