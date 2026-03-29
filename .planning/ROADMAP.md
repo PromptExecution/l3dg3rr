@@ -17,7 +17,7 @@ Milestone v1.1 evolves l3dg3rr into a financial document management knowledge sy
 - [ ] **Phase 10: Moku Hierarchical State Machine Orchestration** - Implement guarded hierarchical pipeline state transitions and resumability.
 - [ ] **Phase 11: Disintegrate Event-Sourced Audit Backbone** - Persist and replay domain events for full lifecycle reconstruction and audit queries.
 - [ ] **Phase 12: US Expat Tax Agent Assist Surfaces** - Expose structured tax-assist outputs and explainable evidence retrieval for agents.
-- [ ] **Phase 13: MCP Boundary and Agent-Only Runtime Surface** - Enforce transport-level turbo-mcp capability boundary and MCP-only setup/E2E workflows.
+- [x] **Phase 13: MCP Boundary and Agent-Only Runtime Surface** - Enforce transport-level turbo-mcp capability boundary and MCP-only setup/E2E workflows. (completed 2026-03-29)
 - [ ] **Phase 14: Ontology Persistence and Query Surface** - Implement ontology storage, relationship queries, and machine-readable serialization.
 - [ ] **Phase 15: Reconciliation and Commit Guardrails** - Add validate/reconcile/commit gates with explicit blocking diagnostics.
 - [ ] **Phase 16: Moku HSM Deterministic Status and Resume** - Ship guarded HSM transitions with concise deterministic status hints for agent reasoning.
@@ -89,10 +89,10 @@ Phases 13-18 provide the executable closure path and become the authoritative im
 **Goal**: Enforce MCP transport boundary so sandboxed agents can only use turbo-mcp capabilities.
 **Depends on**: Phase 6
 **Requirements**: DOC-01, DOC-02, DOC-03
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 13-01-PLAN.md — Add stdio MCP transport boundary, passthrough/proxy adapter surface, and deterministic status/error contracts.
-- [ ] 13-02-PLAN.md — Add MCP-only subprocess E2E DOC verification and publish operator/agent runbook.
+- [x] 13-02-PLAN.md — Add MCP-only subprocess E2E DOC verification and publish operator/agent runbook.
 **Success Criteria**:
   1. turbo-mcp is exposed through a real MCP transport surface (not direct in-process usage).
   2. Agent setup/runbook documents MCP-only bootstrap and tool discovery.
@@ -153,7 +153,7 @@ Plans:
 | 10. Moku Hierarchical State Machine Orchestration | 0/TBD | Not started | - |
 | 11. Disintegrate Event-Sourced Audit Backbone | 0/TBD | Not started | - |
 | 12. US Expat Tax Agent Assist Surfaces | 0/TBD | Not started | - |
-| 13. MCP Boundary and Agent-Only Runtime Surface | 1/2 | In Progress|  |
+| 13. MCP Boundary and Agent-Only Runtime Surface | 2/2 | Complete   | 2026-03-29 |
 | 14. Ontology Persistence and Query Surface | 0/TBD | Not started | - |
 | 15. Reconciliation and Commit Guardrails | 0/TBD | Not started | - |
 | 16. Moku HSM Deterministic Status and Resume | 0/TBD | Not started | - |

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: FDKMS Integrity
-status: executing
-stopped_at: Completed 13-01-PLAN.md
-last_updated: "2026-03-29T01:06:19.531Z"
+status: verifying
+stopped_at: Completed 13-02-PLAN.md
+last_updated: "2026-03-29T01:20:32.026Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 12
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
+  completed_plans: 2
   percent: 50
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 
 Phase: 13 (mcp-boundary-and-agent-only-runtime-surface) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-03-29
 
 Progress: [█████░░░░░] 50%
@@ -48,6 +48,8 @@ Progress: [█████░░░░░] 50%
 - Preserve local-first and accountant-auditable workflow guarantees.
 - [Phase 13]: Implemented stdio MCP transport boundary with adapter-owned deterministic contracts
 - [Phase 13]: Separated protocol method errors from tool execution errors with stable isError semantics
+- [Phase 13]: DOC verification uses MCP subprocess transport only; direct service calls are excluded from this acceptance path.
+- [Phase 13]: Replay responses return stable tx_ids even when inserted_count becomes zero on idempotent replays.
 
 ### Pending Todos
 
@@ -59,6 +61,6 @@ Progress: [█████░░░░░] 50%
 
 ## Session Continuity
 
-Last session: 2026-03-29T01:06:03.160Z
-Stopped at: Completed 13-01-PLAN.md
+Last session: 2026-03-29T01:20:31.984Z
+Stopped at: Completed 13-02-PLAN.md
 Resume file: None
