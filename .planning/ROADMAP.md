@@ -143,10 +143,10 @@ Plans:
 **Goal**: Persist/replay lifecycle events and expose filtered audit retrieval.
 **Depends on**: Phase 16
 **Requirements**: EVT-01, EVT-02, EVT-03
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 Plans:
 - [x] 17-01-PLAN.md — Build append-only lifecycle event domain/store contracts and service event persistence wiring for EVT-01.
-- [ ] 17-02-PLAN.md — Implement deterministic replay/reconstruction contracts and service APIs for EVT-02.
+- [x] 17-02-PLAN.md — Implement deterministic replay/reconstruction contracts and service APIs for EVT-02.
 - [ ] 17-03-PLAN.md — Expose MCP filtered event-history queries by tx/document/time and publish validation/runbook mapping for EVT-03.
 **Success Criteria**:
   1. Append-only lifecycle events are persisted across key operations.
@@ -176,7 +176,7 @@ Plans:
 | 14. Ontology Persistence and Query Surface | 2/2 | Complete   | 2026-03-29 |
 | 15. Reconciliation and Commit Guardrails | 2/2 | Complete   | 2026-03-29 |
 | 16. Moku HSM Deterministic Status and Resume | 3/3 | Complete   | 2026-03-29 |
-| 17. Disintegrate Event-Sourced Lifecycle Backbone | 1/3 | In Progress|  |
+| 17. Disintegrate Event-Sourced Lifecycle Backbone | 2/3 | In Progress|  |
 | 18. Tax Assist Evidence-Chain Interfaces | 0/TBD | Not started | - |
 
 ## Backlog

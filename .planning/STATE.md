@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: FDKMS Integrity
 status: verifying
-stopped_at: Completed 17-01-PLAN.md
-last_updated: "2026-03-29T08:18:04.241Z"
+stopped_at: Completed 17-02-PLAN.md
+last_updated: "2026-03-29T08:21:10.432Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 12
   completed_phases: 4
   total_plans: 13
-  completed_plans: 11
+  completed_plans: 12
   percent: 50
 ---
 
@@ -66,6 +66,8 @@ Progress: [█████░░░░░] 50%
 - [Phase 16]: Exposed l3dg3rr_hsm_transition/status/resume over MCP with deterministic blocked payload types and hint fields.
 - [Phase 17]: Event identity derives from deterministic identity inputs independent of sequence.
 - [Phase 17]: Lifecycle events append only on successful action paths.
+- [Phase 17]: Replay reconstruction sorts by sequence and event_id for deterministic folds.
+- [Phase 17]: Replay diagnostics surface deterministic sequence_gap/missing_predecessor/invalid_transition keys.
 
 ### Pending Todos
 
@@ -78,6 +80,6 @@ Progress: [█████░░░░░] 50%
 
 ## Session Continuity
 
-Last session: 2026-03-29T08:18:04.232Z
-Stopped at: Completed 17-01-PLAN.md
+Last session: 2026-03-29T08:21:10.426Z
+Stopped at: Completed 17-02-PLAN.md
 Resume file: None
