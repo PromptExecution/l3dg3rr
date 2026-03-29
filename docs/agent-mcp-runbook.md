@@ -1,4 +1,4 @@
-# Agent MCP Runbook (Phases 13-14)
+# Agent MCP Runbook (Phases 13-15)
 
 This runbook is MCP-only. Agent workflows must use MCP `initialize`, `notifications/initialized`, `tools/list`, and `tools/call` over stdio; no direct in-process service calls.
 
@@ -10,6 +10,9 @@ This runbook is MCP-only. Agent workflows must use MCP `initialize`, `notificati
 - `proxy_rustledger_ingest_statement_rows` is callable over MCP `tools/call` as the rustledger-facing proxy surface.
 - `l3dg3rr_ontology_query_path` exposes deterministic ontology path traversal.
 - `l3dg3rr_ontology_export_snapshot` exposes deterministic ontology snapshot export.
+- `l3dg3rr_validate_reconciliation` executes explicit validate-stage reconciliation checks.
+- `l3dg3rr_reconcile_postings` executes explicit reconcile-stage totals checks.
+- `l3dg3rr_commit_guarded` enforces commit-stage guardrails with deterministic blocking diagnostics.
 
 ## Bootstrap
 
@@ -87,6 +90,23 @@ Expected behavior:
 - `tools/call` executes `l3dg3rr_ontology_query_path` and returns concise deterministic `nodes` and `edges`.
 - `tools/call` executes `l3dg3rr_ontology_export_snapshot` and returns deterministic `entities`, `edges`, and `snapshot`.
 - Repeating snapshot export with unchanged inputs yields byte-for-byte identical JSON serialization.
+
+## Reconciliation Guardrails (RECON-01/02/03)
+
+Run:
+
+```bash
+cargo test -p turbo-mcp --test reconciliation_contract -- --nocapture
+cargo test -p turbo-mcp --test reconciliation_mcp_e2e -- --nocapture
+```
+
+Expected behavior:
+
+- `tools/list` includes `l3dg3rr_validate_reconciliation`, `l3dg3rr_reconcile_postings`, and `l3dg3rr_commit_guarded`.
+- `tools/call` on `l3dg3rr_commit_guarded` with imbalanced postings returns deterministic blocked payload fields:
+  `isError=true`, `error_type=ReconciliationBlocked`, `stage=commit`, stable `blocked_reasons`.
+- `tools/call` validate + reconcile + commit with matching totals and balanced postings yields deterministic ready payload:
+  `isError=false`, `stage=commit`, `status=ready`, and stable `stage_marker`.
 
 ## Troubleshooting
 
