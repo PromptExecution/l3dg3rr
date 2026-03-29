@@ -8,14 +8,14 @@ tax-ledger is a local-first personal financial document intelligence system focu
 
 Convert raw historical financial PDFs into accountant-usable, auditable Excel tax records without sending private data to third-party SaaS.
 
-## Current Milestone: v1.1 FDKMS Integrity
+## Current Milestone: v1.2 Claude Connector Interop
 
-**Goal:** Evolve l3dg3rr into a financial document management knowledge system (FDKMS) that gives AI agents high-confidence, reconcilable, ontology-structured transaction truth for US expat tax workflows.
+**Goal:** Align l3dg3rr MCP surfaces with Claude connector workflows so operators can safely install, activate, and use connector capabilities with deterministic, agent-native behavior.
 
 **Target features:**
-- Docling/docling-mcp driven statement ingestion normalization with provenance.
-- Ontological data model for accounts, entities, documents, events, and tax semantics.
-- Error-intolerant verification pipeline using double-entry reconciliation, Moku hierarchical state machine, and Disintegrate event log.
+- Connector-ready installation and activation flow aligned to Claude/Cowork connector UX.
+- Deterministic connector capability profiles (tool metadata, access scope, and run constraints).
+- End-to-end connector validation coverage for discovery, invocation, and failure semantics.
 
 ## Requirements
 
@@ -32,12 +32,10 @@ Convert raw historical financial PDFs into accountant-usable, auditable Excel ta
 
 ### Active
 
-- [ ] Build docling/docling-mcp ingestion workflow for statements with deterministic extraction + source provenance.
-- [ ] Define and persist FDKMS ontology entities/relations for financial document knowledge operations.
-- [ ] Implement double-entry validation and automated reconciliation gates to prevent transaction drift.
-- [ ] Orchestrate ingestion/classification/reconciliation lifecycle with `moku` hierarchical state machine.
-- [ ] Persist mutation and pipeline lifecycle events via `disintegrate` event-sourcing audit log.
-- [ ] Deliver AI-assist surfaces for US expat tax scenarios using ontology-backed query and evidence retrieval.
+- [ ] Add Claude connector compatibility profile for l3dg3rr MCP tools, including explicit capability and scope metadata.
+- [ ] Provide deterministic install/use paths for Claude, Cowork, Desktop, and remote MCP connector flows.
+- [ ] Add connector-focused transport tests that prove tool discovery/call behavior under connector session constraints.
+- [ ] Encode connector safety rails around read/write permission scope and operator-visible diagnostics.
 
 ### Out of Scope
 
@@ -50,7 +48,7 @@ Convert raw historical financial PDFs into accountant-usable, auditable Excel ta
 
 Primary use case remains catching up unfiled U.S. expat returns with CPA handoff constraints. v1.0 shipped the end-to-end local-first MVP: deterministic ingest, runtime classification, audit-safe mutation history, workbook outputs, schedule summaries, and CI/release readiness. Next evolution focuses on v2 graph/API/UI extension work while preserving workbook-as-truth and deterministic financial behavior.
 
-Current state: Phase 13 is complete with MCP-only subprocess validation gates and callable proxy routing for both docling and rustledger surface tools. Phase 14 now starts ontology persistence/query work on top of that boundary.
+Current state: v1.1 FDKMS closure (phases 13-18) is complete and archived. The next milestone focuses on connector interoperability and operator adoption on Claude/Cowork surfaces, not core financial-domain expansion.
 
 ## Constraints
 
@@ -93,4 +91,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-29 after Phase 13 completion*
+*Last updated: 2026-03-30 for v1.2 milestone kickoff*
