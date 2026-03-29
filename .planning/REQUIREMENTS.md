@@ -7,8 +7,8 @@
 
 ### Document Ingestion (Docling)
 
-- [ ] **DOC-01**: User can ingest statement PDFs through Docling/docling-mcp and produce normalized transaction candidates with per-field provenance.
-- [ ] **DOC-02**: User can map extracted fields to canonical transaction schema (`account`, `date`, `amount`, `description`, `currency`, `source_ref`) deterministically.
+- [x] **DOC-01**: User can ingest statement PDFs through Docling/docling-mcp and produce normalized transaction candidates with per-field provenance.
+- [x] **DOC-02**: User can map extracted fields to canonical transaction schema (`account`, `date`, `amount`, `description`, `currency`, `source_ref`) deterministically.
 - [ ] **DOC-03**: User can replay ingestion for the same source and receive stable candidate IDs with no duplicate candidates.
 
 ### Ontology & Knowledge Model
@@ -60,8 +60,8 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DOC-01 | Phase 13 | Pending |
-| DOC-02 | Phase 13 | Pending |
+| DOC-01 | Phase 13 | Complete |
+| DOC-02 | Phase 13 | Complete |
 | DOC-03 | Phase 13 | Pending |
 | ONTO-01 | Phase 14 | Pending |
 | ONTO-02 | Phase 14 | Pending |

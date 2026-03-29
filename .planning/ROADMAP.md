@@ -89,9 +89,9 @@ Phases 13-18 provide the executable closure path and become the authoritative im
 **Goal**: Enforce MCP transport boundary so sandboxed agents can only use turbo-mcp capabilities.
 **Depends on**: Phase 6
 **Requirements**: DOC-01, DOC-02, DOC-03
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
-- [ ] 13-01-PLAN.md — Add stdio MCP transport boundary, passthrough/proxy adapter surface, and deterministic status/error contracts.
+- [x] 13-01-PLAN.md — Add stdio MCP transport boundary, passthrough/proxy adapter surface, and deterministic status/error contracts.
 - [ ] 13-02-PLAN.md — Add MCP-only subprocess E2E DOC verification and publish operator/agent runbook.
 **Success Criteria**:
   1. turbo-mcp is exposed through a real MCP transport surface (not direct in-process usage).
@@ -153,7 +153,7 @@ Plans:
 | 10. Moku Hierarchical State Machine Orchestration | 0/TBD | Not started | - |
 | 11. Disintegrate Event-Sourced Audit Backbone | 0/TBD | Not started | - |
 | 12. US Expat Tax Agent Assist Surfaces | 0/TBD | Not started | - |
-| 13. MCP Boundary and Agent-Only Runtime Surface | 0/2 | Planned | - |
+| 13. MCP Boundary and Agent-Only Runtime Surface | 1/2 | In Progress|  |
 | 14. Ontology Persistence and Query Surface | 0/TBD | Not started | - |
 | 15. Reconciliation and Commit Guardrails | 0/TBD | Not started | - |
 | 16. Moku HSM Deterministic Status and Resume | 0/TBD | Not started | - |
