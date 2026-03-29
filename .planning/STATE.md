@@ -21,7 +21,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Convert raw historical financial PDFs into accountant-usable, auditable Excel tax records without sending private data to third-party SaaS.
-**Current focus:** Phase 13 — mcp-boundary-and-agent-only-runtime-surface
+**Current focus:** Phase 14 — ontology-persistence-and-query-surface
 
 ## Current Position
 
@@ -55,11 +55,11 @@ Progress: [█████░░░░░] 50%
 
 ### Pending Todos
 
-- Create Phase 13 CONTEXT/PLAN and begin implementation.
+- Create Phase 14 CONTEXT/PLAN and begin implementation.
 
 ### Blockers/Concerns
 
-- Milestone audit identified a critical agent-boundary blocker: `turbo-mcp` must be exposed as an enforceable MCP transport boundary (not in-process-only API usage).
+- None recorded.
 
 ## Session Continuity
 
