@@ -35,6 +35,13 @@ pub struct EventHistoryResponse {
     pub events: Vec<LifecycleEvent>,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ReplayProjection {
+    pub reconstructed_state: String,
+    pub event_count: usize,
+    pub diagnostics: Vec<String>,
+}
+
 pub trait LifecycleEventStore {
     fn append_event(
         &mut self,
@@ -200,4 +207,89 @@ fn event_id_from_identity(identity_inputs: &BTreeMap<String, String>) -> String 
         .collect::<Vec<_>>()
         .join("|");
     blake3::hash(canonical.as_bytes()).to_hex().to_string()
+}
+
+pub fn reconstruct_lifecycle(events: &[LifecycleEvent]) -> ReplayProjection {
+    let mut ordered = events.to_vec();
+    ordered.sort_by(|left, right| {
+        left.sequence
+            .cmp(&right.sequence)
+            .then_with(|| left.event_id.cmp(&right.event_id))
+    });
+
+    let mut expected_sequence = 1u64;
+    let mut diagnostics = Vec::new();
+    let mut stage_by_tx = BTreeMap::<String, String>::new();
+    let mut category_by_tx = BTreeMap::<String, String>::new();
+
+    for event in &ordered {
+        if event.sequence != expected_sequence {
+            diagnostics.push(format!(
+                "sequence_gap:expected={expected_sequence},actual={}",
+                event.sequence
+            ));
+            expected_sequence = event.sequence.saturating_add(1);
+        } else {
+            expected_sequence = expected_sequence.saturating_add(1);
+        }
+
+        let tx_id = event
+            .tx_id
+            .clone()
+            .unwrap_or_else(|| "_stream".to_string());
+        let current_stage = stage_by_tx.get(&tx_id).cloned();
+        if current_stage.is_none() && event.event_type != "ingest" {
+            diagnostics.push(format!(
+                "missing_predecessor:tx_id={tx_id},event_type={}",
+                event.event_type
+            ));
+        }
+
+        if !transition_allowed(current_stage.as_deref(), &event.event_type) {
+            diagnostics.push(format!(
+                "invalid_transition:tx_id={tx_id},from={},to={}",
+                current_stage.unwrap_or_else(|| "none".to_string()),
+                event.event_type
+            ));
+        }
+
+        stage_by_tx.insert(tx_id.clone(), event.event_type.clone());
+        if let Some(category) = event.payload.get("category") {
+            category_by_tx.insert(tx_id, category.clone());
+        }
+    }
+
+    diagnostics.sort();
+    diagnostics.dedup();
+
+    let reconstructed_state = stage_by_tx
+        .iter()
+        .map(|(tx_id, stage)| {
+            let category = category_by_tx.get(tx_id).cloned().unwrap_or_default();
+            format!("tx_id={tx_id};stage={stage};category={category}")
+        })
+        .collect::<Vec<_>>()
+        .join("|");
+
+    ReplayProjection {
+        reconstructed_state: if reconstructed_state.is_empty() {
+            "empty".to_string()
+        } else {
+            reconstructed_state
+        },
+        event_count: ordered.len(),
+        diagnostics,
+    }
+}
+
+fn transition_allowed(previous: Option<&str>, next: &str) -> bool {
+    match (previous, next) {
+        (None, "ingest") => true,
+        (Some("ingest"), "classification") => true,
+        (Some("classification"), "reconciliation") => true,
+        (Some("classification"), "adjustment") => true,
+        (Some("reconciliation"), "adjustment") => true,
+        (Some("adjustment"), "adjustment") => true,
+        _ => false,
+    }
 }

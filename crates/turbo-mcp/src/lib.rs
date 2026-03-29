@@ -17,7 +17,7 @@ pub mod ontology;
 pub mod reconciliation;
 pub use events::{
     AppendEventResult, EventHistoryFilter, EventHistoryResponse, InMemoryLifecycleEventStore,
-    LifecycleEvent, LifecycleEventStore,
+    LifecycleEvent, LifecycleEventStore, ReplayProjection,
 };
 pub use hsm::{
     HsmMachine, HsmResumeRequest, HsmResumeResponse, HsmStatusRequest, HsmStatusResponse,
@@ -193,6 +193,20 @@ pub struct ClassifyTransactionResponse {
     pub category: String,
     pub confidence: String,
     pub audit_entries: Vec<AuditEntryResponse>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ReplayLifecycleRequest {
+    pub tx_id: Option<String>,
+    pub document_ref: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ReplayLifecycleResponse {
+    pub reconstructed_state: String,
+    pub event_count: usize,
+    pub diagnostics: Vec<String>,
+    pub filter: EventHistoryFilter,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -494,6 +508,15 @@ impl TurboLedgerService {
             .lock()
             .map_err(|_| ToolError::Internal("events lock poisoned".to_string()))?
             .list_events(filter)
+    }
+
+    pub fn replay_lifecycle(
+        &self,
+        _request: ReplayLifecycleRequest,
+    ) -> Result<ReplayLifecycleResponse, ToolError> {
+        Err(ToolError::Internal(
+            "replay_lifecycle service wiring pending".to_string(),
+        ))
     }
 
     fn append_lifecycle_event(
