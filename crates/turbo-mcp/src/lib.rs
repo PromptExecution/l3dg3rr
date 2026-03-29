@@ -407,22 +407,37 @@ impl TurboLedgerService {
 
     pub fn hsm_transition_tool(
         &self,
-        _request: HsmTransitionRequest,
+        request: HsmTransitionRequest,
     ) -> Result<HsmTransitionResponse, ToolError> {
-        let _ = &self.hsm_state;
-        Err(ToolError::Internal(
-            "hsm transition service wiring not implemented".to_string(),
-        ))
+        let requested = hsm::parse_node(&request.target_state, &request.target_substate)
+            .ok_or_else(|| {
+                ToolError::InvalidInput(
+                    "target_state/target_substate must match lifecycle vocabulary".to_string(),
+                )
+            })?;
+
+        let mut hsm = self
+            .hsm_state
+            .lock()
+            .map_err(|_| ToolError::Internal("hsm lock poisoned".to_string()))?;
+        let current = hsm.current;
+        if hsm::allowed_next_node(current) == Some(requested) {
+            hsm.current = requested;
+            return Ok(hsm::transition_advanced_response(requested));
+        }
+
+        Ok(hsm::transition_blocked_response(current, requested))
     }
 
     pub fn hsm_status_tool(
         &self,
         _request: HsmStatusRequest,
     ) -> Result<HsmStatusResponse, ToolError> {
-        let _ = &self.hsm_state;
-        Err(ToolError::Internal(
-            "hsm status service wiring not implemented".to_string(),
-        ))
+        let hsm = self
+            .hsm_state
+            .lock()
+            .map_err(|_| ToolError::Internal("hsm lock poisoned".to_string()))?;
+        Ok(hsm::status_response(hsm.current, Vec::new()))
     }
 }
 

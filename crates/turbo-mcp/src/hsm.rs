@@ -159,7 +159,6 @@ pub fn transition_blocked_response(current: LifecycleNode, requested: LifecycleN
     } else {
         transition_evidence.push("allowed=none".to_string());
     }
-    transition_evidence.sort();
 
     HsmTransitionResponse {
         state: current.state.as_str().to_string(),
