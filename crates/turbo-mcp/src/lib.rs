@@ -512,11 +512,22 @@ impl TurboLedgerService {
 
     pub fn replay_lifecycle(
         &self,
-        _request: ReplayLifecycleRequest,
+        request: ReplayLifecycleRequest,
     ) -> Result<ReplayLifecycleResponse, ToolError> {
-        Err(ToolError::Internal(
-            "replay_lifecycle service wiring pending".to_string(),
-        ))
+        let filter = EventHistoryFilter {
+            tx_id: request.tx_id,
+            document_ref: request.document_ref,
+            time_start: None,
+            time_end: None,
+        };
+        let history = self.event_history(filter.clone())?;
+        let projection = events::reconstruct_lifecycle(&history.events);
+        Ok(ReplayLifecycleResponse {
+            reconstructed_state: projection.reconstructed_state,
+            event_count: projection.event_count,
+            diagnostics: projection.diagnostics,
+            filter,
+        })
     }
 
     fn append_lifecycle_event(
