@@ -103,6 +103,10 @@ Plans:
 **Goal**: Persist/query ontology entities and serialize machine-readable structures for agents.
 **Depends on**: Phase 13
 **Requirements**: ONTO-01, ONTO-02, ONTO-03
+**Plans:** 2 plans
+Plans:
+- [ ] 14-01-PLAN.md — Build ontology persistence/query foundation with referential integrity and ONTO-01/02 contract tests.
+- [ ] 14-02-PLAN.md — Expose ontology MCP query/export serialization with transport e2e verification and validation/runbook alignment.
 **Success Criteria**:
   1. Ontology entities persist with referential integrity.
   2. Relationship queries cover evidence-chain traversal.
