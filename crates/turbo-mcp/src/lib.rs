@@ -541,22 +541,53 @@ impl TurboLedgerService {
         request: TaxAssistRequest,
     ) -> Result<TaxAssistResponse, ToolError> {
         let stage = self.reconcile_reconciliation_stage_tool(request.reconciliation)?;
-        let blocked = stage.status != "passed";
-        let status = if blocked { "blocked" } else { "ready" };
-        Ok(TaxAssistResponse {
-            status: status.to_string(),
-            stage_marker: stage.stage_marker,
-            blocked_reasons: stage.blocked_reasons,
-            summary: TaxAssistSummary {
-                source_entity_id: request.from_entity_id,
-                schedule_row_count: 0,
-                fbar_row_count: 0,
-                ambiguity_count: 0,
-            },
-            schedule_rows: Vec::new(),
-            fbar_rows: Vec::new(),
-            ambiguity: Vec::new(),
-        })
+        let path = if stage.status == "passed" {
+            let ontology_path = request.ontology_path.clone();
+            let mut path = self.ontology_query_path_tool(OntologyQueryPathRequest {
+                ontology_path: ontology_path.clone(),
+                from_entity_id: request.from_entity_id.clone(),
+                max_depth: request.max_depth,
+            })?;
+            let store = OntologyStore::load(&ontology_path)?;
+            let entity_lookup = store
+                .entities
+                .iter()
+                .map(|node| (node.id.clone(), node.clone()))
+                .collect::<BTreeMap<_, _>>();
+            let mut existing_edge_ids = path
+                .edges
+                .iter()
+                .map(|edge| edge.id.clone())
+                .collect::<BTreeSet<_>>();
+            let mut existing_node_ids = path
+                .nodes
+                .iter()
+                .map(|node| node.id.clone())
+                .collect::<BTreeSet<_>>();
+            for edge in store
+                .edges
+                .into_iter()
+                    .filter(|edge| edge.from == request.from_entity_id)
+            {
+                if existing_edge_ids.insert(edge.id.clone()) {
+                    if !existing_node_ids.contains(&edge.to) {
+                        if let Some(node) = entity_lookup.get(&edge.to) {
+                            path.nodes.push(node.clone());
+                            existing_node_ids.insert(node.id.clone());
+                        }
+                    }
+                    path.edges.push(edge);
+                }
+            }
+            Some(path)
+        } else {
+            None
+        };
+        Ok(tax_assist::build_tax_assist_response(
+            &request.from_entity_id,
+            stage,
+            path,
+        ))
     }
 
     pub fn tax_evidence_chain_tool(
@@ -580,31 +611,32 @@ impl TurboLedgerService {
             document_ref: history_filter.document_ref,
         })?;
 
-        Ok(TaxEvidenceChainResponse {
-            source: TaxEvidenceSource {
-                from_entity_id: request.from_entity_id,
-                node_ids: path.nodes.into_iter().map(|node| node.id).collect(),
-                edge_ids: path.edges.into_iter().map(|edge| edge.id).collect(),
-                provenance_refs: Vec::new(),
-            },
-            events: events
-                .events
-                .into_iter()
-                .map(|event| TaxEvidenceEvent {
-                    event_id: event.event_id,
-                    sequence: event.sequence,
-                    event_type: event.event_type,
-                    tx_id: event.tx_id,
-                    document_ref: event.document_ref,
-                })
-                .collect(),
-            current_state: TaxEvidenceCurrentState {
-                reconstructed_state: replay.reconstructed_state,
-                event_count: replay.event_count,
-                diagnostics: replay.diagnostics,
-            },
-            ambiguity: Vec::new(),
-        })
+        let mut provenance_refs = path
+            .edges
+            .iter()
+            .flat_map(|edge| edge.provenance.iter())
+            .filter_map(|(key, value)| {
+                if key.contains("source") || key.contains("ref") {
+                    Some(value.clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        provenance_refs.sort();
+        provenance_refs.dedup();
+        let source = TaxEvidenceSource {
+            from_entity_id: request.from_entity_id,
+            node_ids: path.nodes.into_iter().map(|node| node.id).collect(),
+            edge_ids: path.edges.into_iter().map(|edge| edge.id).collect(),
+            provenance_refs,
+        };
+        Ok(tax_assist::build_tax_evidence_chain_response(
+            source,
+            events,
+            replay,
+            Vec::new(),
+        ))
     }
 
     pub fn tax_ambiguity_review_tool(
@@ -612,17 +644,23 @@ impl TurboLedgerService {
         request: TaxAmbiguityReviewRequest,
     ) -> Result<TaxAmbiguityReviewResponse, ToolError> {
         let stage = self.reconcile_reconciliation_stage_tool(request.reconciliation)?;
-        let status = if stage.status == "passed" {
-            "review_ready"
+        let path = if stage.status == "passed" {
+            self.ontology_query_path_tool(OntologyQueryPathRequest {
+                ontology_path: request.ontology_path,
+                from_entity_id: request.from_entity_id,
+                max_depth: request.max_depth,
+            })?
         } else {
-            "blocked"
+            OntologyQueryPathResponse {
+                nodes: Vec::new(),
+                edges: Vec::new(),
+            }
         };
-        Ok(TaxAmbiguityReviewResponse {
-            status: status.to_string(),
-            stage_marker: stage.stage_marker,
-            blocked_reasons: stage.blocked_reasons,
-            ambiguity: Vec::new(),
-        })
+        let assist = tax_assist::build_tax_assist_response("", stage.clone(), Some(path));
+        Ok(tax_assist::build_tax_ambiguity_review_response(
+            stage,
+            assist.ambiguity,
+        ))
     }
 
     fn append_lifecycle_event(
