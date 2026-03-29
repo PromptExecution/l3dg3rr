@@ -11,6 +11,13 @@ use rust_decimal::Decimal;
 use rust_xlsxwriter::Workbook;
 
 pub mod mcp_adapter;
+pub mod ontology;
+pub use ontology::{
+    OntologyEdge, OntologyEdgeInput, OntologyEntity, OntologyEntityInput, OntologyEntityKind,
+    OntologyQueryPathRequest, OntologyQueryPathResponse, OntologyStore,
+    OntologyUpsertEdgesRequest, OntologyUpsertEdgesResponse, OntologyUpsertEntitiesRequest,
+    OntologyUpsertEntitiesResponse,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccountSummary {
@@ -317,6 +324,34 @@ impl TurboLedgerService {
         Ok(ListAccountsResponse {
             accounts: self.list_accounts()?,
         })
+    }
+
+    pub fn ontology_upsert_entities(
+        &self,
+        request: OntologyUpsertEntitiesRequest,
+    ) -> Result<OntologyUpsertEntitiesResponse, ToolError> {
+        let mut store = OntologyStore::load(&request.ontology_path)?;
+        let response = store.upsert_entities(request.entities)?;
+        store.persist(&request.ontology_path)?;
+        Ok(response)
+    }
+
+    pub fn ontology_upsert_edges(
+        &self,
+        request: OntologyUpsertEdgesRequest,
+    ) -> Result<OntologyUpsertEdgesResponse, ToolError> {
+        let mut store = OntologyStore::load(&request.ontology_path)?;
+        let response = store.upsert_edges(request.edges)?;
+        store.persist(&request.ontology_path)?;
+        Ok(response)
+    }
+
+    pub fn ontology_query_path(
+        &self,
+        request: OntologyQueryPathRequest,
+    ) -> Result<OntologyQueryPathResponse, ToolError> {
+        let store = OntologyStore::load(&request.ontology_path)?;
+        store.query_path(&request.from_entity_id, request.max_depth)
     }
 }
 

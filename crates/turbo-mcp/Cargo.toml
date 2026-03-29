@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+blake3 = "1.8.3"
 ledger-core = { path = "../ledger-core" }
 rust_decimal = "1.41.0"
 rust_xlsxwriter = { workspace = true }
