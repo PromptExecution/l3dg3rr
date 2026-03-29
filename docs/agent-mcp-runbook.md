@@ -1,4 +1,4 @@
-# Agent MCP Runbook (Phase 13)
+# Agent MCP Runbook (Phases 13-14)
 
 This runbook is MCP-only. Agent workflows must use MCP `initialize`, `notifications/initialized`, `tools/list`, and `tools/call` over stdio; no direct in-process service calls.
 
@@ -8,6 +8,8 @@ This runbook is MCP-only. Agent workflows must use MCP `initialize`, `notificati
 - Upstream capabilities are exposed through passthrough/proxy patterns.
 - `proxy_docling_ingest_pdf` represents docling-style ingest orchestration.
 - `proxy_rustledger_ingest_statement_rows` is callable over MCP `tools/call` as the rustledger-facing proxy surface.
+- `l3dg3rr_ontology_query_path` exposes deterministic ontology path traversal.
+- `l3dg3rr_ontology_export_snapshot` exposes deterministic ontology snapshot export.
 
 ## Bootstrap
 
@@ -40,6 +42,8 @@ Expected behavior:
 
 - `tools/list` includes `proxy_docling_ingest_pdf`.
 - `tools/list` includes `proxy_rustledger_ingest_statement_rows`.
+- `tools/list` includes `l3dg3rr_ontology_query_path`.
+- `tools/list` includes `l3dg3rr_ontology_export_snapshot`.
 - Calls execute through MCP transport only.
 
 To verify rustledger proxy callability specifically:
@@ -69,6 +73,20 @@ Expected behavior:
 - Provenance fields are present:
   `provider`, `backend_tool`, `backend_version`, `backend_call_id`.
 - DOC-03: replaying identical ingest input returns stable `tx_ids` and `inserted_count` transitions from `1` to `0`.
+
+## Ontology Query + Export (ONTO-03)
+
+Run:
+
+```bash
+cargo test -p turbo-mcp --test ontology_mcp_e2e -- --nocapture
+```
+
+Expected behavior:
+
+- `tools/call` executes `l3dg3rr_ontology_query_path` and returns concise deterministic `nodes` and `edges`.
+- `tools/call` executes `l3dg3rr_ontology_export_snapshot` and returns deterministic `entities`, `edges`, and `snapshot`.
+- Repeating snapshot export with unchanged inputs yields byte-for-byte identical JSON serialization.
 
 ## Troubleshooting
 
