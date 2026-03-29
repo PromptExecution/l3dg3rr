@@ -15,6 +15,7 @@ pub mod events;
 pub mod hsm;
 pub mod ontology;
 pub mod reconciliation;
+pub mod tax_assist;
 pub use events::{
     AppendEventResult, EventHistoryFilter, EventHistoryResponse, InMemoryLifecycleEventStore,
     LifecycleEvent, LifecycleEventStore, ReplayProjection,
@@ -32,6 +33,11 @@ pub use ontology::{
 pub use reconciliation::{
     commit_stage, reconcile_stage, validate_stage, ReconciliationDiagnostic,
     ReconciliationStageRequest, ReconciliationStageResponse,
+};
+pub use tax_assist::{
+    TaxAmbiguityRecord, TaxAmbiguityReviewRequest, TaxAmbiguityReviewResponse, TaxAssistRequest,
+    TaxAssistResponse, TaxAssistSummary, TaxEvidenceChainRequest, TaxEvidenceChainResponse,
+    TaxEvidenceCurrentState, TaxEvidenceEvent, TaxEvidenceRow, TaxEvidenceSource,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -527,6 +533,95 @@ impl TurboLedgerService {
             event_count: projection.event_count,
             diagnostics: projection.diagnostics,
             filter,
+        })
+    }
+
+    pub fn tax_assist_tool(
+        &self,
+        request: TaxAssistRequest,
+    ) -> Result<TaxAssistResponse, ToolError> {
+        let stage = self.reconcile_reconciliation_stage_tool(request.reconciliation)?;
+        let blocked = stage.status != "passed";
+        let status = if blocked { "blocked" } else { "ready" };
+        Ok(TaxAssistResponse {
+            status: status.to_string(),
+            stage_marker: stage.stage_marker,
+            blocked_reasons: stage.blocked_reasons,
+            summary: TaxAssistSummary {
+                source_entity_id: request.from_entity_id,
+                schedule_row_count: 0,
+                fbar_row_count: 0,
+                ambiguity_count: 0,
+            },
+            schedule_rows: Vec::new(),
+            fbar_rows: Vec::new(),
+            ambiguity: Vec::new(),
+        })
+    }
+
+    pub fn tax_evidence_chain_tool(
+        &self,
+        request: TaxEvidenceChainRequest,
+    ) -> Result<TaxEvidenceChainResponse, ToolError> {
+        let path = self.ontology_query_path_tool(OntologyQueryPathRequest {
+            ontology_path: request.ontology_path,
+            from_entity_id: request.from_entity_id.clone(),
+            max_depth: None,
+        })?;
+        let history_filter = EventHistoryFilter {
+            tx_id: request.tx_id.clone(),
+            document_ref: request.document_ref.clone(),
+            time_start: None,
+            time_end: None,
+        };
+        let events = self.event_history(history_filter.clone())?;
+        let replay = self.replay_lifecycle(ReplayLifecycleRequest {
+            tx_id: history_filter.tx_id,
+            document_ref: history_filter.document_ref,
+        })?;
+
+        Ok(TaxEvidenceChainResponse {
+            source: TaxEvidenceSource {
+                from_entity_id: request.from_entity_id,
+                node_ids: path.nodes.into_iter().map(|node| node.id).collect(),
+                edge_ids: path.edges.into_iter().map(|edge| edge.id).collect(),
+                provenance_refs: Vec::new(),
+            },
+            events: events
+                .events
+                .into_iter()
+                .map(|event| TaxEvidenceEvent {
+                    event_id: event.event_id,
+                    sequence: event.sequence,
+                    event_type: event.event_type,
+                    tx_id: event.tx_id,
+                    document_ref: event.document_ref,
+                })
+                .collect(),
+            current_state: TaxEvidenceCurrentState {
+                reconstructed_state: replay.reconstructed_state,
+                event_count: replay.event_count,
+                diagnostics: replay.diagnostics,
+            },
+            ambiguity: Vec::new(),
+        })
+    }
+
+    pub fn tax_ambiguity_review_tool(
+        &self,
+        request: TaxAmbiguityReviewRequest,
+    ) -> Result<TaxAmbiguityReviewResponse, ToolError> {
+        let stage = self.reconcile_reconciliation_stage_tool(request.reconciliation)?;
+        let status = if stage.status == "passed" {
+            "review_ready"
+        } else {
+            "blocked"
+        };
+        Ok(TaxAmbiguityReviewResponse {
+            status: status.to_string(),
+            stage_marker: stage.stage_marker,
+            blocked_reasons: stage.blocked_reasons,
+            ambiguity: Vec::new(),
         })
     }
 
