@@ -116,6 +116,10 @@ Plans:
 **Goal**: Block commits unless double-entry and reconciliation validations pass.
 **Depends on**: Phase 14
 **Requirements**: RECON-01, RECON-02, RECON-03
+**Plans:** 2 plans
+Plans:
+- [ ] 15-01-PLAN.md — Build service-level validate/reconcile/commit guardrails with deterministic RECON-01/02 contracts.
+- [ ] 15-02-PLAN.md — Expose reconciliation guardrails over MCP transport with deterministic RECON-03 diagnostics and validation mapping.
 **Success Criteria**:
   1. Validate/reconcile/commit stages are explicit and enforced.
   2. Source totals/extracted rows/postings checks are automated.
