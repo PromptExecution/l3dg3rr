@@ -60,24 +60,24 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DOC-01 | Phase 7 | Pending |
-| DOC-02 | Phase 7 | Pending |
-| DOC-03 | Phase 7 | Pending |
-| ONTO-01 | Phase 8 | Pending |
-| ONTO-02 | Phase 8 | Pending |
-| ONTO-03 | Phase 8 | Pending |
-| RECON-01 | Phase 9 | Pending |
-| RECON-02 | Phase 9 | Pending |
-| RECON-03 | Phase 9 | Pending |
-| HSM-01 | Phase 10 | Pending |
-| HSM-02 | Phase 10 | Pending |
-| HSM-03 | Phase 10 | Pending |
-| EVT-01 | Phase 11 | Pending |
-| EVT-02 | Phase 11 | Pending |
-| EVT-03 | Phase 11 | Pending |
-| TAXA-01 | Phase 12 | Pending |
-| TAXA-02 | Phase 12 | Pending |
-| TAXA-03 | Phase 12 | Pending |
+| DOC-01 | Phase 13 | Pending |
+| DOC-02 | Phase 13 | Pending |
+| DOC-03 | Phase 13 | Pending |
+| ONTO-01 | Phase 14 | Pending |
+| ONTO-02 | Phase 14 | Pending |
+| ONTO-03 | Phase 14 | Pending |
+| RECON-01 | Phase 15 | Pending |
+| RECON-02 | Phase 15 | Pending |
+| RECON-03 | Phase 15 | Pending |
+| HSM-01 | Phase 16 | Pending |
+| HSM-02 | Phase 16 | Pending |
+| HSM-03 | Phase 16 | Pending |
+| EVT-01 | Phase 17 | Pending |
+| EVT-02 | Phase 17 | Pending |
+| EVT-03 | Phase 17 | Pending |
+| TAXA-01 | Phase 18 | Pending |
+| TAXA-02 | Phase 18 | Pending |
+| TAXA-03 | Phase 18 | Pending |
 
 **Coverage:**
 - v1 requirements: 18 total
@@ -86,5 +86,4 @@
 
 ---
 *Requirements defined: 2026-03-29*
-*Last updated: 2026-03-29 after v1.1 milestone definition*
-
+*Last updated: 2026-03-29 after v1.1 milestone gap-closure planning*
