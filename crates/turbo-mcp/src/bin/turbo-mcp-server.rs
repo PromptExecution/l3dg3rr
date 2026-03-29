@@ -100,6 +100,12 @@ fn handle_request(request: Value) -> Option<Value> {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
                     mcp_adapter::reconciliation_tool_result(global_service(), tool_name, &arguments)
                 }
+                mcp_adapter::HSM_TRANSITION_TOOL
+                | mcp_adapter::HSM_STATUS_TOOL
+                | mcp_adapter::HSM_RESUME_TOOL => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::hsm_tool_result(global_service(), tool_name, &arguments)
+                }
                 _ => mcp_adapter::unknown_tool_result(tool_name),
             };
             Some(json!({

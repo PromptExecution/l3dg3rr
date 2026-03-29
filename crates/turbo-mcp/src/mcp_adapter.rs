@@ -5,8 +5,9 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::{
-    IngestPdfRequest, IngestStatementRowsRequest, OntologyQueryPathRequest, OntologyStore,
-    ReconciliationStageRequest, ToolError, TurboLedgerService, TurboLedgerTools,
+    HsmResumeRequest, HsmStatusRequest, HsmTransitionRequest, IngestPdfRequest,
+    IngestStatementRowsRequest, OntologyQueryPathRequest, OntologyStore, ReconciliationStageRequest,
+    ToolError, TurboLedgerService, TurboLedgerTools,
 };
 
 pub const ONTOLOGY_QUERY_PATH_TOOL: &str = "l3dg3rr_ontology_query_path";
@@ -14,6 +15,9 @@ pub const ONTOLOGY_EXPORT_SNAPSHOT_TOOL: &str = "l3dg3rr_ontology_export_snapsho
 pub const RECON_VALIDATE_TOOL: &str = "l3dg3rr_validate_reconciliation";
 pub const RECON_RECONCILE_TOOL: &str = "l3dg3rr_reconcile_postings";
 pub const RECON_COMMIT_TOOL: &str = "l3dg3rr_commit_guarded";
+pub const HSM_TRANSITION_TOOL: &str = "l3dg3rr_hsm_transition";
+pub const HSM_STATUS_TOOL: &str = "l3dg3rr_hsm_status";
+pub const HSM_RESUME_TOOL: &str = "l3dg3rr_hsm_resume";
 
 pub const MCP_LIFECYCLE_METHODS: &[&str] = &["initialize", "tools/list", "tools/call"];
 
@@ -27,6 +31,9 @@ pub fn tool_catalog() -> Vec<String> {
         RECON_VALIDATE_TOOL.to_string(),
         RECON_RECONCILE_TOOL.to_string(),
         RECON_COMMIT_TOOL.to_string(),
+        HSM_TRANSITION_TOOL.to_string(),
+        HSM_STATUS_TOOL.to_string(),
+        HSM_RESUME_TOOL.to_string(),
         "tools/list".to_string(),
         "tools/call".to_string(),
     ]
@@ -442,6 +449,143 @@ pub fn reconciliation_tool_result(
     }
 }
 
+pub fn hsm_tool_result(service: &TurboLedgerService, tool_name: &str, arguments: &Value) -> Value {
+    match tool_name {
+        HSM_TRANSITION_TOOL => {
+            let request = match parse_hsm_transition_request(arguments) {
+                Ok(request) => request,
+                Err(err) => {
+                    return json!({
+                        "content": [{
+                            "type": "json",
+                            "json": map_tool_error(&err)
+                        }],
+                        "isError": true
+                    });
+                }
+            };
+
+            match service.hsm_transition_tool(request) {
+                Ok(response) => {
+                    let blocked = response.status == "blocked";
+                    let payload = if blocked {
+                        json!({
+                            "isError": true,
+                            "error_type": "HsmTransitionBlocked",
+                            "message": "hsm transition blocked by lifecycle guard",
+                            "state": response.state,
+                            "substate": response.substate,
+                            "status": response.status,
+                            "guard_reason": response.guard_reason,
+                            "transition_evidence": response.transition_evidence,
+                            "state_marker": response.state_marker,
+                        })
+                    } else {
+                        json!({
+                            "state": response.state,
+                            "substate": response.substate,
+                            "status": response.status,
+                            "guard_reason": response.guard_reason,
+                            "transition_evidence": response.transition_evidence,
+                            "state_marker": response.state_marker,
+                        })
+                    };
+                    json!({
+                        "content": [{
+                            "type": "json",
+                            "json": payload
+                        }],
+                        "isError": blocked
+                    })
+                }
+                Err(err) => json!({
+                    "content": [{
+                        "type": "json",
+                        "json": map_tool_error(&err)
+                    }],
+                    "isError": true
+                }),
+            }
+        }
+        HSM_STATUS_TOOL => match service.hsm_status_tool(HsmStatusRequest) {
+            Ok(response) => json!({
+                "content": [{
+                    "type": "json",
+                    "json": {
+                        "state": response.state,
+                        "substate": response.substate,
+                        "display_state": response.display_state,
+                        "next_hint": response.next_hint,
+                        "resume_hint": response.resume_hint,
+                        "blockers": response.blockers,
+                    }
+                }],
+                "isError": false
+            }),
+            Err(err) => json!({
+                "content": [{
+                    "type": "json",
+                    "json": map_tool_error(&err)
+                }],
+                "isError": true
+            }),
+        },
+        HSM_RESUME_TOOL => {
+            let request = match parse_hsm_resume_request(arguments) {
+                Ok(request) => request,
+                Err(err) => {
+                    return json!({
+                        "content": [{
+                            "type": "json",
+                            "json": map_tool_error(&err)
+                        }],
+                        "isError": true
+                    });
+                }
+            };
+
+            match service.hsm_resume_tool(request) {
+                Ok(response) => {
+                    let blocked = !response.resumed;
+                    let payload = if blocked {
+                        json!({
+                            "isError": true,
+                            "error_type": "HsmResumeBlocked",
+                            "message": "hsm resume blocked by checkpoint guard",
+                            "resumed": response.resumed,
+                            "resume_from": response.resume_from,
+                            "resume_hint": response.resume_hint,
+                            "blockers": response.blockers,
+                        })
+                    } else {
+                        json!({
+                            "resumed": response.resumed,
+                            "resume_from": response.resume_from,
+                            "resume_hint": response.resume_hint,
+                            "blockers": response.blockers,
+                        })
+                    };
+                    json!({
+                        "content": [{
+                            "type": "json",
+                            "json": payload
+                        }],
+                        "isError": blocked
+                    })
+                }
+                Err(err) => json!({
+                    "content": [{
+                        "type": "json",
+                        "json": map_tool_error(&err)
+                    }],
+                    "isError": true
+                }),
+            }
+        }
+        _ => unknown_tool_result(tool_name),
+    }
+}
+
 pub struct McpAdapter<'a, T: TurboLedgerTools> {
     service: &'a T,
 }
@@ -518,6 +662,20 @@ fn parse_reconciliation_stage_request(arguments: &Value) -> Result<Reconciliatio
         extracted_total,
         posting_amounts,
     })
+}
+
+fn parse_hsm_transition_request(arguments: &Value) -> Result<HsmTransitionRequest, ToolError> {
+    let target_state = required_str(arguments, "target_state")?.to_string();
+    let target_substate = required_str(arguments, "target_substate")?.to_string();
+    Ok(HsmTransitionRequest {
+        target_state,
+        target_substate,
+    })
+}
+
+fn parse_hsm_resume_request(arguments: &Value) -> Result<HsmResumeRequest, ToolError> {
+    let state_marker = required_str(arguments, "state_marker")?.to_string();
+    Ok(HsmResumeRequest { state_marker })
 }
 
 fn parse_optional_bytes(value: Option<&Value>) -> Result<Option<Vec<u8>>, ToolError> {
