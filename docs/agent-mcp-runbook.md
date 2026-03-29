@@ -1,4 +1,4 @@
-# Agent MCP Runbook (Phases 13-17)
+# Agent MCP Runbook (Phases 13-18)
 
 This runbook is MCP-only. Agent workflows must use MCP `initialize`, `notifications/initialized`, `tools/list`, and `tools/call` over stdio; no direct in-process service calls.
 
@@ -174,6 +174,74 @@ Example `tools/call` request for replay:
   "arguments": {
     "tx_id": "abc123",
     "document_ref": "source/a.rkyv"
+  }
+}
+```
+
+## Tax Assist + Evidence Chain Interfaces (TAXA-01/02/03)
+
+Run:
+
+```bash
+cargo test -p turbo-mcp --test tax_assist_contract -- --nocapture
+cargo test -p turbo-mcp --test tax_evidence_chain_contract -- --nocapture
+cargo test -p turbo-mcp --test tax_assist_mcp_e2e -- --nocapture
+```
+
+Expected behavior:
+
+- `tools/list` includes `l3dg3rr_tax_assist`, `l3dg3rr_tax_evidence_chain`, and `l3dg3rr_tax_ambiguity_review`.
+- `l3dg3rr_tax_assist` derives schedule/FBAR rows only when reconciliation stage is ready and returns deterministic concise sections:
+  `summary`, `schedule_rows`, `fbar_rows`, `ambiguity`.
+- `l3dg3rr_tax_evidence_chain` returns deterministic `source -> events -> current_state` linkage with preserved provenance refs.
+- `l3dg3rr_tax_ambiguity_review` returns explicit `review_state` + `reason` and provenance references for review queue records.
+
+Example `tools/call` request for tax assist:
+
+```json
+{
+  "name": "l3dg3rr_tax_assist",
+  "arguments": {
+    "ontology_path": "/tmp/ontology.json",
+    "from_entity_id": "abc123",
+    "max_depth": 4,
+    "reconciliation": {
+      "source_total": "100.00",
+      "extracted_total": "100.00",
+      "posting_amounts": ["-100.00", "100.00"]
+    }
+  }
+}
+```
+
+Example `tools/call` request for evidence chain:
+
+```json
+{
+  "name": "l3dg3rr_tax_evidence_chain",
+  "arguments": {
+    "ontology_path": "/tmp/ontology.json",
+    "from_entity_id": "abc123",
+    "tx_id": "tx001",
+    "document_ref": "source/wf-2023-01.rkyv"
+  }
+}
+```
+
+Example `tools/call` request for ambiguity review:
+
+```json
+{
+  "name": "l3dg3rr_tax_ambiguity_review",
+  "arguments": {
+    "ontology_path": "/tmp/ontology.json",
+    "from_entity_id": "abc123",
+    "max_depth": 4,
+    "reconciliation": {
+      "source_total": "100.00",
+      "extracted_total": "100.00",
+      "posting_amounts": ["-100.00", "100.00"]
+    }
   }
 }
 ```
