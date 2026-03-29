@@ -11,8 +11,10 @@ use rust_decimal::Decimal;
 use rust_xlsxwriter::Workbook;
 
 pub mod mcp_adapter;
+pub mod hsm;
 pub mod ontology;
 pub mod reconciliation;
+pub use hsm::{HsmMachine, HsmStatusRequest, HsmStatusResponse, HsmTransitionRequest, HsmTransitionResponse};
 pub use ontology::{
     OntologyEdge, OntologyEdgeInput, OntologyEntity, OntologyEntityInput, OntologyEntityKind,
     OntologyQueryPathRequest, OntologyQueryPathResponse, OntologyStore,
@@ -306,6 +308,7 @@ pub struct TurboLedgerService {
     manifest: Manifest,
     ingest_state: Mutex<IngestedLedger>,
     classification_state: Mutex<ClassificationState>,
+    hsm_state: Mutex<HsmMachine>,
 }
 
 impl TurboLedgerService {
@@ -315,6 +318,7 @@ impl TurboLedgerService {
             manifest,
             ingest_state: Mutex::new(IngestedLedger::default()),
             classification_state: Mutex::new(ClassificationState::default()),
+            hsm_state: Mutex::new(HsmMachine::default()),
         })
     }
 
@@ -399,6 +403,26 @@ impl TurboLedgerService {
         request: ReconciliationStageRequest,
     ) -> Result<ReconciliationStageResponse, ToolError> {
         commit_stage(&request)
+    }
+
+    pub fn hsm_transition_tool(
+        &self,
+        _request: HsmTransitionRequest,
+    ) -> Result<HsmTransitionResponse, ToolError> {
+        let _ = &self.hsm_state;
+        Err(ToolError::Internal(
+            "hsm transition service wiring not implemented".to_string(),
+        ))
+    }
+
+    pub fn hsm_status_tool(
+        &self,
+        _request: HsmStatusRequest,
+    ) -> Result<HsmStatusResponse, ToolError> {
+        let _ = &self.hsm_state;
+        Err(ToolError::Internal(
+            "hsm status service wiring not implemented".to_string(),
+        ))
     }
 }
 

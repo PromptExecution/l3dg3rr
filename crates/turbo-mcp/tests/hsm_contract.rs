@@ -78,5 +78,5 @@ fn hsm_02_status_always_includes_deterministic_small_model_hints() {
     assert_eq!(status.display_state, "ingest.pending");
     assert_eq!(status.next_hint, "advance_to_normalize");
     assert_eq!(status.resume_hint, "resume_from_ingest.pending");
-    assert_eq!(status.blockers, vec![]);
+    assert_eq!(status.blockers, Vec::<String>::new());
 }
