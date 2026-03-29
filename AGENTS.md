@@ -70,6 +70,7 @@ assert_eq!(updated.category, "OfficeSupplies");
 ### Agent-Safe Usage Rules
 
 - Prefer Postel-style input handling at boundaries: accept practical input variance, normalize early, emit strict deterministic outputs.
+- For MCP row ingest arguments, accept both `account_id` and legacy `account` keys, then normalize to canonical `account_id` internally.
 - Do not bypass invariant checks (`tx_id` hash match, decimal parse, date shape, confidence range).
 - Keep status/state outputs concise and obvious for small models; favor explicit fields over implicit behavior.
 - Before adding new custom infrastructure, confirm an existing crate/tool already solves it acceptably.
