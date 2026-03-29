@@ -12,11 +12,15 @@ use rust_xlsxwriter::Workbook;
 
 pub mod mcp_adapter;
 pub mod ontology;
+pub mod reconciliation;
 pub use ontology::{
     OntologyEdge, OntologyEdgeInput, OntologyEntity, OntologyEntityInput, OntologyEntityKind,
     OntologyQueryPathRequest, OntologyQueryPathResponse, OntologyStore,
     OntologyUpsertEdgesRequest, OntologyUpsertEdgesResponse, OntologyUpsertEntitiesRequest,
     OntologyUpsertEntitiesResponse,
+};
+pub use reconciliation::{
+    ReconciliationDiagnostic, ReconciliationStageRequest, ReconciliationStageResponse,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -373,6 +377,33 @@ impl TurboLedgerService {
         request: OntologyQueryPathRequest,
     ) -> Result<OntologyQueryPathResponse, ToolError> {
         self.ontology_query_path(request)
+    }
+
+    pub fn validate_reconciliation_stage_tool(
+        &self,
+        _request: ReconciliationStageRequest,
+    ) -> Result<ReconciliationStageResponse, ToolError> {
+        Err(ToolError::Internal(
+            "reconciliation validate stage not implemented".to_string(),
+        ))
+    }
+
+    pub fn reconcile_reconciliation_stage_tool(
+        &self,
+        _request: ReconciliationStageRequest,
+    ) -> Result<ReconciliationStageResponse, ToolError> {
+        Err(ToolError::Internal(
+            "reconciliation reconcile stage not implemented".to_string(),
+        ))
+    }
+
+    pub fn commit_reconciliation_stage_tool(
+        &self,
+        _request: ReconciliationStageRequest,
+    ) -> Result<ReconciliationStageResponse, ToolError> {
+        Err(ToolError::Internal(
+            "reconciliation commit stage not implemented".to_string(),
+        ))
     }
 }
 
