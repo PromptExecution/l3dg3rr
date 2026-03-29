@@ -25,9 +25,9 @@
 
 ### Hierarchical State Orchestration (Moku HSM)
 
-- [ ] **HSM-01**: User can run pipeline lifecycle as hierarchical states (ingest -> normalize -> validate -> reconcile -> commit -> summarize).
-- [ ] **HSM-02**: User can transition states only through validated guards and collect transition evidence.
-- [ ] **HSM-03**: User can resume interrupted pipelines from last valid state without violating invariants.
+- [x] **HSM-01**: User can run pipeline lifecycle as hierarchical states (ingest -> normalize -> validate -> reconcile -> commit -> summarize).
+- [x] **HSM-02**: User can transition states only through validated guards and collect transition evidence.
+- [x] **HSM-03**: User can resume interrupted pipelines from last valid state without violating invariants.
 
 ### Event-Sourced Audit Log (Disintegrate)
 
@@ -69,9 +69,9 @@
 | RECON-01 | Phase 15 | Complete |
 | RECON-02 | Phase 15 | Complete |
 | RECON-03 | Phase 15 | Complete |
-| HSM-01 | Phase 16 | Pending |
-| HSM-02 | Phase 16 | Pending |
-| HSM-03 | Phase 16 | Pending |
+| HSM-01 | Phase 16 | Complete |
+| HSM-02 | Phase 16 | Complete |
+| HSM-03 | Phase 16 | Complete |
 | EVT-01 | Phase 17 | Pending |
 | EVT-02 | Phase 17 | Pending |
 | EVT-03 | Phase 17 | Pending |

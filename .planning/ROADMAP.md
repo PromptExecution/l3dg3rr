@@ -20,7 +20,7 @@ Milestone v1.1 evolves l3dg3rr into a financial document management knowledge sy
 - [x] **Phase 13: MCP Boundary and Agent-Only Runtime Surface** - Enforce transport-level turbo-mcp capability boundary and MCP-only setup/E2E workflows. (gap-closure plan added 2026-03-29) (completed 2026-03-29)
 - [x] **Phase 14: Ontology Persistence and Query Surface** - Implement ontology storage, relationship queries, and machine-readable serialization. (completed 2026-03-29)
 - [x] **Phase 15: Reconciliation and Commit Guardrails** - Add validate/reconcile/commit gates with explicit blocking diagnostics. (completed 2026-03-29)
-- [ ] **Phase 16: Moku HSM Deterministic Status and Resume** - Ship guarded HSM transitions with concise deterministic status hints for agent reasoning.
+- [x] **Phase 16: Moku HSM Deterministic Status and Resume** - Ship guarded HSM transitions with concise deterministic status hints for agent reasoning. (completed 2026-03-29)
 - [ ] **Phase 17: Disintegrate Event-Sourced Lifecycle Backbone** - Persist/replay domain events and provide filtered event history queries.
 - [ ] **Phase 18: Tax Assist Evidence-Chain Interfaces** - Deliver reconciled ontology+event-backed tax assist outputs and ambiguity review surfaces.
 
@@ -129,11 +129,11 @@ Plans:
 **Goal**: Represent lifecycle states/substates with guarded transitions and resumability.
 **Depends on**: Phase 15
 **Requirements**: HSM-01, HSM-02, HSM-03
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 Plans:
-- [ ] 16-01-PLAN.md — Build HSM lifecycle state/substate and guarded transition service contracts with deterministic Display hints.
-- [ ] 16-02-PLAN.md — Implement checkpoint/resume determinism from last valid state marker without invariant bypass.
-- [ ] 16-03-PLAN.md — Expose HSM transition/status/resume over MCP transport and publish executable validation/runbook mapping.
+- [x] 16-01-PLAN.md — Build HSM lifecycle state/substate and guarded transition service contracts with deterministic Display hints.
+- [x] 16-02-PLAN.md — Implement checkpoint/resume determinism from last valid state marker without invariant bypass.
+- [x] 16-03-PLAN.md — Expose HSM transition/status/resume over MCP transport and publish executable validation/runbook mapping.
 **Success Criteria**:
   1. Ingest->normalize->validate->reconcile->commit->summarize lifecycle is encoded in HSM.
   2. Invalid transitions fail via guards with explicit reasons.
@@ -170,7 +170,7 @@ Plans:
 | 13. MCP Boundary and Agent-Only Runtime Surface | 3/3 | Complete    | 2026-03-29 |
 | 14. Ontology Persistence and Query Surface | 2/2 | Complete   | 2026-03-29 |
 | 15. Reconciliation and Commit Guardrails | 2/2 | Complete   | 2026-03-29 |
-| 16. Moku HSM Deterministic Status and Resume | 0/3 | Not started | - |
+| 16. Moku HSM Deterministic Status and Resume | 3/3 | Complete   | 2026-03-29 |
 | 17. Disintegrate Event-Sourced Lifecycle Backbone | 0/TBD | Not started | - |
 | 18. Tax Assist Evidence-Chain Interfaces | 0/TBD | Not started | - |
 

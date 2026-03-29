@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: FDKMS Integrity
 status: verifying
-stopped_at: Completed 15-02-PLAN.md
-last_updated: "2026-03-29T07:46:19.051Z"
+stopped_at: Completed 16-03-PLAN.md
+last_updated: "2026-03-29T08:05:46.693Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 12
-  completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  completed_phases: 4
+  total_plans: 10
+  completed_plans: 10
   percent: 50
 ---
 
@@ -61,6 +61,9 @@ Progress: [█████░░░░░] 50%
 - [Phase 15-reconciliation-and-commit-guardrails]: Used stable reason keys (totals_mismatch, imbalance_postings) and deterministic stage markers for small-model reliability.
 - [Phase 15-reconciliation-and-commit-guardrails]: Kept upstream passthrough tools unchanged while adding l3dg3rr-owned reconciliation stage MCP tools.
 - [Phase 15-reconciliation-and-commit-guardrails]: Mapped blocked reconciliation stage outcomes to deterministic transport payloads with ReconciliationBlocked semantics.
+- [Phase 16]: Implemented deterministic HSM lifecycle state/substate transitions with guarded blocked reasons and evidence.
+- [Phase 16]: Resume now requires exact last_valid_checkpoint markers and never mutates state on blocked requests.
+- [Phase 16]: Exposed l3dg3rr_hsm_transition/status/resume over MCP with deterministic blocked payload types and hint fields.
 
 ### Pending Todos
 
@@ -73,6 +76,6 @@ Progress: [█████░░░░░] 50%
 
 ## Session Continuity
 
-Last session: 2026-03-29T07:46:19.043Z
-Stopped at: Completed 15-02-PLAN.md
+Last session: 2026-03-29T08:05:46.688Z
+Stopped at: Completed 16-03-PLAN.md
 Resume file: None
