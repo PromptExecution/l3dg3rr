@@ -198,7 +198,7 @@ fn onto_02_relationship_query_returns_ordered_document_chain() {
         .expect("edges should upsert");
 
     let chain = service
-        .ontology_query_path(OntologyQueryPathRequest {
+        .ontology_query_path_tool(OntologyQueryPathRequest {
             ontology_path,
             from_entity_id: doc.clone(),
             max_depth: Some(4),

@@ -336,6 +336,13 @@ impl TurboLedgerService {
         Ok(response)
     }
 
+    pub fn ontology_upsert_entities_tool(
+        &self,
+        request: OntologyUpsertEntitiesRequest,
+    ) -> Result<OntologyUpsertEntitiesResponse, ToolError> {
+        self.ontology_upsert_entities(request)
+    }
+
     pub fn ontology_upsert_edges(
         &self,
         request: OntologyUpsertEdgesRequest,
@@ -346,12 +353,26 @@ impl TurboLedgerService {
         Ok(response)
     }
 
+    pub fn ontology_upsert_edges_tool(
+        &self,
+        request: OntologyUpsertEdgesRequest,
+    ) -> Result<OntologyUpsertEdgesResponse, ToolError> {
+        self.ontology_upsert_edges(request)
+    }
+
     pub fn ontology_query_path(
         &self,
         request: OntologyQueryPathRequest,
     ) -> Result<OntologyQueryPathResponse, ToolError> {
         let store = OntologyStore::load(&request.ontology_path)?;
         store.query_path(&request.from_entity_id, request.max_depth)
+    }
+
+    pub fn ontology_query_path_tool(
+        &self,
+        request: OntologyQueryPathRequest,
+    ) -> Result<OntologyQueryPathResponse, ToolError> {
+        self.ontology_query_path(request)
     }
 }
 
