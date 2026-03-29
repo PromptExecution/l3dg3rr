@@ -78,6 +78,14 @@ fn handle_request(request: Value) -> Option<Value> {
                         Some(format!("mcp-call-{id}")),
                     )
                 }
+                "proxy_rustledger_ingest_statement_rows" => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::ingest_statement_rows_tool_result(
+                        global_service(),
+                        &arguments,
+                        Some(format!("mcp-call-{id}")),
+                    )
+                }
                 _ => mcp_adapter::unknown_tool_result(tool_name),
             };
             Some(json!({

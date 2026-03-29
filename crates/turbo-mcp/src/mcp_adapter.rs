@@ -4,7 +4,7 @@ use ledger_core::ingest::{deterministic_tx_id, TransactionInput};
 use serde::Serialize;
 use serde_json::{json, Value};
 
-use crate::{IngestPdfRequest, ToolError, TurboLedgerTools};
+use crate::{IngestPdfRequest, IngestStatementRowsRequest, ToolError, TurboLedgerTools};
 
 pub const MCP_LIFECYCLE_METHODS: &[&str] = &["initialize", "tools/list", "tools/call"];
 
@@ -130,7 +130,7 @@ pub fn parse_ingest_pdf_request(arguments: &Value) -> Result<IngestPdfRequest, T
     let journal_path = PathBuf::from(required_str(arguments, "journal_path")?);
     let workbook_path = PathBuf::from(required_str(arguments, "workbook_path")?);
     let raw_context_bytes = parse_optional_bytes(arguments.get("raw_context_bytes"))?;
-    let extracted_rows = parse_rows(arguments.get("extracted_rows"))?;
+    let extracted_rows = parse_rows(arguments.get("extracted_rows"), "extracted_rows")?;
 
     Ok(IngestPdfRequest {
         pdf_path,
@@ -138,6 +138,20 @@ pub fn parse_ingest_pdf_request(arguments: &Value) -> Result<IngestPdfRequest, T
         workbook_path,
         raw_context_bytes,
         extracted_rows,
+    })
+}
+
+pub fn parse_ingest_statement_rows_request(
+    arguments: &Value,
+) -> Result<IngestStatementRowsRequest, ToolError> {
+    let journal_path = PathBuf::from(required_str(arguments, "journal_path")?);
+    let workbook_path = PathBuf::from(required_str(arguments, "workbook_path")?);
+    let rows = parse_rows(arguments.get("rows"), "rows")?;
+
+    Ok(IngestStatementRowsRequest {
+        journal_path,
+        workbook_path,
+        rows,
     })
 }
 
@@ -185,6 +199,67 @@ pub fn ingest_pdf_tool_result<T: TurboLedgerTools>(
                         "inserted_count": response.inserted_count,
                         "tx_ids": tx_ids,
                         "canonical_rows": canonical_rows,
+                    }
+                }],
+                "isError": false
+            })
+        }
+        Err(err) => json!({
+            "content": [{
+                "type": "json",
+                "json": map_tool_error(&err)
+            }],
+            "isError": true
+        }),
+    }
+}
+
+pub fn ingest_statement_rows_tool_result<T: TurboLedgerTools>(
+    service: &T,
+    arguments: &Value,
+    backend_call_id: Option<String>,
+) -> Value {
+    let request = match parse_ingest_statement_rows_request(arguments) {
+        Ok(request) => request,
+        Err(err) => {
+            return json!({
+                "content": [{
+                    "type": "json",
+                    "json": map_tool_error(&err)
+                }],
+                "isError": true
+            });
+        }
+    };
+
+    let canonical_rows = normalize_rows_with_provenance(
+        "rustledger",
+        "ingest_statement_rows",
+        Some(env!("CARGO_PKG_VERSION")),
+        backend_call_id.as_deref(),
+        request.rows.clone(),
+    );
+
+    match service.ingest_statement_rows(request.clone()) {
+        Ok(response) => {
+            let tx_ids = if response.tx_ids.is_empty() {
+                request
+                    .rows
+                    .iter()
+                    .map(deterministic_tx_id)
+                    .collect::<Vec<_>>()
+            } else {
+                response.tx_ids
+            };
+            json!({
+                "content": [{
+                    "type": "json",
+                    "json": {
+                        "inserted_count": response.inserted_count,
+                        "tx_ids": tx_ids,
+                        "canonical_rows": canonical_rows,
+                        "provider": "rustledger",
+                        "backend_tool": "ingest_statement_rows",
                     }
                 }],
                 "isError": false
@@ -259,10 +334,10 @@ fn parse_optional_bytes(value: Option<&Value>) -> Result<Option<Vec<u8>>, ToolEr
     }
 }
 
-fn parse_rows(value: Option<&Value>) -> Result<Vec<TransactionInput>, ToolError> {
+fn parse_rows(value: Option<&Value>, field_name: &str) -> Result<Vec<TransactionInput>, ToolError> {
     let rows = value
         .and_then(Value::as_array)
-        .ok_or_else(|| ToolError::InvalidInput("missing or invalid `extracted_rows`".to_string()))?;
+        .ok_or_else(|| ToolError::InvalidInput(format!("missing or invalid `{field_name}`")))?;
 
     rows.iter()
         .map(|row| {
