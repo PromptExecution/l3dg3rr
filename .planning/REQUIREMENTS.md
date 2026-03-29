@@ -31,7 +31,7 @@
 
 ### Event-Sourced Audit Log (Disintegrate)
 
-- [ ] **EVT-01**: User can persist append-only domain events for ingestion, classification, reconciliation, and adjustment actions.
+- [x] **EVT-01**: User can persist append-only domain events for ingestion, classification, reconciliation, and adjustment actions.
 - [ ] **EVT-02**: User can reconstruct entity state from disintegrate event streams.
 - [ ] **EVT-03**: User can query event history by transaction/document/time window for audit and agent explanation.
 
@@ -72,7 +72,7 @@
 | HSM-01 | Phase 16 | Complete |
 | HSM-02 | Phase 16 | Complete |
 | HSM-03 | Phase 16 | Complete |
-| EVT-01 | Phase 17 | Pending |
+| EVT-01 | Phase 17 | Complete |
 | EVT-02 | Phase 17 | Pending |
 | EVT-03 | Phase 17 | Pending |
 | TAXA-01 | Phase 18 | Pending |
