@@ -19,9 +19,9 @@
 
 ### Reconciliation & Verification
 
-- [ ] **RECON-01**: User can enforce double-entry balancing constraints before transactions become committed truth.
-- [ ] **RECON-02**: User can run automated reconciliation checks between source totals, extracted rows, and ledger postings.
-- [ ] **RECON-03**: User receives explicit blocking errors for invariant failures (imbalance, duplicate, schema mismatch).
+- [x] **RECON-01**: User can enforce double-entry balancing constraints before transactions become committed truth.
+- [x] **RECON-02**: User can run automated reconciliation checks between source totals, extracted rows, and ledger postings.
+- [x] **RECON-03**: User receives explicit blocking errors for invariant failures (imbalance, duplicate, schema mismatch).
 
 ### Hierarchical State Orchestration (Moku HSM)
 
@@ -66,9 +66,9 @@
 | ONTO-01 | Phase 14 | Complete |
 | ONTO-02 | Phase 14 | Complete |
 | ONTO-03 | Phase 14 | Complete |
-| RECON-01 | Phase 15 | Pending |
-| RECON-02 | Phase 15 | Pending |
-| RECON-03 | Phase 15 | Pending |
+| RECON-01 | Phase 15 | Complete |
+| RECON-02 | Phase 15 | Complete |
+| RECON-03 | Phase 15 | Complete |
 | HSM-01 | Phase 16 | Pending |
 | HSM-02 | Phase 16 | Pending |
 | HSM-03 | Phase 16 | Pending |

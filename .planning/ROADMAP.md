@@ -19,7 +19,7 @@ Milestone v1.1 evolves l3dg3rr into a financial document management knowledge sy
 - [ ] **Phase 12: US Expat Tax Agent Assist Surfaces** - Expose structured tax-assist outputs and explainable evidence retrieval for agents.
 - [x] **Phase 13: MCP Boundary and Agent-Only Runtime Surface** - Enforce transport-level turbo-mcp capability boundary and MCP-only setup/E2E workflows. (gap-closure plan added 2026-03-29) (completed 2026-03-29)
 - [x] **Phase 14: Ontology Persistence and Query Surface** - Implement ontology storage, relationship queries, and machine-readable serialization. (completed 2026-03-29)
-- [ ] **Phase 15: Reconciliation and Commit Guardrails** - Add validate/reconcile/commit gates with explicit blocking diagnostics.
+- [x] **Phase 15: Reconciliation and Commit Guardrails** - Add validate/reconcile/commit gates with explicit blocking diagnostics. (completed 2026-03-29)
 - [ ] **Phase 16: Moku HSM Deterministic Status and Resume** - Ship guarded HSM transitions with concise deterministic status hints for agent reasoning.
 - [ ] **Phase 17: Disintegrate Event-Sourced Lifecycle Backbone** - Persist/replay domain events and provide filtered event history queries.
 - [ ] **Phase 18: Tax Assist Evidence-Chain Interfaces** - Deliver reconciled ontology+event-backed tax assist outputs and ambiguity review surfaces.
@@ -116,10 +116,10 @@ Plans:
 **Goal**: Block commits unless double-entry and reconciliation validations pass.
 **Depends on**: Phase 14
 **Requirements**: RECON-01, RECON-02, RECON-03
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 Plans:
-- [ ] 15-01-PLAN.md — Build service-level validate/reconcile/commit guardrails with deterministic RECON-01/02 contracts.
-- [ ] 15-02-PLAN.md — Expose reconciliation guardrails over MCP transport with deterministic RECON-03 diagnostics and validation mapping.
+- [x] 15-01-PLAN.md — Build service-level validate/reconcile/commit guardrails with deterministic RECON-01/02 contracts.
+- [x] 15-02-PLAN.md — Expose reconciliation guardrails over MCP transport with deterministic RECON-03 diagnostics and validation mapping.
 **Success Criteria**:
   1. Validate/reconcile/commit stages are explicit and enforced.
   2. Source totals/extracted rows/postings checks are automated.
@@ -164,7 +164,7 @@ Plans:
 | 12. US Expat Tax Agent Assist Surfaces | 0/TBD | Not started | - |
 | 13. MCP Boundary and Agent-Only Runtime Surface | 3/3 | Complete    | 2026-03-29 |
 | 14. Ontology Persistence and Query Surface | 2/2 | Complete   | 2026-03-29 |
-| 15. Reconciliation and Commit Guardrails | 0/TBD | Not started | - |
+| 15. Reconciliation and Commit Guardrails | 2/2 | Complete   | 2026-03-29 |
 | 16. Moku HSM Deterministic Status and Resume | 0/TBD | Not started | - |
 | 17. Disintegrate Event-Sourced Lifecycle Backbone | 0/TBD | Not started | - |
 | 18. Tax Assist Evidence-Chain Interfaces | 0/TBD | Not started | - |

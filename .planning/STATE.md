@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: FDKMS Integrity
 status: verifying
-stopped_at: Completed 14-02-PLAN.md
-last_updated: "2026-03-29T07:28:21.776Z"
+stopped_at: Completed 15-02-PLAN.md
+last_updated: "2026-03-29T07:46:19.051Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 12
-  completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  completed_phases: 3
+  total_plans: 7
+  completed_plans: 7
   percent: 50
 ---
 
@@ -57,6 +57,10 @@ Progress: [█████░░░░░] 50%
 - [Phase 14]: Traversal output is deterministic via relation/to/id sorted BFS for stable small-model consumption.
 - [Phase 14]: Preserved rustledger/docling passthrough pattern and added ontology tools as l3dg3rr-owned surfaces.
 - [Phase 14]: Kept ontology export payload deterministic with stable entities/edges ordering plus concise snapshot counts.
+- [Phase 15-reconciliation-and-commit-guardrails]: Kept reconciliation guardrails as l3dg3rr-owned service abstractions without changing upstream passthrough interfaces.
+- [Phase 15-reconciliation-and-commit-guardrails]: Used stable reason keys (totals_mismatch, imbalance_postings) and deterministic stage markers for small-model reliability.
+- [Phase 15-reconciliation-and-commit-guardrails]: Kept upstream passthrough tools unchanged while adding l3dg3rr-owned reconciliation stage MCP tools.
+- [Phase 15-reconciliation-and-commit-guardrails]: Mapped blocked reconciliation stage outcomes to deterministic transport payloads with ReconciliationBlocked semantics.
 
 ### Pending Todos
 
@@ -69,6 +73,6 @@ Progress: [█████░░░░░] 50%
 
 ## Session Continuity
 
-Last session: 2026-03-29T07:28:21.772Z
-Stopped at: Completed 14-02-PLAN.md
+Last session: 2026-03-29T07:46:19.043Z
+Stopped at: Completed 15-02-PLAN.md
 Resume file: None
