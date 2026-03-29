@@ -7,7 +7,8 @@ use serde_json::{json, Value};
 use crate::{
     EventHistoryFilter, HsmResumeRequest, HsmStatusRequest, HsmTransitionRequest, IngestPdfRequest,
     IngestStatementRowsRequest, OntologyQueryPathRequest, OntologyStore, ReconciliationStageRequest,
-    ReplayLifecycleRequest, ToolError, TurboLedgerService, TurboLedgerTools,
+    ReplayLifecycleRequest, TaxAmbiguityReviewRequest, TaxAssistRequest, TaxEvidenceChainRequest,
+    ToolError, TurboLedgerService, TurboLedgerTools,
 };
 
 pub const ONTOLOGY_QUERY_PATH_TOOL: &str = "l3dg3rr_ontology_query_path";
@@ -20,6 +21,9 @@ pub const HSM_STATUS_TOOL: &str = "l3dg3rr_hsm_status";
 pub const HSM_RESUME_TOOL: &str = "l3dg3rr_hsm_resume";
 pub const EVENT_REPLAY_TOOL: &str = "l3dg3rr_event_replay";
 pub const EVENT_HISTORY_TOOL: &str = "l3dg3rr_event_history";
+pub const TAX_ASSIST_TOOL: &str = "l3dg3rr_tax_assist";
+pub const TAX_EVIDENCE_CHAIN_TOOL: &str = "l3dg3rr_tax_evidence_chain";
+pub const TAX_AMBIGUITY_REVIEW_TOOL: &str = "l3dg3rr_tax_ambiguity_review";
 
 pub const MCP_LIFECYCLE_METHODS: &[&str] = &["initialize", "tools/list", "tools/call"];
 
@@ -38,6 +42,9 @@ pub fn tool_catalog() -> Vec<String> {
         HSM_RESUME_TOOL.to_string(),
         EVENT_REPLAY_TOOL.to_string(),
         EVENT_HISTORY_TOOL.to_string(),
+        TAX_ASSIST_TOOL.to_string(),
+        TAX_EVIDENCE_CHAIN_TOOL.to_string(),
+        TAX_AMBIGUITY_REVIEW_TOOL.to_string(),
         "tools/list".to_string(),
         "tools/call".to_string(),
     ]
@@ -703,6 +710,155 @@ pub fn event_replay_tool_result(service: &TurboLedgerService, arguments: &Value)
     }
 }
 
+pub fn tax_assist_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+    let request = match parse_tax_assist_request(arguments) {
+        Ok(request) => request,
+        Err(err) => {
+            return json!({
+                "content": [{
+                    "type": "json",
+                    "json": map_tool_error(&err)
+                }],
+                "isError": true
+            });
+        }
+    };
+
+    match service.tax_assist_tool(request) {
+        Ok(response) => {
+            let blocked = response.status == "blocked";
+            let payload = if blocked {
+                json!({
+                    "isError": true,
+                    "error_type": "TaxAssistBlocked",
+                    "reason": response.blocked_reasons.first().cloned().unwrap_or_default(),
+                    "status": response.status,
+                    "stage_marker": response.stage_marker,
+                    "blocked_reasons": response.blocked_reasons,
+                    "summary": response.summary,
+                    "schedule_rows": response.schedule_rows,
+                    "fbar_rows": response.fbar_rows,
+                    "ambiguity": response.ambiguity,
+                })
+            } else {
+                json!({
+                    "status": response.status,
+                    "stage_marker": response.stage_marker,
+                    "blocked_reasons": response.blocked_reasons,
+                    "summary": response.summary,
+                    "schedule_rows": response.schedule_rows,
+                    "fbar_rows": response.fbar_rows,
+                    "ambiguity": response.ambiguity,
+                })
+            };
+            json!({
+                "content": [{
+                    "type": "json",
+                    "json": payload
+                }],
+                "isError": blocked
+            })
+        }
+        Err(err) => json!({
+            "content": [{
+                "type": "json",
+                "json": map_tool_error(&err)
+            }],
+            "isError": true
+        }),
+    }
+}
+
+pub fn tax_evidence_chain_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+    let request = match parse_tax_evidence_chain_request(arguments) {
+        Ok(request) => request,
+        Err(err) => {
+            return json!({
+                "content": [{
+                    "type": "json",
+                    "json": map_tool_error(&err)
+                }],
+                "isError": true
+            });
+        }
+    };
+
+    match service.tax_evidence_chain_tool(request) {
+        Ok(response) => json!({
+            "content": [{
+                "type": "json",
+                "json": {
+                    "source": response.source,
+                    "events": response.events,
+                    "current_state": response.current_state,
+                    "ambiguity": response.ambiguity,
+                }
+            }],
+            "isError": false
+        }),
+        Err(err) => json!({
+            "content": [{
+                "type": "json",
+                "json": map_tool_error(&err)
+            }],
+            "isError": true
+        }),
+    }
+}
+
+pub fn tax_ambiguity_review_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+    let request = match parse_tax_ambiguity_review_request(arguments) {
+        Ok(request) => request,
+        Err(err) => {
+            return json!({
+                "content": [{
+                    "type": "json",
+                    "json": map_tool_error(&err)
+                }],
+                "isError": true
+            });
+        }
+    };
+
+    match service.tax_ambiguity_review_tool(request) {
+        Ok(response) => {
+            let blocked = response.status == "blocked";
+            let payload = if blocked {
+                json!({
+                    "isError": true,
+                    "error_type": "TaxAmbiguityReviewBlocked",
+                    "reason": response.blocked_reasons.first().cloned().unwrap_or_default(),
+                    "status": response.status,
+                    "stage_marker": response.stage_marker,
+                    "blocked_reasons": response.blocked_reasons,
+                    "ambiguity": response.ambiguity,
+                })
+            } else {
+                json!({
+                    "status": response.status,
+                    "stage_marker": response.stage_marker,
+                    "blocked_reasons": response.blocked_reasons,
+                    "ambiguity": response.ambiguity,
+                })
+            };
+            json!({
+                "content": [{
+                    "type": "json",
+                    "json": payload
+                }],
+                "isError": blocked
+            })
+        }
+        Err(err) => json!({
+            "content": [{
+                "type": "json",
+                "json": map_tool_error(&err)
+            }],
+            "isError": true
+        }),
+    }
+}
+
 pub struct McpAdapter<'a, T: TurboLedgerTools> {
     service: &'a T,
 }
@@ -809,6 +965,72 @@ fn parse_replay_lifecycle_request(arguments: &Value) -> Result<ReplayLifecycleRe
         tx_id: optional_str(arguments, "tx_id"),
         document_ref: optional_str(arguments, "document_ref"),
     })
+}
+
+fn parse_tax_assist_request(arguments: &Value) -> Result<TaxAssistRequest, ToolError> {
+    let ontology_path = PathBuf::from(required_str(arguments, "ontology_path")?);
+    let from_entity_id = required_str(arguments, "from_entity_id")?.to_string();
+    let max_depth = parse_optional_max_depth(arguments.get("max_depth"))?;
+    let reconciliation = parse_nested_reconciliation_request(arguments)?;
+    Ok(TaxAssistRequest {
+        ontology_path,
+        from_entity_id,
+        max_depth,
+        reconciliation,
+    })
+}
+
+fn parse_tax_evidence_chain_request(arguments: &Value) -> Result<TaxEvidenceChainRequest, ToolError> {
+    let ontology_path = PathBuf::from(required_str(arguments, "ontology_path")?);
+    let from_entity_id = required_str(arguments, "from_entity_id")?.to_string();
+    let tx_id = optional_str(arguments, "tx_id");
+    let document_ref = optional_str(arguments, "document_ref");
+    Ok(TaxEvidenceChainRequest {
+        ontology_path,
+        from_entity_id,
+        tx_id,
+        document_ref,
+    })
+}
+
+fn parse_tax_ambiguity_review_request(
+    arguments: &Value,
+) -> Result<TaxAmbiguityReviewRequest, ToolError> {
+    let ontology_path = PathBuf::from(required_str(arguments, "ontology_path")?);
+    let from_entity_id = required_str(arguments, "from_entity_id")?.to_string();
+    let max_depth = parse_optional_max_depth(arguments.get("max_depth"))?;
+    let reconciliation = parse_nested_reconciliation_request(arguments)?;
+    Ok(TaxAmbiguityReviewRequest {
+        ontology_path,
+        from_entity_id,
+        max_depth,
+        reconciliation,
+    })
+}
+
+fn parse_nested_reconciliation_request(arguments: &Value) -> Result<ReconciliationStageRequest, ToolError> {
+    let reconciliation = arguments.get("reconciliation").ok_or_else(|| {
+        ToolError::InvalidInput("missing or invalid `reconciliation` in tool arguments".to_string())
+    })?;
+    parse_reconciliation_stage_request(reconciliation)
+}
+
+fn parse_optional_max_depth(value: Option<&Value>) -> Result<Option<usize>, ToolError> {
+    match value {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Number(num)) => {
+            let raw = num.as_u64().ok_or_else(|| {
+                ToolError::InvalidInput("`max_depth` must be a non-negative integer".to_string())
+            })?;
+            let depth = usize::try_from(raw).map_err(|_| {
+                ToolError::InvalidInput("`max_depth` is too large for this platform".to_string())
+            })?;
+            Ok(Some(depth))
+        }
+        _ => Err(ToolError::InvalidInput(
+            "missing or invalid `max_depth` in tool arguments".to_string(),
+        )),
+    }
 }
 
 fn parse_optional_bytes(value: Option<&Value>) -> Result<Option<Vec<u8>>, ToolError> {

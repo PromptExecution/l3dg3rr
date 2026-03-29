@@ -114,6 +114,18 @@ fn handle_request(request: Value) -> Option<Value> {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
                     mcp_adapter::event_replay_tool_result(global_service(), &arguments)
                 }
+                mcp_adapter::TAX_ASSIST_TOOL => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::tax_assist_tool_result(global_service(), &arguments)
+                }
+                mcp_adapter::TAX_EVIDENCE_CHAIN_TOOL => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::tax_evidence_chain_tool_result(global_service(), &arguments)
+                }
+                mcp_adapter::TAX_AMBIGUITY_REVIEW_TOOL => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::tax_ambiguity_review_tool_result(global_service(), &arguments)
+                }
                 _ => mcp_adapter::unknown_tool_result(tool_name),
             };
             Some(json!({

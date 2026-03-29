@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use serde::Serialize;
+
 use crate::{
     EventHistoryResponse, OntologyQueryPathResponse, ReconciliationStageRequest,
     ReconciliationStageResponse, ReplayLifecycleResponse,
@@ -13,7 +15,7 @@ pub struct TaxAssistRequest {
     pub reconciliation: ReconciliationStageRequest,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TaxAssistSummary {
     pub source_entity_id: String,
     pub schedule_row_count: usize,
@@ -21,7 +23,7 @@ pub struct TaxAssistSummary {
     pub ambiguity_count: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TaxEvidenceRow {
     pub section: String,
     pub entity_id: String,
@@ -30,7 +32,7 @@ pub struct TaxEvidenceRow {
     pub provenance_refs: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TaxAmbiguityRecord {
     pub tx_id: Option<String>,
     pub review_state: String,
@@ -38,7 +40,7 @@ pub struct TaxAmbiguityRecord {
     pub provenance_refs: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TaxAssistResponse {
     pub status: String,
     pub stage_marker: String,
@@ -57,7 +59,7 @@ pub struct TaxEvidenceChainRequest {
     pub document_ref: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TaxEvidenceSource {
     pub from_entity_id: String,
     pub node_ids: Vec<String>,
@@ -65,7 +67,7 @@ pub struct TaxEvidenceSource {
     pub provenance_refs: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TaxEvidenceEvent {
     pub event_id: String,
     pub sequence: u64,
@@ -74,14 +76,14 @@ pub struct TaxEvidenceEvent {
     pub document_ref: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TaxEvidenceCurrentState {
     pub reconstructed_state: String,
     pub event_count: usize,
     pub diagnostics: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TaxEvidenceChainResponse {
     pub source: TaxEvidenceSource,
     pub events: Vec<TaxEvidenceEvent>,
@@ -97,7 +99,7 @@ pub struct TaxAmbiguityReviewRequest {
     pub reconciliation: ReconciliationStageRequest,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TaxAmbiguityReviewResponse {
     pub status: String,
     pub stage_marker: String,
