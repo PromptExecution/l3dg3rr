@@ -21,7 +21,7 @@ Milestone v1.1 evolves l3dg3rr into a financial document management knowledge sy
 - [x] **Phase 14: Ontology Persistence and Query Surface** - Implement ontology storage, relationship queries, and machine-readable serialization. (completed 2026-03-29)
 - [x] **Phase 15: Reconciliation and Commit Guardrails** - Add validate/reconcile/commit gates with explicit blocking diagnostics. (completed 2026-03-29)
 - [x] **Phase 16: Moku HSM Deterministic Status and Resume** - Ship guarded HSM transitions with concise deterministic status hints for agent reasoning. (completed 2026-03-29)
-- [ ] **Phase 17: Disintegrate Event-Sourced Lifecycle Backbone** - Persist/replay domain events and provide filtered event history queries.
+- [x] **Phase 17: Disintegrate Event-Sourced Lifecycle Backbone** - Persist/replay domain events and provide filtered event history queries. (completed 2026-03-29)
 - [ ] **Phase 18: Tax Assist Evidence-Chain Interfaces** - Deliver reconciled ontology+event-backed tax assist outputs and ambiguity review surfaces.
 
 ## Phase Details
@@ -143,11 +143,11 @@ Plans:
 **Goal**: Persist/replay lifecycle events and expose filtered audit retrieval.
 **Depends on**: Phase 16
 **Requirements**: EVT-01, EVT-02, EVT-03
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 Plans:
 - [x] 17-01-PLAN.md — Build append-only lifecycle event domain/store contracts and service event persistence wiring for EVT-01.
 - [x] 17-02-PLAN.md — Implement deterministic replay/reconstruction contracts and service APIs for EVT-02.
-- [ ] 17-03-PLAN.md — Expose MCP filtered event-history queries by tx/document/time and publish validation/runbook mapping for EVT-03.
+- [x] 17-03-PLAN.md — Expose MCP filtered event-history queries by tx/document/time and publish validation/runbook mapping for EVT-03.
 **Success Criteria**:
   1. Append-only lifecycle events are persisted across key operations.
   2. Entity state reconstruction from event streams is deterministic.
@@ -176,7 +176,7 @@ Plans:
 | 14. Ontology Persistence and Query Surface | 2/2 | Complete   | 2026-03-29 |
 | 15. Reconciliation and Commit Guardrails | 2/2 | Complete   | 2026-03-29 |
 | 16. Moku HSM Deterministic Status and Resume | 3/3 | Complete   | 2026-03-29 |
-| 17. Disintegrate Event-Sourced Lifecycle Backbone | 2/3 | In Progress|  |
+| 17. Disintegrate Event-Sourced Lifecycle Backbone | 3/3 | Complete   | 2026-03-29 |
 | 18. Tax Assist Evidence-Chain Interfaces | 0/TBD | Not started | - |
 
 ## Backlog

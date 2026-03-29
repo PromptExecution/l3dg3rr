@@ -33,7 +33,7 @@
 
 - [x] **EVT-01**: User can persist append-only domain events for ingestion, classification, reconciliation, and adjustment actions.
 - [x] **EVT-02**: User can reconstruct entity state from disintegrate event streams.
-- [ ] **EVT-03**: User can query event history by transaction/document/time window for audit and agent explanation.
+- [x] **EVT-03**: User can query event history by transaction/document/time window for audit and agent explanation.
 
 ### US Expat Tax Agent Assist
 
@@ -74,7 +74,7 @@
 | HSM-03 | Phase 16 | Complete |
 | EVT-01 | Phase 17 | Complete |
 | EVT-02 | Phase 17 | Complete |
-| EVT-03 | Phase 17 | Pending |
+| EVT-03 | Phase 17 | Complete |
 | TAXA-01 | Phase 18 | Pending |
 | TAXA-02 | Phase 18 | Pending |
 | TAXA-03 | Phase 18 | Pending |
