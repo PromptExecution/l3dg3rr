@@ -6,11 +6,14 @@ use serde_json::{json, Value};
 
 use crate::{
     IngestPdfRequest, IngestStatementRowsRequest, OntologyQueryPathRequest, OntologyStore,
-    ToolError, TurboLedgerService, TurboLedgerTools,
+    ReconciliationStageRequest, ToolError, TurboLedgerService, TurboLedgerTools,
 };
 
 pub const ONTOLOGY_QUERY_PATH_TOOL: &str = "l3dg3rr_ontology_query_path";
 pub const ONTOLOGY_EXPORT_SNAPSHOT_TOOL: &str = "l3dg3rr_ontology_export_snapshot";
+pub const RECON_VALIDATE_TOOL: &str = "l3dg3rr_validate_reconciliation";
+pub const RECON_RECONCILE_TOOL: &str = "l3dg3rr_reconcile_postings";
+pub const RECON_COMMIT_TOOL: &str = "l3dg3rr_commit_guarded";
 
 pub const MCP_LIFECYCLE_METHODS: &[&str] = &["initialize", "tools/list", "tools/call"];
 
@@ -21,6 +24,9 @@ pub fn tool_catalog() -> Vec<String> {
         "l3dg3rr_get_pipeline_status".to_string(),
         ONTOLOGY_QUERY_PATH_TOOL.to_string(),
         ONTOLOGY_EXPORT_SNAPSHOT_TOOL.to_string(),
+        RECON_VALIDATE_TOOL.to_string(),
+        RECON_RECONCILE_TOOL.to_string(),
+        RECON_COMMIT_TOOL.to_string(),
         "tools/list".to_string(),
         "tools/call".to_string(),
     ]
@@ -357,6 +363,85 @@ pub fn ontology_export_snapshot_tool_result(arguments: &Value) -> Value {
     }
 }
 
+pub fn reconciliation_tool_result(
+    service: &TurboLedgerService,
+    tool_name: &str,
+    arguments: &Value,
+) -> Value {
+    let request = match parse_reconciliation_stage_request(arguments) {
+        Ok(request) => request,
+        Err(err) => {
+            return json!({
+                "content": [{
+                    "type": "json",
+                    "json": map_tool_error(&err)
+                }],
+                "isError": true
+            });
+        }
+    };
+
+    let response = match tool_name {
+        RECON_VALIDATE_TOOL => service.validate_reconciliation_stage_tool(request),
+        RECON_RECONCILE_TOOL => service.reconcile_reconciliation_stage_tool(request),
+        RECON_COMMIT_TOOL => service.commit_reconciliation_stage_tool(request),
+        _ => {
+            return unknown_tool_result(tool_name);
+        }
+    };
+
+    match response {
+        Ok(stage_response) => {
+            let blocked = stage_response.status == "blocked";
+            let stage = stage_response.stage;
+            let status = stage_response.status;
+            let stage_marker = stage_response.stage_marker;
+            let blocked_reasons = stage_response.blocked_reasons;
+            let diagnostics = stage_response
+                .diagnostics
+                .into_iter()
+                .map(|diag| json!({ "key": diag.key, "message": diag.message }))
+                .collect::<Vec<_>>();
+
+            let payload = if blocked {
+                json!({
+                    "isError": true,
+                    "error_type": "ReconciliationBlocked",
+                    "message": format!("{stage} blocked by reconciliation guardrails"),
+                    "stage": stage,
+                    "status": status,
+                    "stage_marker": stage_marker,
+                    "blocked_reasons": blocked_reasons,
+                    "diagnostics": diagnostics,
+                })
+            } else {
+                json!({
+                    "stage": stage,
+                    "status": status,
+                    "stage_marker": stage_marker,
+                    "blocked_reasons": blocked_reasons,
+                    "diagnostics": diagnostics,
+                })
+            };
+
+            json!({
+                "content": [{
+                    "type": "json",
+                    "json": payload
+                }],
+                "isError": blocked
+            })
+        }
+        Err(err) => json!({
+            "content": [{
+                "type": "json",
+                "json": map_tool_error(&err)
+            }],
+            "isError": true
+        }),
+    }
+}
+
 pub struct McpAdapter<'a, T: TurboLedgerTools> {
     service: &'a T,
 }
@@ -424,6 +509,17 @@ fn parse_ontology_query_path_request(arguments: &Value) -> Result<OntologyQueryP
     })
 }
 
+fn parse_reconciliation_stage_request(arguments: &Value) -> Result<ReconciliationStageRequest, ToolError> {
+    let source_total = required_str(arguments, "source_total")?.to_string();
+    let extracted_total = required_str(arguments, "extracted_total")?.to_string();
+    let posting_amounts = parse_string_array(arguments.get("posting_amounts"), "posting_amounts")?;
+    Ok(ReconciliationStageRequest {
+        source_total,
+        extracted_total,
+        posting_amounts,
+    })
+}
+
 fn parse_optional_bytes(value: Option<&Value>) -> Result<Option<Vec<u8>>, ToolError> {
     match value {
         None | Some(Value::Null) => Ok(None),
@@ -461,6 +557,21 @@ fn parse_rows(value: Option<&Value>, field_name: &str) -> Result<Vec<Transaction
                 description: required_str(row, "description")?.to_string(),
                 source_ref: required_str(row, "source_ref")?.to_string(),
             })
+        })
+        .collect()
+}
+
+fn parse_string_array(value: Option<&Value>, field_name: &str) -> Result<Vec<String>, ToolError> {
+    let items = value
+        .and_then(Value::as_array)
+        .ok_or_else(|| ToolError::InvalidInput(format!("missing or invalid `{field_name}`")))?;
+
+    items
+        .iter()
+        .map(|item| {
+            item.as_str()
+                .map(ToString::to_string)
+                .ok_or_else(|| ToolError::InvalidInput(format!("`{field_name}` must contain strings")))
         })
         .collect()
 }

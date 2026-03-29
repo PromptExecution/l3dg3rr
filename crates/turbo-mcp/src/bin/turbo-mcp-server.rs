@@ -94,6 +94,12 @@ fn handle_request(request: Value) -> Option<Value> {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
                     mcp_adapter::ontology_export_snapshot_tool_result(&arguments)
                 }
+                mcp_adapter::RECON_VALIDATE_TOOL
+                | mcp_adapter::RECON_RECONCILE_TOOL
+                | mcp_adapter::RECON_COMMIT_TOOL => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::reconciliation_tool_result(global_service(), tool_name, &arguments)
+                }
                 _ => mcp_adapter::unknown_tool_result(tool_name),
             };
             Some(json!({
