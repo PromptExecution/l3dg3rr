@@ -18,7 +18,7 @@ Milestone v1.1 evolves l3dg3rr into a financial document management knowledge sy
 - [ ] **Phase 11: Disintegrate Event-Sourced Audit Backbone** - Persist and replay domain events for full lifecycle reconstruction and audit queries.
 - [ ] **Phase 12: US Expat Tax Agent Assist Surfaces** - Expose structured tax-assist outputs and explainable evidence retrieval for agents.
 - [x] **Phase 13: MCP Boundary and Agent-Only Runtime Surface** - Enforce transport-level turbo-mcp capability boundary and MCP-only setup/E2E workflows. (gap-closure plan added 2026-03-29) (completed 2026-03-29)
-- [ ] **Phase 14: Ontology Persistence and Query Surface** - Implement ontology storage, relationship queries, and machine-readable serialization.
+- [x] **Phase 14: Ontology Persistence and Query Surface** - Implement ontology storage, relationship queries, and machine-readable serialization. (completed 2026-03-29)
 - [ ] **Phase 15: Reconciliation and Commit Guardrails** - Add validate/reconcile/commit gates with explicit blocking diagnostics.
 - [ ] **Phase 16: Moku HSM Deterministic Status and Resume** - Ship guarded HSM transitions with concise deterministic status hints for agent reasoning.
 - [ ] **Phase 17: Disintegrate Event-Sourced Lifecycle Backbone** - Persist/replay domain events and provide filtered event history queries.
@@ -103,10 +103,10 @@ Plans:
 **Goal**: Persist/query ontology entities and serialize machine-readable structures for agents.
 **Depends on**: Phase 13
 **Requirements**: ONTO-01, ONTO-02, ONTO-03
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 14-01-PLAN.md — Build ontology persistence/query foundation with referential integrity and ONTO-01/02 contract tests.
-- [ ] 14-02-PLAN.md — Expose ontology MCP query/export serialization with transport e2e verification and validation/runbook alignment.
+- [x] 14-02-PLAN.md — Expose ontology MCP query/export serialization with transport e2e verification and validation/runbook alignment.
 **Success Criteria**:
   1. Ontology entities persist with referential integrity.
   2. Relationship queries cover evidence-chain traversal.
@@ -159,7 +159,7 @@ Plans:
 | 11. Disintegrate Event-Sourced Audit Backbone | 0/TBD | Not started | - |
 | 12. US Expat Tax Agent Assist Surfaces | 0/TBD | Not started | - |
 | 13. MCP Boundary and Agent-Only Runtime Surface | 3/3 | Complete    | 2026-03-29 |
-| 14. Ontology Persistence and Query Surface | 1/2 | In Progress|  |
+| 14. Ontology Persistence and Query Surface | 2/2 | Complete   | 2026-03-29 |
 | 15. Reconciliation and Commit Guardrails | 0/TBD | Not started | - |
 | 16. Moku HSM Deterministic Status and Resume | 0/TBD | Not started | - |
 | 17. Disintegrate Event-Sourced Lifecycle Backbone | 0/TBD | Not started | - |
