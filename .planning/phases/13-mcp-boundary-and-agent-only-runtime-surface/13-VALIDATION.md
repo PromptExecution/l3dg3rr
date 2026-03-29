@@ -43,6 +43,8 @@ created: 2026-03-29
 | 13-02-03 | 02 | 0 | DOC-03 | integration | `cargo test -p turbo-mcp --test mcp_stdio_e2e doc_03_replay_idempotent_with_stable_tx_ids_over_mcp -- --nocapture` | ✅ | ✅ green |
 | 13-02-04 | 02 | 1 | DOC-01/02/03 | integration | `bash scripts/mcp_e2e.sh` | ✅ | ✅ green |
 | 13-02-05 | 02 | 1 | DOC-01/02/03 | integration | `cargo test -p turbo-mcp --test mcp_stdio_e2e -- --nocapture` | ✅ | ✅ green |
+| 13-03-01 | 03 | 3 | DOC-01/02/03 | integration | `cargo test -p turbo-mcp --test mcp_stdio_e2e rustledger_proxy_ingest_statement_rows_over_transport -- --nocapture` | ✅ | ✅ green |
+| 13-03-02 | 03 | 3 | DOC-01/02/03 | integration | `cargo test -p turbo-mcp --test mcp_adapter_contract -- --nocapture` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -61,6 +63,7 @@ created: 2026-03-29
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
 | MCP initialization sequence visible and deterministic for runbook users | DOC-01 | Protocol ordering/readability review in docs output | Run `bash scripts/mcp_e2e.sh`; confirm test harness performs `initialize`, `notifications/initialized`, `tools/list`, and `tools/call` in order |
+| Rustledger proxy callable shape remains operator-readable in MCP-only docs | DOC-01/02/03 | Validate runbook instructions match executable transport command names | Run `cargo test -p turbo-mcp --test mcp_stdio_e2e rustledger_proxy_ingest_statement_rows_over_transport -- --nocapture`; confirm docs reference this exact command and tool name |
 
 ---
 

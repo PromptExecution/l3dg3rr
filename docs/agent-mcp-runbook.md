@@ -7,7 +7,7 @@ This runbook is MCP-only. Agent workflows must use MCP `initialize`, `notificati
 - `l3dg3rr` is the MCP boundary.
 - Upstream capabilities are exposed through passthrough/proxy patterns.
 - `proxy_docling_ingest_pdf` represents docling-style ingest orchestration.
-- `proxy_rustledger_ingest_statement_rows` remains the rustledger-facing proxy surface.
+- `proxy_rustledger_ingest_statement_rows` is callable over MCP `tools/call` as the rustledger-facing proxy surface.
 
 ## Bootstrap
 
@@ -39,7 +39,20 @@ cargo test -p turbo-mcp --test mcp_stdio_e2e doc_01_mcp_only_ingest_via_tools_ca
 Expected behavior:
 
 - `tools/list` includes `proxy_docling_ingest_pdf`.
+- `tools/list` includes `proxy_rustledger_ingest_statement_rows`.
 - Calls execute through MCP transport only.
+
+To verify rustledger proxy callability specifically:
+
+```bash
+cargo test -p turbo-mcp --test mcp_stdio_e2e rustledger_proxy_ingest_statement_rows_over_transport -- --nocapture
+```
+
+Expected behavior:
+
+- `tools/call` executes `proxy_rustledger_ingest_statement_rows` without unknown-tool fallback.
+- Response includes deterministic `inserted_count` + stable `tx_ids` on replay.
+- Canonical rows include provenance fields with `provider=rustledger` and `backend_tool=ingest_statement_rows`.
 
 ## Deterministic Mapping + Replay
 
