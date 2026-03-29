@@ -11,9 +11,14 @@ use rust_decimal::Decimal;
 use rust_xlsxwriter::Workbook;
 
 pub mod mcp_adapter;
+pub mod events;
 pub mod hsm;
 pub mod ontology;
 pub mod reconciliation;
+pub use events::{
+    AppendEventResult, EventHistoryFilter, EventHistoryResponse, InMemoryLifecycleEventStore,
+    LifecycleEvent, LifecycleEventStore,
+};
 pub use hsm::{
     HsmMachine, HsmResumeRequest, HsmResumeResponse, HsmStatusRequest, HsmStatusResponse,
     HsmTransitionRequest, HsmTransitionResponse,
@@ -311,6 +316,7 @@ pub struct TurboLedgerService {
     manifest: Manifest,
     ingest_state: Mutex<IngestedLedger>,
     classification_state: Mutex<ClassificationState>,
+    lifecycle_events: Mutex<InMemoryLifecycleEventStore>,
     hsm_state: Mutex<HsmMachine>,
 }
 
@@ -321,6 +327,7 @@ impl TurboLedgerService {
             manifest,
             ingest_state: Mutex::new(IngestedLedger::default()),
             classification_state: Mutex::new(ClassificationState::default()),
+            lifecycle_events: Mutex::new(InMemoryLifecycleEventStore::default()),
             hsm_state: Mutex::new(HsmMachine::default()),
         })
     }
@@ -470,6 +477,23 @@ impl TurboLedgerService {
 
         hsm.current = resume_node;
         Ok(hsm::resume_response(hsm.current, true, Vec::new()))
+    }
+
+    pub fn adjust_transaction(
+        &self,
+        request: ClassifyTransactionRequest,
+    ) -> Result<ClassifyTransactionResponse, ToolError> {
+        self.classify_transaction(request)
+    }
+
+    pub fn event_history(
+        &self,
+        filter: EventHistoryFilter,
+    ) -> Result<EventHistoryResponse, ToolError> {
+        self.lifecycle_events
+            .lock()
+            .map_err(|_| ToolError::Internal("events lock poisoned".to_string()))?
+            .list_events(filter)
     }
 }
 
