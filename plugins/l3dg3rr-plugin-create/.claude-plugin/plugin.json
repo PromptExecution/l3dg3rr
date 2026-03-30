@@ -9,7 +9,6 @@
   "homepage": "https://github.com/PromptExecution/l3dg3rr",
   "repository": "https://github.com/PromptExecution/l3dg3rr",
   "license": "MIT",
-  "category": "finance",
   "keywords": [
     "cowork",
     "mcp",
@@ -17,8 +16,16 @@
     "fdkms",
     "ledger"
   ],
+  "capabilities": {
+    "skills": true,
+    "commands": false,
+    "hooks": false,
+    "mcp": true
+  },
+  "metadata": {
+    "category": "finance"
+  },
   "strict": true,
-  "skills": "./skills",
   "mcpServers": {
     "l3dg3rr-cargo": {
       "command": "cargo",

@@ -12,7 +12,7 @@
   "plugins": [
     {
       "name": "l3dg3rr-plugin-create",
-      "source": "./l3dg3rr-plugin-create",
+      "source": "./plugins/l3dg3rr-plugin-create",
       "description": "Install l3dg3rr MCP capabilities for connector/plugin-create workflows in Cowork",
       "version": "1.0.0",
       "author": {
