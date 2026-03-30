@@ -8,6 +8,7 @@ Rust workspace for a local-first, Excel-first tax ledger system.
 ## Agent Guide
 
 See [AGENTS.md](AGENTS.md) for agent-facing purpose, capability boundaries, operating expectations, and persistent session-learning rules.
+See [docs/mcp-capability-contract.md](docs/mcp-capability-contract.md) for the concrete MCP tool matrix, API relationships, and contrived end-to-end usage.
 
 ## Current scope
 
