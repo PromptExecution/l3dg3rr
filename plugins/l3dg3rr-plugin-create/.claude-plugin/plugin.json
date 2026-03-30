@@ -1,0 +1,37 @@
+{
+  "name": "l3dg3rr-plugin-create",
+  "description": "Claude Cowork plugin for l3dg3rr MCP operations and plugin-create acceleration",
+  "version": "1.0.0",
+  "author": {
+    "name": "PromptExecution",
+    "email": "opensource@promptexecution.io"
+  },
+  "homepage": "https://github.com/PromptExecution/l3dg3rr",
+  "repository": "https://github.com/PromptExecution/l3dg3rr",
+  "license": "GPL-3.0-only",
+  "category": "finance",
+  "keywords": [
+    "cowork",
+    "mcp",
+    "plugin-create",
+    "fdkms",
+    "ledger"
+  ],
+  "strict": true,
+  "skills": "./skills",
+  "mcpServers": {
+    "l3dg3rr": {
+      "command": "cargo",
+      "args": [
+        "run",
+        "-p",
+        "turbo-mcp",
+        "--bin",
+        "turbo-mcp-server"
+      ],
+      "env": {
+        "RUST_LOG": "info"
+      }
+    }
+  }
+}

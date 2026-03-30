@@ -50,3 +50,8 @@ cog bump --auto
 ```
 
 This validates the full ingest -> classify -> audit -> schedule summary flow.
+
+## Claude Cowork Plugin Marketplace
+
+- Approach and operator workflow: `docs/claude-cowork-plugin-marketplace.md`
+- Marketplace catalog: `.claude-plugin/marketplace.json`
