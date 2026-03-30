@@ -1,36 +1,36 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: FDKMS Integrity
-status: verifying
-stopped_at: Completed 18-03-PLAN.md
-last_updated: "2026-03-29T08:53:09.270Z"
-last_activity: 2026-03-29
+milestone: v1.2
+milestone_name: Claude Connector Interop
+status: planning
+stopped_at: Roadmap created for phases 19-21
+last_updated: "2026-03-29T21:42:28.000Z"
+last_activity: 2026-03-30
 progress:
-  total_phases: 12
-  completed_phases: 6
-  total_plans: 16
-  completed_plans: 8
-  percent: 50
+  total_phases: 3
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-29)
+See: .planning/PROJECT.md (updated 2026-03-30)
 
 **Core value:** Convert raw historical financial PDFs into accountant-usable, auditable Excel tax records without sending private data to third-party SaaS.
-**Current focus:** Phase 18 — tax-assist MCP surfaces (complete)
+**Current focus:** Phase 19 roadmap-to-plan transition (connector capability profile contract)
 
 ## Current Position
 
-Phase: 18
-Plan: 18-03-PLAN.md (complete)
-Status: Phase complete — ready for verification
-Last activity: 2026-03-29
+Phase: 19 - Connector Capability Profile Contract
+Plan: Not started
+Status: Roadmap approved baseline ready for planning
+Last activity: 2026-03-30 — v1.2 roadmap created with phases 19-21
 
-Progress: [█████░░░░░] 50%
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
@@ -43,8 +43,8 @@ Progress: [█████░░░░░] 50%
 
 ### Decisions
 
-- Continue phase numbering from prior milestone (starts at Phase 7), with audit-driven closure extension to Phase 18.
-- New milestone execution order is audit-driven: MCP boundary first, then ontology, reconciliation, HSM, events, and tax assist surfaces.
+- Continue phase numbering from prior milestone with v1.2 starting at Phase 19.
+- v1.2 execution order is connector-contract first, then install activation, then constrained session governance diagnostics.
 - Preserve local-first and accountant-auditable workflow guarantees.
 - [Phase 13]: Implemented stdio MCP transport boundary with adapter-owned deterministic contracts
 - [Phase 13]: Separated protocol method errors from tool execution errors with stable isError semantics
@@ -85,6 +85,6 @@ Progress: [█████░░░░░] 50%
 
 ## Session Continuity
 
-Last session: 2026-03-29T08:49:47.646Z
-Stopped at: Completed 18-03-PLAN.md
+Last session: 2026-03-30T00:00:00.000Z
+Stopped at: v1.2 roadmap created and ready for `/gsd:plan-phase 19`
 Resume file: None

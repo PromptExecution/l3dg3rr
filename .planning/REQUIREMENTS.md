@@ -1,6 +1,6 @@
 # Requirements: tax-ledger
 
-**Defined:** 2026-03-29
+**Defined:** 2026-03-30
 **Core Value:** Convert raw historical financial PDFs into accountant-usable, auditable Excel tax records without sending private data to third-party SaaS.
 
 ## v1 Requirements
@@ -41,6 +41,20 @@
 - [x] **TAXA-02**: AI agents can retrieve explainable evidence chains for tax decisions (source doc -> event log -> current state).
 - [x] **TAXA-03**: User can flag scenarios with elevated tax ambiguity for human review with linked provenance.
 
+## v1.2 Requirements
+
+### Claude Connector Interoperability
+
+- [ ] **CCONN-01**: Operator can configure l3dg3rr as a Claude-compatible connector endpoint with explicit capability metadata and deterministic tool descriptions.
+- [ ] **CCONN-02**: Operator can install and activate l3dg3rr connector flows for Claude/Cowork/Desktop using concise runbook steps with deterministic verification commands.
+- [ ] **CCONN-03**: Agent can run connector-scoped tool discovery and tool invocation with deterministic responses under connector session constraints.
+
+### Connector Safety and Governance
+
+- [ ] **CCONN-04**: Operator can enforce explicit connector permission scope (read/write/action classes) and see deterministic denial diagnostics when scope is insufficient.
+- [ ] **CCONN-05**: Operator can audit connector interaction outcomes (success, blocked, error class) with deterministic reason keys for troubleshooting.
+- [ ] **CCONN-06**: Team/enterprise deployment can declare organization-level connector readiness checks and compatibility notes without changing core ledger invariants.
+
 ## v2 Requirements
 
 ### Extended Intelligence
@@ -78,12 +92,20 @@
 | TAXA-01 | Phase 18 | Complete |
 | TAXA-02 | Phase 18 | Complete |
 | TAXA-03 | Phase 18 | Complete |
+| CCONN-01 | Phase 19 | Pending |
+| CCONN-02 | Phase 20 | Pending |
+| CCONN-03 | Phase 21 | Pending |
+| CCONN-04 | Phase 19 | Pending |
+| CCONN-05 | Phase 21 | Pending |
+| CCONN-06 | Phase 20 | Pending |
 
 **Coverage:**
 - v1 requirements: 18 total
-- Mapped to phases: 18
+- v1.2 additional requirements: 6 total
+- All requirements (v1 + v1.2): 24 total
+- Mapped to phases: 24
 - Unmapped: 0 ✓
 
 ---
-*Requirements defined: 2026-03-29*
-*Last updated: 2026-03-29 after v1.1 milestone gap-closure planning*
+*Requirements defined: 2026-03-30*
+*Last updated: 2026-03-30 for v1.2 milestone kickoff*

@@ -3,186 +3,55 @@
 ## Milestones
 
 - ✅ **v1.0 MVP** — Phases 1-6 shipped 2026-03-29 ([archive](./milestones/v1.0-ROADMAP.md))
-- 🚧 **v1.1 FDKMS Integrity** — Phases 7-18 (in progress; gap-closure extension active)
+- ✅ **v1.1 FDKMS Integrity** — Phases 7-18 shipped 2026-03-29 ([archive](./milestones/v1.1-ROADMAP.md))
+- 🚧 **v1.2 Claude Connector Interop** — Phases 19-21 (in progress)
 
 ## Overview
 
-Milestone v1.1 evolves l3dg3rr into a financial document management knowledge system (FDKMS) optimized for AI-assisted US expat tax workflows with ontology-structured truth, strict reconciliation guarantees, and event-sourced auditability.
+Milestone v1.2 focuses on Claude connector interoperability so l3dg3rr can be installed, activated, and operated through connector-style MCP workflows with deterministic capability metadata, scoped permissions, and auditable session behavior.
 
 ## Phases
 
-- [x] **Phase 7: Docling Statement Ingestion Canonicalization** - Integrate docling/docling-mcp ingestion into deterministic canonical transaction candidates. (completed 2026-03-29)
-- [x] **Phase 8: Ontological Knowledge Graph Layer** - Persist/query ontology entities and relations for documents, transactions, and evidence chains. (completed 2026-03-29)
-- [x] **Phase 9: Double-Entry Reconciliation Gates** - Enforce balancing and reconciliation checks before transaction truth commitment. (completed 2026-03-29)
-- [x] **Phase 10: Moku Hierarchical State Machine Orchestration** - Implement guarded hierarchical pipeline state transitions and resumability. (completed 2026-03-29)
-- [x] **Phase 11: Disintegrate Event-Sourced Audit Backbone** - Persist and replay domain events for full lifecycle reconstruction and audit queries. (completed 2026-03-29)
-- [x] **Phase 12: US Expat Tax Agent Assist Surfaces** - Expose structured tax-assist outputs and explainable evidence retrieval for agents. (completed 2026-03-29)
-- [x] **Phase 13: MCP Boundary and Agent-Only Runtime Surface** - Enforce transport-level turbo-mcp capability boundary and MCP-only setup/E2E workflows. (gap-closure plan added 2026-03-29) (completed 2026-03-29)
-- [x] **Phase 14: Ontology Persistence and Query Surface** - Implement ontology storage, relationship queries, and machine-readable serialization. (completed 2026-03-29)
-- [x] **Phase 15: Reconciliation and Commit Guardrails** - Add validate/reconcile/commit gates with explicit blocking diagnostics. (completed 2026-03-29)
-- [x] **Phase 16: Moku HSM Deterministic Status and Resume** - Ship guarded HSM transitions with concise deterministic status hints for agent reasoning. (completed 2026-03-29)
-- [x] **Phase 17: Disintegrate Event-Sourced Lifecycle Backbone** - Persist/replay domain events and provide filtered event history queries. (completed 2026-03-29)
-- [x] **Phase 18: Tax Assist Evidence-Chain Interfaces** - Deliver reconciled ontology+event-backed tax assist outputs and ambiguity review surfaces. (completed 2026-03-29)
+- [ ] **Phase 19: Connector Capability Profile and Scope Contracts** - Define connector-facing capability metadata, deterministic tool descriptors, and permission scope contracts.
+- [ ] **Phase 20: Connector Installation and Activation Workflows** - Implement and validate operator install/activation flows for Claude/Cowork/Desktop connector contexts.
+- [ ] **Phase 21: Connector Session Execution and Governance Diagnostics** - Prove connector-session tool execution, deterministic denial/error semantics, and auditable interaction outcomes.
 
 ## Phase Details
 
-### Phase 7: Docling Statement Ingestion Canonicalization
-**Goal**: Ingest statements via docling/docling-mcp into canonical transaction candidates with deterministic IDs and provenance.
-**Depends on**: Phase 6
-**Requirements**: DOC-01, DOC-02, DOC-03
+### Phase 19: Connector Capability Profile and Scope Contracts
+**Goal**: Expose deterministic connector capability profiles and permission scope contracts for l3dg3rr MCP tools.
+**Depends on**: Phase 18
+**Requirements**: CCONN-01, CCONN-04
 **Success Criteria**:
-  1. Statement ingestion via docling/docling-mcp yields canonical candidate rows with provenance metadata.
-  2. Canonical field mapping is deterministic and stable across re-runs.
-  3. Replaying same source produces no duplicate candidates.
+  1. Connector-facing tool metadata is deterministic and concise across runs.
+  2. Permission scope policy is explicit by capability class and action type.
+  3. Scope-denied operations return deterministic machine-readable denial diagnostics.
 
-### Phase 8: Ontological Knowledge Graph Layer
-**Goal**: Build ontology entities/relations for document-to-transaction-to-tax semantics and machine-readable query.
-**Depends on**: Phase 7
-**Requirements**: ONTO-01, ONTO-02, ONTO-03
+### Phase 20: Connector Installation and Activation Workflows
+**Goal**: Deliver clear connector install and activation pathways with deterministic verification for operator environments.
+**Depends on**: Phase 19
+**Requirements**: CCONN-02, CCONN-06
 **Success Criteria**:
-  1. Core ontology entities and relations persist with referential integrity.
-  2. Relationship queries cover full evidence chains.
-  3. Ontology data is serializable for AI agent workflows.
+  1. Claude/Cowork/Desktop connector install paths are documented and executable.
+  2. Activation checks verify connector readiness deterministically.
+  3. Organization-level compatibility/readiness notes are captured without changing ledger invariants.
 
-### Phase 9: Double-Entry Reconciliation Gates
-**Goal**: Ensure no transaction commits without passing double-entry and reconciliation validations.
-**Depends on**: Phase 8
-**Requirements**: RECON-01, RECON-02, RECON-03
+### Phase 21: Connector Session Execution and Governance Diagnostics
+**Goal**: Validate connector-scoped tool discovery/invocation and expose governance-grade diagnostics for operations.
+**Depends on**: Phase 20
+**Requirements**: CCONN-03, CCONN-05
 **Success Criteria**:
-  1. Double-entry constraints block imbalanced commits.
-  2. Reconciliation checks validate source totals vs committed postings.
-  3. Invariant failures return explicit blocking diagnostics.
-
-### Phase 10: Moku Hierarchical State Machine Orchestration
-**Goal**: Represent pipeline lifecycle with moku HSM and enforce guarded/resumable transitions.
-**Depends on**: Phase 9
-**Requirements**: HSM-01, HSM-02, HSM-03
-**Success Criteria**:
-  1. Pipeline states and substates are encoded in moku HSM.
-  2. Invalid transitions are blocked by guard checks.
-  3. Interrupted runs resume from valid prior state.
-
-### Phase 11: Disintegrate Event-Sourced Audit Backbone
-**Goal**: Persist/replay lifecycle events using disintegrate for reconstructable domain truth.
-**Depends on**: Phase 10
-**Requirements**: EVT-01, EVT-02, EVT-03
-**Success Criteria**:
-  1. Domain events are append-only and typed across lifecycle operations.
-  2. Entity state reconstruction from event streams is deterministic.
-  3. Audit history queries support transaction/document/time slicing.
-
-### Phase 12: US Expat Tax Agent Assist Surfaces
-**Goal**: Deliver ontology-backed, reconciled, explainable outputs for US expat tax AI agent workflows.
-**Depends on**: Phase 11
-**Requirements**: TAXA-01, TAXA-02, TAXA-03
-**Success Criteria**:
-  1. Schedule/FBAR tax-assist outputs derive from reconciled ontology truth.
-  2. Agents can retrieve explainable evidence chains for tax reasoning.
-  3. Ambiguous scenarios are flagged for human review with linked provenance.
-
-### Gap Closure Extension (Audit-Driven)
-
-Milestone audit (`.planning/v1.1-v1.1-MILESTONE-AUDIT.md`) identified critical integration and flow blockers.  
-Phases 13-18 provide the executable closure path and become the authoritative implementation sequence for v1.1 requirements.
-
-### Phase 13: MCP Boundary and Agent-Only Runtime Surface
-**Goal**: Enforce MCP transport boundary so sandboxed agents can only use turbo-mcp capabilities.
-**Depends on**: Phase 6
-**Requirements**: DOC-01, DOC-02, DOC-03
-**Plans:** 0/0 plans complete
-Plans:
-- [x] 13-01-PLAN.md — Add stdio MCP transport boundary, passthrough/proxy adapter surface, and deterministic status/error contracts.
-- [x] 13-02-PLAN.md — Add MCP-only subprocess E2E DOC verification and publish operator/agent runbook.
-- [x] 13-03-PLAN.md — Close rustledger proxy callable MCP gap with transport-level verification and runbook/validation alignment.
-**Success Criteria**:
-  1. turbo-mcp is exposed through a real MCP transport surface (not direct in-process usage).
-  2. Agent setup/runbook documents MCP-only bootstrap and tool discovery.
-  3. E2E tests execute ingestion workflows via MCP tool calls only.
-
-### Phase 14: Ontology Persistence and Query Surface
-**Goal**: Persist/query ontology entities and serialize machine-readable structures for agents.
-**Depends on**: Phase 13
-**Requirements**: ONTO-01, ONTO-02, ONTO-03
-**Plans:** 2/2 plans complete
-Plans:
-- [x] 14-01-PLAN.md — Build ontology persistence/query foundation with referential integrity and ONTO-01/02 contract tests.
-- [x] 14-02-PLAN.md — Expose ontology MCP query/export serialization with transport e2e verification and validation/runbook alignment.
-**Success Criteria**:
-  1. Ontology entities persist with referential integrity.
-  2. Relationship queries cover evidence-chain traversal.
-  3. Serialization surfaces are stable and agent-consumable.
-
-### Phase 15: Reconciliation and Commit Guardrails
-**Goal**: Block commits unless double-entry and reconciliation validations pass.
-**Depends on**: Phase 14
-**Requirements**: RECON-01, RECON-02, RECON-03
-**Plans:** 2/2 plans complete
-Plans:
-- [x] 15-01-PLAN.md — Build service-level validate/reconcile/commit guardrails with deterministic RECON-01/02 contracts.
-- [x] 15-02-PLAN.md — Expose reconciliation guardrails over MCP transport with deterministic RECON-03 diagnostics and validation mapping.
-**Success Criteria**:
-  1. Validate/reconcile/commit stages are explicit and enforced.
-  2. Source totals/extracted rows/postings checks are automated.
-  3. Blocking diagnostics are deterministic and actionable.
-
-### Phase 16: Moku HSM Deterministic Status and Resume
-**Goal**: Represent lifecycle states/substates with guarded transitions and resumability.
-**Depends on**: Phase 15
-**Requirements**: HSM-01, HSM-02, HSM-03
-**Plans:** 3/3 plans complete
-Plans:
-- [x] 16-01-PLAN.md — Build HSM lifecycle state/substate and guarded transition service contracts with deterministic Display hints.
-- [x] 16-02-PLAN.md — Implement checkpoint/resume determinism from last valid state marker without invariant bypass.
-- [x] 16-03-PLAN.md — Expose HSM transition/status/resume over MCP transport and publish executable validation/runbook mapping.
-**Success Criteria**:
-  1. Ingest->normalize->validate->reconcile->commit->summarize lifecycle is encoded in HSM.
-  2. Invalid transitions fail via guards with explicit reasons.
-  3. Display-friendly deterministic status hints are available for small-model agents.
-
-### Phase 17: Disintegrate Event-Sourced Lifecycle Backbone
-**Goal**: Persist/replay lifecycle events and expose filtered audit retrieval.
-**Depends on**: Phase 16
-**Requirements**: EVT-01, EVT-02, EVT-03
-**Plans:** 3/3 plans complete
-Plans:
-- [x] 17-01-PLAN.md — Build append-only lifecycle event domain/store contracts and service event persistence wiring for EVT-01.
-- [x] 17-02-PLAN.md — Implement deterministic replay/reconstruction contracts and service APIs for EVT-02.
-- [x] 17-03-PLAN.md — Expose MCP filtered event-history queries by tx/document/time and publish validation/runbook mapping for EVT-03.
-**Success Criteria**:
-  1. Append-only lifecycle events are persisted across key operations.
-  2. Entity state reconstruction from event streams is deterministic.
-  3. Event history is queryable by transaction/document/time slices.
-
-### Phase 18: Tax Assist Evidence-Chain Interfaces
-**Goal**: Expose ontology+event-backed tax assist outputs with explainable evidence paths.
-**Depends on**: Phase 17
-**Requirements**: TAXA-01, TAXA-02, TAXA-03
-**Plans:** 3/3 plans complete
-Plans:
-- [x] 18-01-PLAN.md — Define deterministic service-level tax-assist outputs and ambiguity review contracts from reconciled ontology truth.
-- [x] 18-02-PLAN.md — Implement source->events->current-state evidence-chain retrieval contracts and service wiring.
-- [x] 18-03-PLAN.md — Expose tax-assist/evidence MCP transport surfaces and publish executable validation mapping.
-**Success Criteria**:
-  1. Tax assist outputs derive from reconciled ontology truth.
-  2. Agents can retrieve evidence chains (source -> events -> current state).
-  3. Ambiguous scenarios are flagged with linked provenance and review state.
+  1. Connector sessions can run tools/list and tools/call for supported capabilities.
+  2. Session-constrained failures map to deterministic reason keys and error classes.
+  3. Connector interaction outcomes are auditable by success/blocked/error categories.
 
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 7. Docling Statement Ingestion Canonicalization | 0/TBD | Complete    | 2026-03-29 |
-| 8. Ontological Knowledge Graph Layer | 0/TBD | Complete    | 2026-03-29 |
-| 9. Double-Entry Reconciliation Gates | 0/TBD | Complete    | 2026-03-29 |
-| 10. Moku Hierarchical State Machine Orchestration | 0/TBD | Complete    | 2026-03-29 |
-| 11. Disintegrate Event-Sourced Audit Backbone | 0/TBD | Complete    | 2026-03-29 |
-| 12. US Expat Tax Agent Assist Surfaces | 0/TBD | Complete    | 2026-03-29 |
-| 13. MCP Boundary and Agent-Only Runtime Surface | 3/3 | Complete    | 2026-03-29 |
-| 14. Ontology Persistence and Query Surface | 2/2 | Complete   | 2026-03-29 |
-| 15. Reconciliation and Commit Guardrails | 2/2 | Complete   | 2026-03-29 |
-| 16. Moku HSM Deterministic Status and Resume | 3/3 | Complete   | 2026-03-29 |
-| 17. Disintegrate Event-Sourced Lifecycle Backbone | 3/3 | Complete   | 2026-03-29 |
-| 18. Tax Assist Evidence-Chain Interfaces | 3/3 | Complete   | 2026-03-29 |
+| 19. Connector Capability Profile and Scope Contracts | 0/TBD | Not started | - |
+| 20. Connector Installation and Activation Workflows | 0/TBD | Not started | - |
+| 21. Connector Session Execution and Governance Diagnostics | 0/TBD | Not started | - |
 
 ## Backlog
 
