@@ -56,3 +56,12 @@ This validates the full ingest -> classify -> audit -> schedule summary flow.
 - Approach and operator workflow: `docs/claude-cowork-plugin-marketplace.md`
 - Marketplace catalog: `.claude-plugin/marketplace.json`
 - MCP runtime helpers: `Justfile` (`just mcp-start`, `just mcp-stop`, `just mcp-e2e`)
+
+## CI/CD Publish Targets
+
+- Workflow: `.github/workflows/publish.yml`
+- Trigger: GitHub Release `published` (or manual `workflow_dispatch`)
+- Targets:
+  - GHCR image: `ghcr.io/promptexecution/l3dg3rr`
+  - crates.io crates: `ledger-core`, `turbo-mcp` (requires `CRATES_IO_TOKEN`)
+  - PyPI package: `l3dg3rr-mcp-launcher` (requires `PYPI_API_TOKEN`)
