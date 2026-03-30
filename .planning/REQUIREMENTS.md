@@ -100,7 +100,9 @@
 | CCONN-06 | Phase 20 | Pending |
 
 **Coverage:**
-- v1 requirements: 24 total
+- v1 requirements: 18 total
+- v1.2 additional requirements: 6 total
+- All requirements (v1 + v1.2): 24 total
 - Mapped to phases: 24
 - Unmapped: 0 ✓
 
