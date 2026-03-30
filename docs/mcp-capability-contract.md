@@ -11,8 +11,8 @@ It is intentionally concrete and code-aligned.
 
 MCP boundary:
 - Methods: `initialize`, `tools/list`, `tools/call`
-- Server: [crates/turbo-mcp/src/bin/turbo-mcp-server.rs](/home/brianh/promptexecution/mbse/l3dg3rr/crates/turbo-mcp/src/bin/turbo-mcp-server.rs:8)
-- Tool catalog: [crates/turbo-mcp/src/mcp_adapter.rs](/home/brianh/promptexecution/mbse/l3dg3rr/crates/turbo-mcp/src/mcp_adapter.rs:30)
+- Server: [crates/turbo-mcp/src/bin/turbo-mcp-server.rs](crates/turbo-mcp/src/bin/turbo-mcp-server.rs#L8)
+- Tool catalog: [crates/turbo-mcp/src/mcp_adapter.rs](crates/turbo-mcp/src/mcp_adapter.rs#L30)
 
 ### Tool Matrix
 
