@@ -1,54 +1,109 @@
-# Claude Cowork Plugin Marketplace Approach
+# Claude Cowork Plugin Marketplace for l3dg3rr
 
-## Goal
+## What this delivers
 
-Distribute this repository as an installable Cowork plugin marketplace entry, with a dedicated `l3dg3rr-plugin-create` plugin that exposes `turbo-mcp-server`.
+This repo now includes a Claude plugin marketplace and a plugin entry intended for Cowork + Plugin Create workflows:
 
-## Artifacts in this repo
+- Marketplace: `promptexecution-fdkms`
+- Plugin: `l3dg3rr-plugin-create`
 
-- Marketplace catalog: `.claude-plugin/marketplace.json`
-- Plugin manifest: `plugins/l3dg3rr-plugin-create/.claude-plugin/plugin.json`
-- Plugin skill: `plugins/l3dg3rr-plugin-create/skills/plugin-create-for-l3dg3rr/SKILL.md`
+## Key files
 
-## Cowork install flow
+- Marketplace catalog: [marketplace.json](/home/brianh/promptexecution/mbse/l3dg3rr/.claude-plugin/marketplace.json)
+- Plugin manifest: [plugin.json](/home/brianh/promptexecution/mbse/l3dg3rr/plugins/l3dg3rr-plugin-create/.claude-plugin/plugin.json)
+- Plugin skill: [SKILL.md](/home/brianh/promptexecution/mbse/l3dg3rr/plugins/l3dg3rr-plugin-create/skills/plugin-create-for-l3dg3rr/SKILL.md)
+- MCP server entrypoint: [turbo-mcp-server.rs](/home/brianh/promptexecution/mbse/l3dg3rr/crates/turbo-mcp/src/bin/turbo-mcp-server.rs)
+- Runtime helper commands: [Justfile](/home/brianh/promptexecution/mbse/l3dg3rr/Justfile)
+- MCP regression script: [mcp_e2e.sh](/home/brianh/promptexecution/mbse/l3dg3rr/scripts/mcp_e2e.sh)
+- Container build: [Dockerfile](/home/brianh/promptexecution/mbse/l3dg3rr/Dockerfile)
+- Python launcher package: [pyproject.toml](/home/brianh/promptexecution/mbse/l3dg3rr/plugins/l3dg3rr-plugin-create/python/pyproject.toml)
 
-In Claude Code/Cowork:
+## Install in Cowork
 
 ```text
 /plugin marketplace add https://github.com/PromptExecution/l3dg3rr
-/plugin install l3dg3rr-plugin-create@promptexecution-tools
+/plugin install l3dg3rr-plugin-create@promptexecution-fdkms
 ```
 
-Then validate:
+Validate:
 
 ```text
 /plugin list
 /plugin show l3dg3rr-plugin-create
 ```
 
-In a Cowork task, run:
+## MCP runtime profiles
+
+The plugin manifest ships multiple MCP server profiles:
+
+- `l3dg3rr-cargo` (default development path)
+- `l3dg3rr-binary` (compiled release binary)
+- `l3dg3rr-docker` (container runtime)
+- `l3dg3rr-python` (python launcher wrapper)
+
+### 1) Cargo
+
+```bash
+just mcp-build
+just mcp-start
+```
+
+### 2) Compiled binary
+
+```bash
+cargo build --release -p turbo-mcp --bin turbo-mcp-server
+just mcp-start-release
+```
+
+### 3) Docker
+
+```bash
+docker build -t tax-ledger:dev .
+docker run -i --rm -v "$PWD:/workspace" -w /workspace tax-ledger:dev \
+  cargo run -p turbo-mcp --bin turbo-mcp-server
+```
+
+### 4) Python packaging / launcher
+
+Install local launcher package:
+
+```bash
+pip install -e plugins/l3dg3rr-plugin-create/python
+```
+
+Run:
+
+```bash
+l3dg3rr-mcp --mode cargo
+l3dg3rr-mcp --mode binary --binary ./target/release/turbo-mcp-server
+l3dg3rr-mcp --mode docker --image tax-ledger:dev
+```
+
+## Start/stop MCP interface
+
+- Start (foreground): one of the runtime commands above.
+- Stop (foreground): `Ctrl+C`.
+- Stop (best-effort process kill): `just mcp-stop`.
+
+In Cowork, process lifecycle is typically managed by Claude once the plugin is installed and selected.
+
+## Validation in Cowork
+
+After install, in a Cowork task:
 
 ```text
 tools/list
 tools/call l3dg3rr_context_summary {}
 ```
 
-## Organization distribution model
+Then run deeper checks from shell:
 
-1. Host this marketplace on GitHub (recommended distribution path).
-2. Team admins add it as an approved marketplace.
-3. Users install `l3dg3rr-plugin-create` from the marketplace catalog.
-4. For stricter controls, combine with managed marketplace restrictions in team settings.
+```bash
+just mcp-e2e
+```
 
-## CI publication assist
+## References
 
-Use the official Claude Code GitHub Action for PR/issue automation while maintaining this marketplace catalog in-repo:
-
-- Marketplace listing: `https://github.com/marketplace/actions/claude-code-action-official`
-- Keep plugin artifacts versioned and reviewed via PR before publishing updates.
-
-## Notes
-
-- This approach uses Git-hosted marketplace distribution and relative plugin source paths.
-- The MCP server command currently assumes `cargo` availability on the host running Cowork/plugin execution.
-- For container-first environments, replace `mcpServers.l3dg3rr.command` with a docker launcher profile.
+- Plugin marketplaces docs: https://code.claude.com/docs/en/plugin-marketplaces
+- Cowork plugin usage: https://support.claude.com/en/articles/13837440-use-plugins-in-cowork
+- Claude Code GitHub Action: https://github.com/marketplace/actions/claude-code-action-official

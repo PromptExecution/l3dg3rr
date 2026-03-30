@@ -1,8 +1,8 @@
 {
-  "name": "promptexecution-tools",
+  "name": "promptexecution-fdkms",
   "owner": {
     "name": "PromptExecution",
-    "email": "opensource@promptexecution.io"
+    "email": "brianh@promptexecution.com"
   },
   "metadata": {
     "description": "PromptExecution plugin catalog for Claude/Cowork workflows",
@@ -16,7 +16,8 @@
       "description": "Install l3dg3rr MCP capabilities for connector/plugin-create workflows in Cowork",
       "version": "1.0.0",
       "author": {
-        "name": "PromptExecution"
+        "name": "PromptExecution",
+        "email": "brianh@promptexecution.com"
       },
       "license": "GPL-3.0-only",
       "category": "finance",

@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "l3dg3rr-mcp-launcher"
+version = "0.1.0"
+description = "Launcher for l3dg3rr turbo-mcp server runtime profiles"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "PromptExecution", email = "brianh@promptexecution.com" }
+]
+license = { text = "GPL-3.0-only" }
+
+[project.scripts]
+l3dg3rr-mcp = "l3dg3rr_mcp_launcher.__main__:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

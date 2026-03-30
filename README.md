@@ -55,3 +55,4 @@ This validates the full ingest -> classify -> audit -> schedule summary flow.
 
 - Approach and operator workflow: `docs/claude-cowork-plugin-marketplace.md`
 - Marketplace catalog: `.claude-plugin/marketplace.json`
+- MCP runtime helpers: `Justfile` (`just mcp-start`, `just mcp-stop`, `just mcp-e2e`)
