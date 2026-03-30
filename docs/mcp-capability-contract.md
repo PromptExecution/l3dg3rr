@@ -38,16 +38,16 @@ MCP boundary:
 | `l3dg3rr_tax_ambiguity_review` | ambiguity review queue payload | `ontology_path`, `from_entity_id`, `reconciliation` | `tax_ambiguity_review_tool` |
 
 Input parsing and validation live in:
-[crates/turbo-mcp/src/mcp_adapter.rs](/home/brianh/promptexecution/mbse/l3dg3rr/crates/turbo-mcp/src/mcp_adapter.rs:160)
+[crates/turbo-mcp/src/mcp_adapter.rs](crates/turbo-mcp/src/mcp_adapter.rs#L160)
 
 ## 2) Internal Rust Service API (Wider Than MCP)
 
 Canonical trait:
-[TurboLedgerTools in crates/turbo-mcp/src/lib.rs](/home/brianh/promptexecution/mbse/l3dg3rr/crates/turbo-mcp/src/lib.rs:275)
+[TurboLedgerTools in crates/turbo-mcp/src/lib.rs](crates/turbo-mcp/src/lib.rs#L275)
 
 Important distinction:
 - Some service capabilities exist but are not exposed as MCP tools yet.
-- Examples currently service-only: `list_accounts`, `get_raw_context`, `run_rhai_rule`, `classify_ingested`, `query_flags`, `classify_transaction`, `query_audit_log`, `export_cpa_workbook`, `get_schedule_summary`, ontology upserts.
+- Examples currently service-only: `run_rhai_rule`, `classify_ingested`, `query_flags`, `classify_transaction`, `query_audit_log`, `export_cpa_workbook`, `get_schedule_summary`, ontology upserts.
 
 This is the current API layering:
 1. `turbo-mcp-server` (stdio transport)
@@ -58,14 +58,14 @@ This is the current API layering:
 ## 3) CLI / Runtime Entry Points
 
 Operational CLI helpers are lifecycle-oriented, not business-domain verbs:
-- [Justfile](/home/brianh/promptexecution/mbse/l3dg3rr/Justfile:3)
+- [Justfile](Justfile#L3)
   - `just mcp-build`
   - `just mcp-start`
   - `just mcp-start-release`
   - `just mcp-stop`
   - `just mcp-e2e`
 - Python launcher:
-  [plugins/l3dg3rr-plugin-create/python/src/l3dg3rr_mcp_launcher/__main__.py](/home/brianh/promptexecution/mbse/l3dg3rr/plugins/l3dg3rr-plugin-create/python/src/l3dg3rr_mcp_launcher/__main__.py:35)
+  [plugins/l3dg3rr-plugin-create/python/src/l3dg3rr_mcp_launcher/__main__.py](plugins/l3dg3rr-plugin-create/python/src/l3dg3rr_mcp_launcher/__main__.py#L35)
   - `--mode cargo|binary|docker`
 
 ## 4) Functional Relationships (Contrived Sample)
