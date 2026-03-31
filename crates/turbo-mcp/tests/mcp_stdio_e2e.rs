@@ -275,3 +275,63 @@ fn rustledger_proxy_ingest_statement_rows_over_transport() {
     assert!(canonical.get("backend_version").is_some());
     assert!(canonical.get("backend_call_id").is_some());
 }
+
+#[test]
+fn mcp_lists_and_calls_accounts_and_raw_context_tools() {
+    let mut client = McpStdioClient::spawn();
+    initialize_client(&mut client);
+
+    let tools = client.request("tools/list", json!({}));
+    let tool_names = tools["result"]["tools"]
+        .as_array()
+        .expect("tools list")
+        .iter()
+        .filter_map(|entry| entry.get("name").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+    assert!(tool_names.contains(&"l3dg3rr_list_accounts"));
+    assert!(tool_names.contains(&"l3dg3rr_get_raw_context"));
+
+    let list_accounts = client.request(
+        "tools/call",
+        json!({
+            "name": "l3dg3rr_list_accounts",
+            "arguments": {}
+        }),
+    );
+    assert_eq!(list_accounts["result"]["isError"], Value::Bool(false));
+    let accounts = list_accounts["result"]["content"][0]["json"]["accounts"]
+        .as_array()
+        .expect("accounts array");
+    assert!(!accounts.is_empty());
+    assert!(accounts
+        .iter()
+        .any(|entry| entry["account_id"] == json!("WF-BH-CHK")));
+
+    let tempdir = tempfile::tempdir().expect("tempdir");
+    let ingest_args = build_ingest_arguments(tempdir.path());
+    let source_ref = ingest_args["extracted_rows"][0]["source_ref"]
+        .as_str()
+        .expect("source_ref")
+        .to_string();
+    let ingest = client.request(
+        "tools/call",
+        json!({
+            "name": "proxy_docling_ingest_pdf",
+            "arguments": ingest_args
+        }),
+    );
+    assert_eq!(ingest["result"]["isError"], Value::Bool(false));
+
+    let raw_context = client.request(
+        "tools/call",
+        json!({
+            "name": "l3dg3rr_get_raw_context",
+            "arguments": { "rkyv_ref": source_ref }
+        }),
+    );
+    assert_eq!(raw_context["result"]["isError"], Value::Bool(false));
+    assert_eq!(
+        raw_context["result"]["content"][0]["json"]["bytes"],
+        json!([99, 116, 120])
+    );
+}

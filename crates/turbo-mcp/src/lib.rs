@@ -960,7 +960,31 @@ impl TurboLedgerTools for TurboLedgerService {
         &self,
         request: GetRawContextRequest,
     ) -> Result<GetRawContextResponse, ToolError> {
-        let bytes = std::fs::read(&request.rkyv_ref).map_err(|e| ToolError::Internal(e.to_string()))?;
+        let allowed_base = self.workbook_path()
+            .parent()
+            .ok_or_else(|| ToolError::InvalidInput("workbook_path must have a parent directory".to_string()))?
+            .to_path_buf();
+
+        let rkyv_path = &request.rkyv_ref;
+        if rkyv_path.components().any(|c| c == std::path::Component::ParentDir) {
+            return Err(ToolError::InvalidInput(format!(
+                "rkyv_ref '{}' contains path traversal components",
+                rkyv_path.display()
+            )));
+        }
+        let resolved = if rkyv_path.is_absolute() {
+            if !rkyv_path.starts_with(&allowed_base) {
+                return Err(ToolError::InvalidInput(format!(
+                    "rkyv_ref '{}' resolves outside the allowed directory",
+                    rkyv_path.display()
+                )));
+            }
+            rkyv_path.to_path_buf()
+        } else {
+            allowed_base.join(rkyv_path)
+        };
+
+        let bytes = std::fs::read(&resolved).map_err(|e| ToolError::Internal(e.to_string()))?;
         Ok(GetRawContextResponse { bytes })
     }
 

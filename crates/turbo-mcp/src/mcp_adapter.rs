@@ -5,12 +5,14 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::{
-    EventHistoryFilter, HsmResumeRequest, HsmStatusRequest, HsmTransitionRequest, IngestPdfRequest,
-    IngestStatementRowsRequest, OntologyQueryPathRequest, OntologyStore, ReconciliationStageRequest,
-    ReplayLifecycleRequest, TaxAmbiguityReviewRequest, TaxAssistRequest, TaxEvidenceChainRequest,
-    ToolError, TurboLedgerService, TurboLedgerTools,
+    EventHistoryFilter, GetRawContextRequest, HsmResumeRequest, HsmStatusRequest, HsmTransitionRequest,
+    IngestPdfRequest, IngestStatementRowsRequest, ListAccountsRequest, OntologyQueryPathRequest,
+    OntologyStore, ReconciliationStageRequest, ReplayLifecycleRequest, TaxAmbiguityReviewRequest,
+    TaxAssistRequest, TaxEvidenceChainRequest, ToolError, TurboLedgerService, TurboLedgerTools,
 };
 
+pub const LIST_ACCOUNTS_TOOL: &str = "l3dg3rr_list_accounts";
+pub const GET_RAW_CONTEXT_TOOL: &str = "l3dg3rr_get_raw_context";
 pub const ONTOLOGY_QUERY_PATH_TOOL: &str = "l3dg3rr_ontology_query_path";
 pub const ONTOLOGY_EXPORT_SNAPSHOT_TOOL: &str = "l3dg3rr_ontology_export_snapshot";
 pub const RECON_VALIDATE_TOOL: &str = "l3dg3rr_validate_reconciliation";
@@ -29,6 +31,8 @@ pub const MCP_LIFECYCLE_METHODS: &[&str] = &["initialize", "tools/list", "tools/
 
 pub fn tool_catalog() -> Vec<String> {
     vec![
+        LIST_ACCOUNTS_TOOL.to_string(),
+        GET_RAW_CONTEXT_TOOL.to_string(),
         "proxy_docling_ingest_pdf".to_string(),
         "proxy_rustledger_ingest_statement_rows".to_string(),
         "l3dg3rr_get_pipeline_status".to_string(),
@@ -48,6 +52,64 @@ pub fn tool_catalog() -> Vec<String> {
         "tools/list".to_string(),
         "tools/call".to_string(),
     ]
+}
+
+pub fn list_accounts_tool_result(service: &TurboLedgerService) -> Value {
+    match service.list_accounts_tool(ListAccountsRequest) {
+        Ok(response) => {
+            let accounts = response
+                .accounts
+                .into_iter()
+                .map(|account| json!({ "account_id": account.account_id }))
+                .collect::<Vec<_>>();
+            json!({
+                "content": [{
+                    "type": "json",
+                    "json": { "accounts": accounts }
+                }],
+                "isError": false
+            })
+        }
+        Err(err) => json!({
+            "content": [{
+                "type": "json",
+                "json": map_tool_error(&err)
+            }],
+            "isError": true
+        }),
+    }
+}
+
+pub fn get_raw_context_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+    let request = match parse_get_raw_context_request(arguments) {
+        Ok(request) => request,
+        Err(err) => {
+            return json!({
+                "content": [{
+                    "type": "json",
+                    "json": map_tool_error(&err)
+                }],
+                "isError": true
+            });
+        }
+    };
+
+    match service.get_raw_context(request) {
+        Ok(response) => json!({
+            "content": [{
+                "type": "json",
+                "json": { "bytes": response.bytes }
+            }],
+            "isError": false
+        }),
+        Err(err) => json!({
+            "content": [{
+                "type": "json",
+                "json": map_tool_error(&err)
+            }],
+            "isError": true
+        }),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -897,6 +959,12 @@ fn required_str<'a>(obj: &'a Value, key: &str) -> Result<&'a str, ToolError> {
 
 fn parse_ontology_path(arguments: &Value) -> Result<PathBuf, ToolError> {
     Ok(PathBuf::from(required_str(arguments, "ontology_path")?))
+}
+
+fn parse_get_raw_context_request(arguments: &Value) -> Result<GetRawContextRequest, ToolError> {
+    Ok(GetRawContextRequest {
+        rkyv_ref: PathBuf::from(required_str(arguments, "rkyv_ref")?),
+    })
 }
 
 fn parse_ontology_query_path_request(arguments: &Value) -> Result<OntologyQueryPathRequest, ToolError> {

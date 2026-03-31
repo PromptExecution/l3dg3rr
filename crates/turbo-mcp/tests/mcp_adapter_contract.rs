@@ -7,6 +7,8 @@ fn doc_01_mcp_boundary_tool_catalog_exposes_passthrough_proxy_surface() {
 
     assert!(tools.contains(&"proxy_rustledger_ingest_statement_rows".to_string()));
     assert!(tools.contains(&"proxy_docling_ingest_pdf".to_string()));
+    assert!(tools.contains(&"l3dg3rr_list_accounts".to_string()));
+    assert!(tools.contains(&"l3dg3rr_get_raw_context".to_string()));
     assert!(tools.contains(&"l3dg3rr_get_pipeline_status".to_string()));
     assert!(tools.contains(&"tools/list".to_string()));
     assert!(tools.contains(&"tools/call".to_string()));

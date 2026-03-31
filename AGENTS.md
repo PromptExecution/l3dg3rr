@@ -10,6 +10,7 @@ For product scope and status, read `README.md` first, then use this file for exe
 ### MCP Capability Training (Concrete)
 
 Use `TurboLedgerService` in `crates/turbo-mcp/src/lib.rs` as the canonical contract.
+Use `docs/mcp-capability-contract.md` as the canonical MCP surface map (tool names, arg contracts, service mapping, contrived usage flow).
 
 Core methods:
 - `list_accounts` / `list_accounts_tool`: enumerate account ids from manifest.

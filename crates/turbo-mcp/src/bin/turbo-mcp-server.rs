@@ -60,6 +60,7 @@ fn handle_request(request: Value) -> Option<Value> {
             let params = request.get("params").cloned().unwrap_or(Value::Null);
             let tool_name = params.get("name").and_then(Value::as_str).unwrap_or("");
             let result = match tool_name {
+                mcp_adapter::LIST_ACCOUNTS_TOOL => mcp_adapter::list_accounts_tool_result(global_service()),
                 "l3dg3rr_get_pipeline_status" => {
                     let status = mcp_adapter::get_pipeline_status(true, true, true, Vec::new());
                     json!({
@@ -85,6 +86,10 @@ fn handle_request(request: Value) -> Option<Value> {
                         &arguments,
                         Some(format!("mcp-call-{id}")),
                     )
+                }
+                mcp_adapter::GET_RAW_CONTEXT_TOOL => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::get_raw_context_tool_result(global_service(), &arguments)
                 }
                 mcp_adapter::ONTOLOGY_QUERY_PATH_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
@@ -141,7 +146,7 @@ fn handle_request(request: Value) -> Option<Value> {
 fn global_service() -> &'static TurboLedgerService {
     static SERVICE: OnceLock<TurboLedgerService> = OnceLock::new();
     SERVICE.get_or_init(|| {
-        let manifest = "[session]\nworkbook_path=\"tax-ledger.xlsx\"\nactive_year=2023\n";
+        let manifest = "[session]\nworkbook_path=\"tax-ledger.xlsx\"\nactive_year=2023\n\n[accounts]\nWF-BH-CHK = { institution = \"Wells Fargo\", type = \"checking\", currency = \"USD\" }\n";
         TurboLedgerService::from_manifest_str(manifest).expect("default manifest must parse")
     })
 }
