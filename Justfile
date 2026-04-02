@@ -14,3 +14,14 @@ mcp-stop:
 
 mcp-e2e:
     ./scripts/mcp_e2e.sh
+
+mcp-cli-basic:
+    ./scripts/mcp_cli_demo.sh basic
+
+mcp-cli-spinning-wheels:
+    ./scripts/mcp_cli_demo.sh spinning-wheels
+
+mcp-doc-validate:
+    ./scripts/mcp_cli_demo.sh basic
+    ./scripts/mcp_cli_demo.sh spinning-wheels
+    ./scripts/mcp_e2e.sh

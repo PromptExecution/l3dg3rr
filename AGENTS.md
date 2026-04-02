@@ -210,6 +210,34 @@ Capture should focus on:
 
 Avoid noisy transcript-style notes. Record only stable guidance that improves future execution quality.
 
+## Standing Task Hook (Post-Commit)
+
+After every commit, validate that Claude plugin/skill usage documentation is current and aligned with recommended patterns from:
+- https://code.claude.com/docs/en/plugins
+
+Minimum requirement:
+- Confirm the repository's Claude-facing docs still reflect the currently exposed MCP tools, expected arguments, and practical usage flow.
+- If code changed MCP behavior, update docs in the same branch before opening or updating a PR.
+
+Preferred implementation ("extra points"):
+- Keep runnable documentation flows in `Justfile` targets that execute an MCP CLI path against sample data.
+- Maintain two documented modes:
+  - simple/basic happy-path usage
+  - "spinning wheels" troubleshooting/diagnostic usage (intentional blocked or recovery-oriented flow)
+
+Treat this as a standing operational gate, not a one-time migration task.
+
+### Validation Memo
+
+- 2026-04-02: executed post-commit plugin-doc validation against `https://code.claude.com/docs/en/plugins`.
+  - Updated stale tool examples from `l3dg3rr_context_summary` to live MCP tools (`l3dg3rr_get_pipeline_status`, `l3dg3rr_list_accounts`, `l3dg3rr_get_raw_context`).
+  - Added plugin skill frontmatter `name` for plugin-doc compatibility.
+  - Added runnable `Justfile` MCP CLI doc targets:
+    - `just mcp-cli-basic`
+    - `just mcp-cli-spinning-wheels`
+    - `just mcp-doc-validate`
+  - Added/maintained shell-based MCP demo flow with simple and blocked-diagnostics scenarios.
+
 
 
 <!-- GSD:profile-start -->

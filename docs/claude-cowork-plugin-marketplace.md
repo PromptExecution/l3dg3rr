@@ -93,12 +93,21 @@ After install, in a Cowork task:
 
 ```text
 tools/list
-tools/call l3dg3rr_context_summary {}
+tools/call l3dg3rr_get_pipeline_status {}
+tools/call l3dg3rr_list_accounts {}
+```
+
+Optional raw-context retrieval check (after an ingest tool call writes a `.rkyv` path):
+
+```text
+tools/call l3dg3rr_get_raw_context {"rkyv_ref":"/tmp/path/to/context.rkyv"}
 ```
 
 Then run deeper checks from shell:
 
 ```bash
+just mcp-cli-basic
+just mcp-cli-spinning-wheels
 just mcp-e2e
 ```
 

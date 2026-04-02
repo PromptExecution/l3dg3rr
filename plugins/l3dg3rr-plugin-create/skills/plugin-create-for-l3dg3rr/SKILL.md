@@ -1,4 +1,5 @@
 ---
+name: plugin-create-for-l3dg3rr
 description: Bootstrap and validate l3dg3rr MCP usage in Claude Cowork Plugin Create workflows
 ---
 
@@ -28,8 +29,18 @@ Use this skill when setting up or troubleshooting `l3dg3rr` in Claude Cowork Plu
 ## First-call validation
 
 1. `tools/list` and confirm at least one `l3dg3rr_*` tool appears.
-2. `tools/call l3dg3rr_context_summary {}`.
-3. If available, run one domain call such as `l3dg3rr_ontology_export_snapshot`.
+2. `tools/call l3dg3rr_get_pipeline_status {}`.
+3. `tools/call l3dg3rr_list_accounts {}`.
+4. If available, run one domain call such as `l3dg3rr_ontology_export_snapshot`.
+
+For local plugin development and reload workflow (recommended):
+
+- Run Claude with local plugin directory during iteration:
+  - `claude --plugin-dir ./plugins/l3dg3rr-plugin-create`
+- After edits, run:
+  - `/reload-plugins`
+- Invoke skill with namespace:
+  - `/l3dg3rr-plugin-create:plugin-create-for-l3dg3rr`
 
 ## Start/stop behavior
 
@@ -38,6 +49,8 @@ Use this skill when setting up or troubleshooting `l3dg3rr` in Claude Cowork Plu
 - Optional helper commands (repo root):
   - `just mcp-start`
   - `just mcp-stop`
+  - `just mcp-cli-basic`
+  - `just mcp-cli-spinning-wheels`
 
 ## Troubleshooting checklist
 
