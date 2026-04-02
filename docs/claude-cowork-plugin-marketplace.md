@@ -97,10 +97,10 @@ tools/call l3dg3rr_get_pipeline_status {}
 tools/call l3dg3rr_list_accounts {}
 ```
 
-Optional raw-context retrieval check (after an ingest tool call writes a `.rkyv` path):
+Optional raw-context retrieval check (after an ingest tool call writes a `.rkyv` path within your workbook directory):
 
 ```text
-tools/call l3dg3rr_get_raw_context {"rkyv_ref":"/tmp/path/to/context.rkyv"}
+tools/call l3dg3rr_get_raw_context {"rkyv_ref":"relative/path/to/context.rkyv"}
 ```
 
 Then run deeper checks from shell:
