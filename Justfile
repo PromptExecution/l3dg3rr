@@ -14,3 +14,18 @@ mcp-stop:
 
 mcp-e2e:
     ./scripts/mcp_e2e.sh
+
+mcp-cli-basic:
+    ./scripts/mcp_cli_demo.sh basic
+
+mcp-cli-spinning-wheels:
+    ./scripts/mcp_cli_demo.sh spinning-wheels
+
+mcp-doc-demo:
+    ./scripts/mcp_cli_demo.sh basic
+    ./scripts/mcp_cli_demo.sh spinning-wheels
+    ./scripts/mcp_e2e.sh
+
+test:
+    cargo build -p turbo-mcp --bin turbo-mcp-server --bin mcp-outcome-test
+    ./target/debug/mcp-outcome-test
