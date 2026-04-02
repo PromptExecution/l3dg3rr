@@ -21,7 +21,7 @@ mcp-cli-basic:
 mcp-cli-spinning-wheels:
     ./scripts/mcp_cli_demo.sh spinning-wheels
 
-mcp-doc-validate:
+mcp-doc-demo:
     ./scripts/mcp_cli_demo.sh basic
     ./scripts/mcp_cli_demo.sh spinning-wheels
     ./scripts/mcp_e2e.sh
