@@ -25,3 +25,7 @@ mcp-doc-validate:
     ./scripts/mcp_cli_demo.sh basic
     ./scripts/mcp_cli_demo.sh spinning-wheels
     ./scripts/mcp_e2e.sh
+
+test:
+    cargo build -p turbo-mcp --bin turbo-mcp-server --bin mcp-outcome-test
+    ./target/debug/mcp-outcome-test

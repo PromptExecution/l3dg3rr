@@ -106,9 +106,7 @@ tools/call l3dg3rr_get_raw_context {"rkyv_ref":"/tmp/path/to/context.rkyv"}
 Then run deeper checks from shell:
 
 ```bash
-just mcp-cli-basic
-just mcp-cli-spinning-wheels
-just mcp-e2e
+just test
 ```
 
 ## References
