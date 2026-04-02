@@ -1,0 +1,50 @@
+name: Publish Podman Image
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish-podman:
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    env:
+      TEST_SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - name: Checkout tested commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+      - name: Compute image tags
+        run: |
+          echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+          echo "SHA_TAG=${TEST_SHA}" >> "$GITHUB_ENV"
+
+      - name: Login to GHCR (Podman)
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build image with Podman
+        run: |
+          podman build \
+            -t "${IMAGE}:main" \
+            -t "${IMAGE}:${SHA_TAG}" \
+            .
+
+      - name: Push image tags with Podman
+        run: |
+          podman push "${IMAGE}:main"
+          podman push "${IMAGE}:${SHA_TAG}"
