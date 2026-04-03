@@ -12,3 +12,7 @@ prd.md
 
 # Windows Mark-of-the-Web metadata files
 *:Zone.Identifier
+
+# Local environment secrets
+.env
+.env.*
