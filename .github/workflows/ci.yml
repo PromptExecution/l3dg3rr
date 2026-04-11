@@ -8,7 +8,6 @@ on:
 permissions:
   contents: read
   security-events: write
-  id-token: write
 
 jobs:
   test-and-build:
@@ -105,26 +104,26 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install mcp-publisher
-        run: |
-          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_x86_64.tar.gz" | tar xz
-
-      - name: Publish to MCP Registry
-        run: |
-          SHA=$(sha256sum ledgerr-mcp-server | cut -d' ' -f1)
-          cat > server.json << EOF
-          {
-            "name": "io.github.prompt-execution/ledgerr-mcp",
-            "description": "Tax ledger MCP server for document intelligence and U.S. expat tax preparation",
-            "version": "${{ env.VERSION }}",
-            "packages": [
-              {
-                "registryType": "mcpb",
-                "identifier": "https://github.com/PromptExecution/l3dg3rr/releases/download/${{ env.VERSION }}/ledgerr-mcp.mcpb",
-                "fileSha256": "$SHA"
-              }
-            ]
-          }
-          EOF
-          ./mcp-publisher login github-oidc
-          ./mcp-publisher publish server.json
+      # MCP Registry publish disabled - requires direct write access
+      # - name: Install mcp-publisher
+      #   run: |
+      #     curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_x86_64.tar.gz" | tar xz
+      # - name: Publish to MCP Registry
+      #   run: |
+      #     SHA=$(sha256sum ledgerr-mcp-server | cut -d' ' -f1)
+      #     cat > server.json << EOF
+      #     {
+      #       "name": "io.github.prompt-execution/ledgerr-mcp",
+      #       "description": "Tax ledger MCP server for document intelligence and U.S. expat tax preparation",
+      #       "version": "${{ env.VERSION }}",
+      #       "packages": [
+      #         {
+      #           "registryType": "mcpb",
+      #           "identifier": "https://github.com/PromptExecution/l3dg3rr/releases/download/${{ env.VERSION }}/ledgerr-mcp.mcpb",
+      #           "fileSha256": "$SHA"
+      #         }
+      #       ]
+      #     }
+      #     EOF
+      #     ./mcp-publisher login github-oidc
+      #     ./mcp-publisher publish server.json
