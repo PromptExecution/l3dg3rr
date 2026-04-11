@@ -233,9 +233,15 @@ fn p0_query_flags_call_returns_open_review_queue() {
     let rule_file = write_rhai_rule(&dir);
 
     // Classify first to populate flags (low-confidence Uncategorized → review)
-    client.call(
+    let classify_result = client.call(
         "l3dg3rr_classify_ingested",
         json!({ "rule_file": rule_file, "review_threshold": "0.80" }),
+    );
+    assert_eq!(
+        classify_result["result"]["isError"],
+        Value::Bool(false),
+        "P0: l3dg3rr_classify_ingested setup must succeed, got:\n{}",
+        serde_json::to_string_pretty(&classify_result).unwrap_or_default()
     );
 
     let result = client.call(
