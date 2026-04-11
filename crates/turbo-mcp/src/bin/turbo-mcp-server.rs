@@ -60,7 +60,9 @@ fn handle_request(request: Value) -> Option<Value> {
             let params = request.get("params").cloned().unwrap_or(Value::Null);
             let tool_name = params.get("name").and_then(Value::as_str).unwrap_or("");
             let result = match tool_name {
-                mcp_adapter::LIST_ACCOUNTS_TOOL => mcp_adapter::list_accounts_tool_result(global_service()),
+                mcp_adapter::LIST_ACCOUNTS_TOOL => {
+                    mcp_adapter::list_accounts_tool_result(global_service())
+                }
                 "l3dg3rr_get_pipeline_status" => {
                     let status = mcp_adapter::get_pipeline_status(true, true, true, Vec::new());
                     json!({
@@ -130,6 +132,48 @@ fn handle_request(request: Value) -> Option<Value> {
                 mcp_adapter::TAX_AMBIGUITY_REVIEW_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
                     mcp_adapter::tax_ambiguity_review_tool_result(global_service(), &arguments)
+                }
+                // P0 tools
+                mcp_adapter::CLASSIFY_INGESTED_TOOL => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::classify_ingested_tool_result(global_service(), &arguments)
+                }
+                mcp_adapter::QUERY_FLAGS_TOOL => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::query_flags_tool_result(global_service(), &arguments)
+                }
+                mcp_adapter::QUERY_AUDIT_LOG_TOOL => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::query_audit_log_tool_result(global_service(), &arguments)
+                }
+                // P1 tools
+                mcp_adapter::CLASSIFY_TRANSACTION_TOOL => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::classify_transaction_tool_result(global_service(), &arguments)
+                }
+                mcp_adapter::RECONCILE_EXCEL_CLASSIFICATION_TOOL => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::reconcile_excel_classification_tool_result(
+                        global_service(),
+                        &arguments,
+                    )
+                }
+                mcp_adapter::GET_SCHEDULE_SUMMARY_TOOL => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::get_schedule_summary_tool_result(global_service(), &arguments)
+                }
+                // P2 tools
+                mcp_adapter::EXPORT_CPA_WORKBOOK_TOOL => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::export_cpa_workbook_tool_result(global_service(), &arguments)
+                }
+                mcp_adapter::ONTOLOGY_UPSERT_ENTITIES_TOOL => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::ontology_upsert_entities_tool_result(global_service(), &arguments)
+                }
+                mcp_adapter::ONTOLOGY_UPSERT_EDGES_TOOL => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::ontology_upsert_edges_tool_result(global_service(), &arguments)
                 }
                 _ => mcp_adapter::unknown_tool_result(tool_name),
             };
