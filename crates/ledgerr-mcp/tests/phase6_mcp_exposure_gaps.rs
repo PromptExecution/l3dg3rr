@@ -27,7 +27,7 @@ struct McpClient {
 
 impl McpClient {
     fn spawn() -> Self {
-        let server_bin = env!("CARGO_BIN_EXE_turbo-mcp-server");
+        let server_bin = env!("CARGO_BIN_EXE_ledgerr-mcp-server");
         let mut child = Command::new(server_bin)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -36,7 +36,12 @@ impl McpClient {
             .expect("spawn turbo-mcp-server");
         let stdin = child.stdin.take().expect("server stdin");
         let stdout = BufReader::new(child.stdout.take().expect("server stdout"));
-        Self { child, stdin, stdout, next_id: 1 }
+        Self {
+            child,
+            stdin,
+            stdout,
+            next_id: 1,
+        }
     }
 
     fn request(&mut self, method: &str, params: Value) -> Value {
@@ -81,7 +86,10 @@ impl McpClient {
     }
 
     fn call(&mut self, name: &str, arguments: Value) -> Value {
-        self.request("tools/call", json!({ "name": name, "arguments": arguments }))
+        self.request(
+            "tools/call",
+            json!({ "name": name, "arguments": arguments }),
+        )
     }
 }
 
@@ -247,7 +255,11 @@ fn p0_query_flags_call_returns_open_review_queue() {
     let flags = result["result"]["content"][0]["json"]["flags"]
         .as_array()
         .expect("flags array must be present");
-    assert_eq!(flags.len(), 1, "P0: one low-confidence tx must be in open review queue");
+    assert_eq!(
+        flags.len(),
+        1,
+        "P0: one low-confidence tx must be in open review queue"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -361,7 +373,10 @@ fn p1_classify_transaction_call_persists_and_returns_audit() {
     let entries = result["result"]["content"][0]["json"]["audit_entries"]
         .as_array()
         .expect("audit_entries must be present");
-    assert!(!entries.is_empty(), "P1: at least one audit entry must be produced");
+    assert!(
+        !entries.is_empty(),
+        "P1: at least one audit entry must be produced"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -469,7 +484,11 @@ fn p1_get_schedule_summary_call_returns_schedule_c_payload() {
     );
     let json = &result["result"]["content"][0]["json"];
     assert_eq!(json["year"], json!(2023), "P1: year must be present");
-    assert_eq!(json["schedule"], json!("ScheduleC"), "P1: schedule must be present");
+    assert_eq!(
+        json["schedule"],
+        json!("ScheduleC"),
+        "P1: schedule must be present"
+    );
     assert!(json.get("total").is_some(), "P1: total must be present");
     assert!(json["lines"].is_array(), "P1: lines must be an array");
 }
@@ -527,7 +546,10 @@ fn p2_export_cpa_workbook_call_produces_workbook() {
         .as_u64()
         .expect("sheets_written must be a number");
     assert!(sheets_written > 0, "P2: at least one sheet must be written");
-    assert!(workbook_path.exists(), "P2: workbook file must exist on disk");
+    assert!(
+        workbook_path.exists(),
+        "P2: workbook file must exist on disk"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -546,7 +568,9 @@ fn p2_ontology_upsert_entities_is_advertised_in_tool_catalog() {
     client.initialized();
     let names = client.tool_names();
     assert!(
-        names.iter().any(|n| n == "l3dg3rr_ontology_upsert_entities"),
+        names
+            .iter()
+            .any(|n| n == "l3dg3rr_ontology_upsert_entities"),
         "P2: `l3dg3rr_ontology_upsert_entities` must be listed in tools/list but is absent.\n\
          Present tools: {names:?}"
     );
@@ -660,8 +684,10 @@ fn p2_ontology_upsert_edges_call_persists_edge() {
 /// compared against Decimal("0.92") via exact string matching.
 #[test]
 fn invariant_classify_ingested_confidence_is_decimal_exact() {
-    use turbo_mcp::{ClassifyIngestedRequest, IngestPdfRequest, TurboLedgerService, TurboLedgerTools};
     use ledger_core::ingest::TransactionInput;
+    use ledgerr_mcp::{
+        ClassifyIngestedRequest, IngestPdfRequest, TurboLedgerService, TurboLedgerTools,
+    };
 
     let svc = TurboLedgerService::from_manifest_str(
         "[session]\nworkbook_path=\"tax-ledger.xlsx\"\nactive_year=2023\n",
@@ -718,11 +744,11 @@ fn invariant_classify_ingested_confidence_is_decimal_exact() {
 /// INVARIANT: confidence returned by query_flags must not lose decimal precision.
 #[test]
 fn invariant_query_flags_confidence_is_decimal_exact() {
-    use turbo_mcp::{
+    use ledger_core::ingest::TransactionInput;
+    use ledgerr_mcp::{
         ClassifyIngestedRequest, FlagStatusRequest, IngestPdfRequest, QueryFlagsRequest,
         TurboLedgerService, TurboLedgerTools,
     };
-    use ledger_core::ingest::TransactionInput;
 
     let svc = TurboLedgerService::from_manifest_str(
         "[session]\nworkbook_path=\"tax-ledger.xlsx\"\nactive_year=2023\n",
@@ -761,7 +787,10 @@ fn invariant_query_flags_confidence_is_decimal_exact() {
     .expect("classify");
 
     let flags = svc
-        .query_flags(QueryFlagsRequest { year: 2023, status: FlagStatusRequest::Open })
+        .query_flags(QueryFlagsRequest {
+            year: 2023,
+            status: FlagStatusRequest::Open,
+        })
         .expect("query flags");
 
     assert_eq!(flags.flags.len(), 1);

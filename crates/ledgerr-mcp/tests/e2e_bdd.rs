@@ -1,6 +1,6 @@
 use calamine::Reader;
 use ledger_core::ingest::TransactionInput;
-use turbo_mcp::{GetRawContextRequest, IngestPdfRequest, TurboLedgerService, TurboLedgerTools};
+use ledgerr_mcp::{GetRawContextRequest, IngestPdfRequest, TurboLedgerService, TurboLedgerTools};
 
 fn service() -> TurboLedgerService {
     TurboLedgerService::from_manifest_str(
@@ -109,7 +109,11 @@ fn bdd_e2e_rejects_non_contract_pdf_filename() {
             date: "2023-01-15".to_string(),
             amount: "-42.11".to_string(),
             description: "Coffee Shop".to_string(),
-            source_ref: tmp.path().join("WF--BH-CHK--2023-01--statement.rkyv").display().to_string(),
+            source_ref: tmp
+                .path()
+                .join("WF--BH-CHK--2023-01--statement.rkyv")
+                .display()
+                .to_string(),
         }],
     };
 
@@ -143,12 +147,16 @@ fn bdd_e2e_allows_missing_raw_bytes_if_source_ref_already_exists() {
     };
 
     // When ingest runs with no raw bytes.
-    let ingest = svc.ingest_pdf(req).expect("ingest should accept existing source ref");
+    let ingest = svc
+        .ingest_pdf(req)
+        .expect("ingest should accept existing source ref");
 
     // Then the transaction still ingests and prior context remains readable.
     assert_eq!(ingest.inserted_count, 1);
     let raw = svc
-        .get_raw_context(GetRawContextRequest { rkyv_ref: source_ref })
+        .get_raw_context(GetRawContextRequest {
+            rkyv_ref: source_ref,
+        })
         .expect("existing context readable");
     assert_eq!(raw.bytes, b"existing-context");
 }

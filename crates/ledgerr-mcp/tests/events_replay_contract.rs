@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 
 use ledger_core::ingest::TransactionInput;
-use turbo_mcp::{
-    events::reconstruct_lifecycle,
-    ClassifyTransactionRequest, IngestStatementRowsRequest, ReplayLifecycleRequest,
-    ReconcileExcelClassificationRequest, TurboLedgerService, TurboLedgerTools,
+use ledgerr_mcp::{
+    events::reconstruct_lifecycle, ClassifyTransactionRequest, IngestStatementRowsRequest,
+    ReconcileExcelClassificationRequest, ReplayLifecycleRequest, TurboLedgerService,
+    TurboLedgerTools,
 };
 
 fn service() -> TurboLedgerService {
@@ -88,7 +88,7 @@ fn evt_02_replay_reports_deterministic_diagnostics_for_sequence_or_transition_br
     payload.insert("confidence".to_string(), "0.91".to_string());
 
     let event_stream = vec![
-        turbo_mcp::LifecycleEvent {
+        ledgerr_mcp::LifecycleEvent {
             event_id: "evt-1".to_string(),
             sequence: 1,
             event_type: "classification".to_string(),
@@ -98,7 +98,7 @@ fn evt_02_replay_reports_deterministic_diagnostics_for_sequence_or_transition_br
             payload: payload.clone(),
             identity_inputs: BTreeMap::new(),
         },
-        turbo_mcp::LifecycleEvent {
+        ledgerr_mcp::LifecycleEvent {
             event_id: "evt-3".to_string(),
             sequence: 3,
             event_type: "adjustment".to_string(),
@@ -150,7 +150,10 @@ fn evt_02_replay_filtering_by_tx_and_document_is_deterministic() {
         })
         .expect("filtered replay");
 
-    assert_eq!(replay.filter.tx_id.as_deref(), Some(replay.filter.tx_id.as_deref().unwrap_or("")));
+    assert_eq!(
+        replay.filter.tx_id.as_deref(),
+        Some(replay.filter.tx_id.as_deref().unwrap_or(""))
+    );
     assert_eq!(replay.filter.document_ref.as_deref(), Some("source/a.rkyv"));
     assert!(replay.event_count >= 1);
 }

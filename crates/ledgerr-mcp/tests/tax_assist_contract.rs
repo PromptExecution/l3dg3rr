@@ -1,8 +1,9 @@
 use std::collections::BTreeMap;
 
-use turbo_mcp::{
+use ledgerr_mcp::{
     OntologyEdgeInput, OntologyEntityInput, OntologyEntityKind, OntologyUpsertEdgesRequest,
-    OntologyUpsertEntitiesRequest, ReconciliationStageRequest, TaxAssistRequest, TurboLedgerService,
+    OntologyUpsertEntitiesRequest, ReconciliationStageRequest, TaxAssistRequest,
+    TurboLedgerService,
 };
 
 fn service() -> TurboLedgerService {
@@ -49,13 +50,22 @@ fn seed_tax_ontology(
     let tax_category_id = entities.entity_ids[2].clone();
 
     let mut schedule_provenance = BTreeMap::new();
-    schedule_provenance.insert("source_ref".to_string(), "source/wf-2023-01.rkyv".to_string());
+    schedule_provenance.insert(
+        "source_ref".to_string(),
+        "source/wf-2023-01.rkyv".to_string(),
+    );
     schedule_provenance.insert("schedule".to_string(), "ScheduleC".to_string());
     let mut fbar_provenance = BTreeMap::new();
-    fbar_provenance.insert("source_ref".to_string(), "source/wf-2023-01.rkyv".to_string());
+    fbar_provenance.insert(
+        "source_ref".to_string(),
+        "source/wf-2023-01.rkyv".to_string(),
+    );
     fbar_provenance.insert("schedule".to_string(), "FBAR".to_string());
     let mut ambiguous_provenance = BTreeMap::new();
-    ambiguous_provenance.insert("source_ref".to_string(), "source/wf-2023-01.rkyv".to_string());
+    ambiguous_provenance.insert(
+        "source_ref".to_string(),
+        "source/wf-2023-01.rkyv".to_string(),
+    );
     ambiguous_provenance.insert("reason".to_string(), "rule_conflict".to_string());
 
     svc.ontology_upsert_edges(OntologyUpsertEdgesRequest {

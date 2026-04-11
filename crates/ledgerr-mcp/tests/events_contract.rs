@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use ledger_core::ingest::TransactionInput;
-use turbo_mcp::{
+use ledgerr_mcp::{
     ClassifyTransactionRequest, EventHistoryFilter, IngestStatementRowsRequest,
     ReconcileExcelClassificationRequest, TurboLedgerService, TurboLedgerTools,
 };
@@ -136,12 +136,15 @@ fn evt_01_replaying_same_operation_produces_stable_payload_and_identity_inputs()
 
     assert!(class_events.len() >= 2);
     assert_eq!(class_events[0].payload, class_events[1].payload);
-    assert_eq!(class_events[0].identity_inputs, class_events[1].identity_inputs);
+    assert_eq!(
+        class_events[0].identity_inputs,
+        class_events[1].identity_inputs
+    );
 }
 
 #[test]
 fn evt_01_store_contract_is_append_and_read_only() {
-    use turbo_mcp::events::{InMemoryLifecycleEventStore, LifecycleEventStore};
+    use ledgerr_mcp::events::{InMemoryLifecycleEventStore, LifecycleEventStore};
 
     let mut store = InMemoryLifecycleEventStore::default();
     store

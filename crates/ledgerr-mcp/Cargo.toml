@@ -1,5 +1,5 @@
 [package]
-name = "turbo-mcp"
+name = "ledgerr-mcp"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,6 +12,18 @@ rust_xlsxwriter = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "1"
+
+[features]
+default = ["core", "events", "reconciliation", "hsm", "ontology", "classification", "audit", "tax"]
+core = []
+events = ["core"]
+reconciliation = ["core"]
+hsm = ["core"]
+ontology = ["core"]
+classification = ["core"]
+audit = ["core"]
+tax = ["core"]
+full = ["core", "events", "reconciliation", "hsm", "ontology", "classification", "audit", "tax"]
 
 [dev-dependencies]
 tempfile = "3"

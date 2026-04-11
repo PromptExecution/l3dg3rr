@@ -16,7 +16,7 @@ struct McpStdioClient {
 
 impl McpStdioClient {
     fn spawn() -> Self {
-        let server_bin = env!("CARGO_BIN_EXE_turbo-mcp-server");
+        let server_bin = env!("CARGO_BIN_EXE_ledgerr-mcp-server");
         let mut child = Command::new(server_bin)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -86,7 +86,10 @@ fn initialize_client(client: &mut McpStdioClient) {
             "clientInfo": { "name": "reconciliation-mcp-e2e", "version": "0.1.0" }
         }),
     );
-    assert!(initialize.get("result").is_some(), "initialize must succeed");
+    assert!(
+        initialize.get("result").is_some(),
+        "initialize must succeed"
+    );
     client.send_notification_initialized();
 }
 
@@ -140,9 +143,15 @@ fn recon_03_failing_commit_returns_deterministic_blocking_diagnostics() {
     assert_eq!(commit["result"]["isError"], Value::Bool(true));
     let payload = &commit["result"]["content"][0]["json"];
     assert_eq!(payload["error_type"], json!("ReconciliationBlocked"));
-    assert_eq!(payload["message"], json!("commit blocked by reconciliation guardrails"));
+    assert_eq!(
+        payload["message"],
+        json!("commit blocked by reconciliation guardrails")
+    );
     assert_eq!(payload["stage"], json!("commit"));
-    assert_eq!(payload["stage_marker"], json!("validate:passed|reconcile:passed|commit:blocked"));
+    assert_eq!(
+        payload["stage_marker"],
+        json!("validate:passed|reconcile:passed|commit:blocked")
+    );
     assert_eq!(payload["blocked_reasons"], json!(["imbalance_postings"]));
 }
 
@@ -159,8 +168,14 @@ fn recon_03_validate_and_reconcile_then_commit_returns_explicit_ready_payload() 
         }),
     );
     assert_eq!(validate["result"]["isError"], Value::Bool(false));
-    assert_eq!(validate["result"]["content"][0]["json"]["stage"], json!("validate"));
-    assert_eq!(validate["result"]["content"][0]["json"]["status"], json!("passed"));
+    assert_eq!(
+        validate["result"]["content"][0]["json"]["stage"],
+        json!("validate")
+    );
+    assert_eq!(
+        validate["result"]["content"][0]["json"]["status"],
+        json!("passed")
+    );
 
     let reconcile = client.request(
         "tools/call",

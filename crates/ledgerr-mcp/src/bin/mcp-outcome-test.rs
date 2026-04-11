@@ -17,7 +17,7 @@ struct McpClient {
 impl McpClient {
     fn spawn() -> Result<Self, String> {
         let current_exe = std::env::current_exe().map_err(|err| err.to_string())?;
-        let server_bin = current_exe.with_file_name("turbo-mcp-server");
+        let server_bin = current_exe.with_file_name("ledgerr-mcp-server");
 
         let mut child = Command::new(&server_bin)
             .stdin(Stdio::piped())
@@ -26,7 +26,7 @@ impl McpClient {
             .spawn()
             .map_err(|err| {
                 format!(
-                    "failed to spawn turbo-mcp-server at {}: {err}",
+                    "failed to spawn ledgerr-mcp-server at {}: {err}",
                     server_bin.display()
                 )
             })?;
@@ -166,7 +166,9 @@ fn step_tools_list(ctx: &mut FlowContext) -> Result<(), String> {
         "l3dg3rr_get_raw_context",
     ] {
         if !names.contains(&required) {
-            return Err(format!("missing tool `{required}` in tools/list: {response}"));
+            return Err(format!(
+                "missing tool `{required}` in tools/list: {response}"
+            ));
         }
     }
     Ok(())
@@ -285,11 +287,15 @@ fn step_reconciliation_blocked(ctx: &mut FlowContext) -> Result<(), String> {
         }),
     )?;
     if response["result"]["isError"] != Value::Bool(true) {
-        return Err(format!("expected blocked reconciliation commit: {response}"));
+        return Err(format!(
+            "expected blocked reconciliation commit: {response}"
+        ));
     }
     let error_type = &response["result"]["content"][0]["json"]["error_type"];
     if error_type != "ReconciliationBlocked" {
-        return Err(format!("expected ReconciliationBlocked error type: {response}"));
+        return Err(format!(
+            "expected ReconciliationBlocked error type: {response}"
+        ));
     }
     Ok(())
 }
@@ -306,7 +312,9 @@ fn step_event_history_blocked(ctx: &mut FlowContext) -> Result<(), String> {
         }),
     )?;
     if response["result"]["isError"] != Value::Bool(true) {
-        return Err(format!("expected blocked event_history request: {response}"));
+        return Err(format!(
+            "expected blocked event_history request: {response}"
+        ));
     }
     let reason = &response["result"]["content"][0]["json"]["reason"];
     if reason != "time_range_invalid" {

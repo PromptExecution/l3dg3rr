@@ -3,7 +3,7 @@ use ledger_core::ingest::TransactionInput;
 // DOC-01 (D-01, D-03): MCP transport boundary must expose proxy/passthrough tools.
 #[test]
 fn doc_01_mcp_boundary_tool_catalog_exposes_passthrough_proxy_surface() {
-    let tools = turbo_mcp::mcp_adapter::tool_catalog();
+    let tools = ledgerr_mcp::mcp_adapter::tool_catalog();
 
     assert!(tools.contains(&"proxy_rustledger_ingest_statement_rows".to_string()));
     assert!(tools.contains(&"proxy_docling_ingest_pdf".to_string()));
@@ -25,7 +25,7 @@ fn doc_02_normalized_rows_include_canonical_and_provenance_fields() {
         source_ref: "2023-taxes/WF--BH-CHK--2023-01--statement.rkyv".to_string(),
     }];
 
-    let normalized = turbo_mcp::mcp_adapter::normalize_rows_with_provenance(
+    let normalized = ledgerr_mcp::mcp_adapter::normalize_rows_with_provenance(
         "rustledger",
         "ingest_statement_rows",
         Some("1.0.0"),
@@ -51,7 +51,7 @@ fn doc_02_normalized_rows_include_canonical_and_provenance_fields() {
 // DOC-02 (D-04): Stable enum-like status + blockers + next_hint contract.
 #[test]
 fn doc_02_pipeline_status_shape_is_deterministic_and_concise() {
-    let status = turbo_mcp::mcp_adapter::get_pipeline_status(
+    let status = ledgerr_mcp::mcp_adapter::get_pipeline_status(
         true,
         true,
         false,
@@ -66,7 +66,7 @@ fn doc_02_pipeline_status_shape_is_deterministic_and_concise() {
 // DOC-01 (D-03): Rustledger proxy surface must remain explicitly advertised in catalog.
 #[test]
 fn doc_01_rustledger_proxy_tool_name_is_exact_and_callable_target() {
-    let tools = turbo_mcp::mcp_adapter::tool_catalog();
+    let tools = ledgerr_mcp::mcp_adapter::tool_catalog();
     assert!(tools
         .iter()
         .any(|name| name == "proxy_rustledger_ingest_statement_rows"));

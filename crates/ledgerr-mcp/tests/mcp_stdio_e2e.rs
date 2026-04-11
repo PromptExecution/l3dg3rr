@@ -12,7 +12,7 @@ struct McpStdioClient {
 
 impl McpStdioClient {
     fn spawn() -> Self {
-        let server_bin = env!("CARGO_BIN_EXE_turbo-mcp-server");
+        let server_bin = env!("CARGO_BIN_EXE_ledgerr-mcp-server");
         let mut child = Command::new(server_bin)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -81,7 +81,10 @@ fn initialize_client(client: &mut McpStdioClient) {
             "clientInfo": { "name": "mcp-stdio-e2e", "version": "0.1.0" }
         }),
     );
-    assert!(initialize.get("result").is_some(), "initialize must succeed");
+    assert!(
+        initialize.get("result").is_some(),
+        "initialize must succeed"
+    );
     client.send_notification_initialized();
 }
 
@@ -150,12 +153,17 @@ fn doc_01_mcp_only_ingest_via_tools_call() {
     );
 
     assert_eq!(call["result"]["isError"], Value::Bool(false));
-    assert_eq!(call["result"]["content"][0]["json"]["inserted_count"], json!(1));
-    assert!(call["result"]["content"][0]["json"]["tx_ids"]
-        .as_array()
-        .expect("tx_ids array")
-        .len()
-        == 1);
+    assert_eq!(
+        call["result"]["content"][0]["json"]["inserted_count"],
+        json!(1)
+    );
+    assert!(
+        call["result"]["content"][0]["json"]["tx_ids"]
+            .as_array()
+            .expect("tx_ids array")
+            .len()
+            == 1
+    );
 }
 
 // DOC-02: canonical + provenance mapping must be deterministic in MCP payloads.
@@ -208,8 +216,14 @@ fn doc_03_replay_idempotent_with_stable_tx_ids_over_mcp() {
         }),
     );
 
-    assert_eq!(first["result"]["content"][0]["json"]["inserted_count"], json!(1));
-    assert_eq!(second["result"]["content"][0]["json"]["inserted_count"], json!(0));
+    assert_eq!(
+        first["result"]["content"][0]["json"]["inserted_count"],
+        json!(1)
+    );
+    assert_eq!(
+        second["result"]["content"][0]["json"]["inserted_count"],
+        json!(0)
+    );
 
     let first_ids = first["result"]["content"][0]["json"]["tx_ids"]
         .as_array()
@@ -252,8 +266,14 @@ fn rustledger_proxy_ingest_statement_rows_over_transport() {
     );
 
     assert_eq!(first["result"]["isError"], Value::Bool(false));
-    assert_eq!(first["result"]["content"][0]["json"]["inserted_count"], json!(1));
-    assert_eq!(second["result"]["content"][0]["json"]["inserted_count"], json!(0));
+    assert_eq!(
+        first["result"]["content"][0]["json"]["inserted_count"],
+        json!(1)
+    );
+    assert_eq!(
+        second["result"]["content"][0]["json"]["inserted_count"],
+        json!(0)
+    );
 
     let first_ids = first["result"]["content"][0]["json"]["tx_ids"]
         .as_array()

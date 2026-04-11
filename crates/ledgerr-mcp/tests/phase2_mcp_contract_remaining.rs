@@ -1,5 +1,5 @@
 use ledger_core::ingest::TransactionInput;
-use turbo_mcp::{GetRawContextRequest, IngestPdfRequest, TurboLedgerService, TurboLedgerTools};
+use ledgerr_mcp::{GetRawContextRequest, IngestPdfRequest, TurboLedgerService, TurboLedgerTools};
 
 #[test]
 fn mcp_01_ingest_pdf_returns_deterministic_tx_ids_from_real_ingest() {

@@ -1,8 +1,8 @@
 use std::io::{self, BufRead, Write};
 use std::sync::OnceLock;
 
+use ledgerr_mcp::{mcp_adapter, TurboLedgerService};
 use serde_json::{json, Value};
-use turbo_mcp::{mcp_adapter, TurboLedgerService};
 
 fn main() {
     // Serve a minimal stdio MCP transport boundary for initialize/tools/list/tools/call.
@@ -39,7 +39,7 @@ fn handle_request(request: Value) -> Option<Value> {
                     "tools": {}
                 },
                 "serverInfo": {
-                    "name": "turbo-mcp",
+                    "name": "ledgerr-mcp",
                     "version": env!("CARGO_PKG_VERSION")
                 }
             }

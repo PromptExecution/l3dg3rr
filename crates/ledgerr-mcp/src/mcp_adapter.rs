@@ -48,38 +48,98 @@ pub const ONTOLOGY_UPSERT_EDGES_TOOL: &str = "l3dg3rr_ontology_upsert_edges";
 
 pub const MCP_LIFECYCLE_METHODS: &[&str] = &["initialize", "tools/list", "tools/call"];
 
+pub const TOOL_GROUP_CORE: &[&str] = &[
+    LIST_ACCOUNTS_TOOL,
+    GET_RAW_CONTEXT_TOOL,
+    "proxy_docling_ingest_pdf",
+    "proxy_rustledger_ingest_statement_rows",
+    "l3dg3rr_get_pipeline_status",
+];
+pub const TOOL_GROUP_ONTOLOGY: &[&str] = &[ONTOLOGY_QUERY_PATH_TOOL, ONTOLOGY_EXPORT_SNAPSHOT_TOOL];
+pub const TOOL_GROUP_RECONCILIATION: &[&str] =
+    &[RECON_VALIDATE_TOOL, RECON_RECONCILE_TOOL, RECON_COMMIT_TOOL];
+pub const TOOL_GROUP_HSM: &[&str] = &[HSM_TRANSITION_TOOL, HSM_STATUS_TOOL, HSM_RESUME_TOOL];
+pub const TOOL_GROUP_EVENTS: &[&str] = &[EVENT_REPLAY_TOOL, EVENT_HISTORY_TOOL];
+pub const TOOL_GROUP_CLASSIFICATION: &[&str] = &[
+    CLASSIFY_INGESTED_TOOL,
+    QUERY_FLAGS_TOOL,
+    QUERY_AUDIT_LOG_TOOL,
+    CLASSIFY_TRANSACTION_TOOL,
+    RECONCILE_EXCEL_CLASSIFICATION_TOOL,
+];
+pub const TOOL_GROUP_TAX: &[&str] = &[
+    TAX_ASSIST_TOOL,
+    TAX_EVIDENCE_CHAIN_TOOL,
+    TAX_AMBIGUITY_REVIEW_TOOL,
+    GET_SCHEDULE_SUMMARY_TOOL,
+    EXPORT_CPA_WORKBOOK_TOOL,
+];
+pub const TOOL_GROUP_AUDIT: &[&str] = &[QUERY_AUDIT_LOG_TOOL];
+pub const TOOL_GROUP_ONTOLOGY_WRITE: &[&str] =
+    &[ONTOLOGY_UPSERT_ENTITIES_TOOL, ONTOLOGY_UPSERT_EDGES_TOOL];
+
+const MCP_LIFECYCLE: &[&str] = &["tools/list", "tools/call"];
+
 pub fn tool_catalog() -> Vec<String> {
-    vec![
-        LIST_ACCOUNTS_TOOL.to_string(),
-        GET_RAW_CONTEXT_TOOL.to_string(),
-        "proxy_docling_ingest_pdf".to_string(),
-        "proxy_rustledger_ingest_statement_rows".to_string(),
-        "l3dg3rr_get_pipeline_status".to_string(),
-        ONTOLOGY_QUERY_PATH_TOOL.to_string(),
-        ONTOLOGY_EXPORT_SNAPSHOT_TOOL.to_string(),
-        RECON_VALIDATE_TOOL.to_string(),
-        RECON_RECONCILE_TOOL.to_string(),
-        RECON_COMMIT_TOOL.to_string(),
-        HSM_TRANSITION_TOOL.to_string(),
-        HSM_STATUS_TOOL.to_string(),
-        HSM_RESUME_TOOL.to_string(),
-        EVENT_REPLAY_TOOL.to_string(),
-        EVENT_HISTORY_TOOL.to_string(),
-        TAX_ASSIST_TOOL.to_string(),
-        TAX_EVIDENCE_CHAIN_TOOL.to_string(),
-        TAX_AMBIGUITY_REVIEW_TOOL.to_string(),
-        CLASSIFY_INGESTED_TOOL.to_string(),
-        QUERY_FLAGS_TOOL.to_string(),
-        QUERY_AUDIT_LOG_TOOL.to_string(),
-        CLASSIFY_TRANSACTION_TOOL.to_string(),
-        RECONCILE_EXCEL_CLASSIFICATION_TOOL.to_string(),
-        GET_SCHEDULE_SUMMARY_TOOL.to_string(),
-        EXPORT_CPA_WORKBOOK_TOOL.to_string(),
-        ONTOLOGY_UPSERT_ENTITIES_TOOL.to_string(),
-        ONTOLOGY_UPSERT_EDGES_TOOL.to_string(),
-        "tools/list".to_string(),
-        "tools/call".to_string(),
-    ]
+    let mut features = Vec::new();
+
+    #[cfg(feature = "core")]
+    features.push("core");
+    #[cfg(feature = "events")]
+    features.push("events");
+    #[cfg(feature = "reconciliation")]
+    features.push("reconciliation");
+    #[cfg(feature = "hsm")]
+    features.push("hsm");
+    #[cfg(feature = "ontology")]
+    features.push("ontology");
+    #[cfg(feature = "classification")]
+    features.push("classification");
+    #[cfg(feature = "audit")]
+    features.push("audit");
+    #[cfg(feature = "tax")]
+    features.push("tax");
+
+    if features.is_empty() {
+        features.push("core");
+    }
+
+    tool_catalog_with_features(&features)
+}
+
+pub fn tool_catalog_with_features(features: &[&str]) -> Vec<String> {
+    let mut tools = Vec::new();
+
+    if features.iter().any(|f| *f == "core") {
+        tools.extend(TOOL_GROUP_CORE.iter().map(|s| s.to_string()));
+    }
+    if features.iter().any(|f| *f == "ontology") || features.iter().any(|f| *f == "tax") {
+        tools.extend(TOOL_GROUP_ONTOLOGY.iter().map(|s| s.to_string()));
+    }
+    if features.iter().any(|f| *f == "reconciliation") || features.iter().any(|f| *f == "tax") {
+        tools.extend(TOOL_GROUP_RECONCILIATION.iter().map(|s| s.to_string()));
+    }
+    if features.iter().any(|f| *f == "hsm") || features.iter().any(|f| *f == "tax") {
+        tools.extend(TOOL_GROUP_HSM.iter().map(|s| s.to_string()));
+    }
+    if features.iter().any(|f| *f == "events") || features.iter().any(|f| *f == "tax") {
+        tools.extend(TOOL_GROUP_EVENTS.iter().map(|s| s.to_string()));
+    }
+    if features.iter().any(|f| *f == "classification") {
+        tools.extend(TOOL_GROUP_CLASSIFICATION.iter().map(|s| s.to_string()));
+    }
+    if features.iter().any(|f| *f == "tax") {
+        tools.extend(TOOL_GROUP_TAX.iter().map(|s| s.to_string()));
+    }
+    if features.iter().any(|f| *f == "audit") {
+        tools.extend(TOOL_GROUP_AUDIT.iter().map(|s| s.to_string()));
+    }
+    if features.iter().any(|f| *f == "ontology") {
+        tools.extend(TOOL_GROUP_ONTOLOGY_WRITE.iter().map(|s| s.to_string()));
+    }
+
+    tools.extend(MCP_LIFECYCLE.iter().map(|s| s.to_string()));
+    tools
 }
 
 pub fn list_accounts_tool_result(service: &TurboLedgerService) -> Value {

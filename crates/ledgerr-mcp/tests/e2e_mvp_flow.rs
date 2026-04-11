@@ -1,7 +1,8 @@
 use ledger_core::ingest::TransactionInput;
-use turbo_mcp::{
+use ledgerr_mcp::{
     ClassifyTransactionRequest, FlagStatusRequest, GetScheduleSummaryRequest, IngestPdfRequest,
-    QueryAuditLogRequest, QueryFlagsRequest, ScheduleKindRequest, TurboLedgerService, TurboLedgerTools,
+    QueryAuditLogRequest, QueryFlagsRequest, ScheduleKindRequest, TurboLedgerService,
+    TurboLedgerTools,
 };
 
 fn service() -> TurboLedgerService {
@@ -63,4 +64,3 @@ fn rel_03_e2e_mvp_flow_ingest_classify_audit_schedule() {
         .expect("schedule c");
     assert!(schedule.total < 0.0);
 }
-

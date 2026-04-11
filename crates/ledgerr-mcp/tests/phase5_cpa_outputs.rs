@@ -1,8 +1,8 @@
 use calamine::Reader;
 use ledger_core::ingest::TransactionInput;
-use turbo_mcp::{
-    ClassifyTransactionRequest, ExportCpaWorkbookRequest, GetScheduleSummaryRequest, IngestPdfRequest,
-    ScheduleKindRequest, TurboLedgerService, TurboLedgerTools,
+use ledgerr_mcp::{
+    ClassifyTransactionRequest, ExportCpaWorkbookRequest, GetScheduleSummaryRequest,
+    IngestPdfRequest, ScheduleKindRequest, TurboLedgerService, TurboLedgerTools,
 };
 
 fn service() -> TurboLedgerService {
@@ -135,4 +135,3 @@ fn tax_01_02_03_04_and_mcp_04_schedule_summary_are_available_by_year() {
         .expect("fbar");
     assert!(!fbar.lines.is_empty());
 }
-

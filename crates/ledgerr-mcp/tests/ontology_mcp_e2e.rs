@@ -2,10 +2,8 @@ use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
+use ledgerr_mcp::{OntologyEdgeInput, OntologyEntityInput, OntologyEntityKind, OntologyStore};
 use serde_json::{json, Value};
-use turbo_mcp::{
-    OntologyEdgeInput, OntologyEntityInput, OntologyEntityKind, OntologyStore,
-};
 
 const ONTOLOGY_QUERY_TOOL: &str = "l3dg3rr_ontology_query_path";
 const ONTOLOGY_EXPORT_TOOL: &str = "l3dg3rr_ontology_export_snapshot";
@@ -19,7 +17,7 @@ struct McpStdioClient {
 
 impl McpStdioClient {
     fn spawn() -> Self {
-        let server_bin = env!("CARGO_BIN_EXE_turbo-mcp-server");
+        let server_bin = env!("CARGO_BIN_EXE_ledgerr-mcp-server");
         let mut child = Command::new(server_bin)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -89,7 +87,10 @@ fn initialize_client(client: &mut McpStdioClient) {
             "clientInfo": { "name": "ontology-mcp-e2e", "version": "0.1.0" }
         }),
     );
-    assert!(initialize.get("result").is_some(), "initialize must succeed");
+    assert!(
+        initialize.get("result").is_some(),
+        "initialize must succeed"
+    );
     client.send_notification_initialized();
 }
 
