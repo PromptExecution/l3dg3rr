@@ -1,15 +1,19 @@
+#![cfg(phase6_gap_tests)]
+
 /// Phase 6: MCP Exposure Gaps — Failing Test Suite
 ///
 /// These tests document capabilities that exist in the `TurboLedgerTools` service API
 /// but are NOT yet exposed as MCP tools. Every test in this file is expected to FAIL
-/// until the corresponding MCP wiring is added.
+/// until the corresponding MCP wiring is added, so this suite is opt-in and skipped
+/// by default in normal CI/test runs.
 ///
 /// Priority labels follow `docs/mcp-capability-contract.md` Section 6:
 ///   P0 — Mission-critical; blocks AI-first classification workflows
 ///   P1 — High value; required for CPA-ready outputs
 ///   P2 — Valuable; completes the write/curate surface
 ///
-/// Reproduction: `cargo test --test phase6_mcp_exposure_gaps`
+/// Reproduction:
+/// `RUSTFLAGS="--cfg phase6_gap_tests" cargo test --test phase6_mcp_exposure_gaps`
 /// All failures are tracked in GitHub Issues with labels per AGENTS.md protocol.
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
