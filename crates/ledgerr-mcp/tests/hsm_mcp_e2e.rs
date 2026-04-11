@@ -3,8 +3,9 @@ use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
 use serde_json::{json, Value};
 
-const EVENT_REPLAY_TOOL: &str = "l3dg3rr_event_replay";
-const EVENT_HISTORY_TOOL: &str = "l3dg3rr_event_history";
+const HSM_TRANSITION_TOOL: &str = "l3dg3rr_hsm_transition";
+const HSM_STATUS_TOOL: &str = "l3dg3rr_hsm_status";
+const HSM_RESUME_TOOL: &str = "l3dg3rr_hsm_resume";
 
 struct McpStdioClient {
     child: Child,
@@ -15,7 +16,7 @@ struct McpStdioClient {
 
 impl McpStdioClient {
     fn spawn() -> Self {
-        let server_bin = env!("CARGO_BIN_EXE_turbo-mcp-server");
+        let server_bin = env!("CARGO_BIN_EXE_ledgerr-mcp-server");
         let mut child = Command::new(server_bin)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -82,40 +83,18 @@ fn initialize_client(client: &mut McpStdioClient) {
         json!({
             "protocolVersion": "2025-11-25",
             "capabilities": {},
-            "clientInfo": { "name": "events-mcp-e2e", "version": "0.1.0" }
+            "clientInfo": { "name": "hsm-mcp-e2e", "version": "0.1.0" }
         }),
     );
-    assert!(initialize.get("result").is_some(), "initialize must succeed");
+    assert!(
+        initialize.get("result").is_some(),
+        "initialize must succeed"
+    );
     client.send_notification_initialized();
 }
 
-fn ingest_one_row(client: &mut McpStdioClient, date: &str, description: &str, source_ref: &str) -> String {
-    let ingest = client.request(
-        "tools/call",
-        json!({
-                "name": "proxy_rustledger_ingest_statement_rows",
-                "arguments": {
-                "journal_path": "/tmp/tax-ledger-journal.beancount",
-                "workbook_path": "/tmp/tax-ledger.xlsx",
-                "rows": [{
-                    "account": "WF-BH-CHK",
-                    "date": date,
-                    "amount": "-42.11",
-                    "description": description,
-                    "source_ref": source_ref
-                }]
-            }
-        }),
-    );
-    assert_eq!(ingest["result"]["isError"], Value::Bool(false));
-    ingest["result"]["content"][0]["json"]["tx_ids"][0]
-        .as_str()
-        .unwrap_or_default()
-        .to_string()
-}
-
 #[test]
-fn evt_03_tools_list_advertises_event_replay_and_history() {
+fn hsm_03_tools_list_includes_transition_status_and_resume_tools() {
     let mut client = McpStdioClient::spawn();
     initialize_client(&mut client);
 
@@ -127,64 +106,97 @@ fn evt_03_tools_list_advertises_event_replay_and_history() {
         .filter_map(|entry| entry.get("name").and_then(Value::as_str))
         .collect::<Vec<_>>();
 
-    assert!(tool_names.contains(&EVENT_REPLAY_TOOL));
-    assert!(tool_names.contains(&EVENT_HISTORY_TOOL));
+    assert!(tool_names.contains(&HSM_TRANSITION_TOOL));
+    assert!(tool_names.contains(&HSM_STATUS_TOOL));
+    assert!(tool_names.contains(&HSM_RESUME_TOOL));
 }
 
 #[test]
-fn evt_03_event_history_filtering_by_tx_document_and_time_is_deterministic() {
+fn hsm_03_invalid_transition_and_resume_return_deterministic_blocked_payloads() {
     let mut client = McpStdioClient::spawn();
     initialize_client(&mut client);
 
-    let tx_id = ingest_one_row(&mut client, "2023-01-15", "Coffee Shop", "source/a.rkyv");
-    let _other_tx = ingest_one_row(&mut client, "2023-02-15", "Groceries", "source/b.rkyv");
-
-    let history = client.request(
+    let transition = client.request(
         "tools/call",
         json!({
-            "name": EVENT_HISTORY_TOOL,
+            "name": HSM_TRANSITION_TOOL,
             "arguments": {
-                "tx_id": tx_id,
-                "document_ref": "source/a.rkyv",
-                "time_start": "2023-01-01",
-                "time_end": "2023-01-31"
+                "target_state": "reconcile",
+                "target_substate": "ready"
             }
         }),
     );
-    assert_eq!(history["result"]["isError"], Value::Bool(false));
+    assert_eq!(transition["result"]["isError"], Value::Bool(true));
+    let blocked_transition = &transition["result"]["content"][0]["json"];
+    assert_eq!(
+        blocked_transition["error_type"],
+        json!("HsmTransitionBlocked")
+    );
+    assert_eq!(
+        blocked_transition["guard_reason"],
+        json!("invalid_transition")
+    );
+    assert_eq!(
+        blocked_transition["transition_evidence"],
+        json!([
+            "from=ingest.pending",
+            "to=reconcile.ready",
+            "allowed=normalize.ready"
+        ])
+    );
 
-    let payload = &history["result"]["content"][0]["json"];
-    assert_eq!(payload["filter"]["document_ref"], json!("source/a.rkyv"));
-    let events = payload["events"].as_array().expect("events");
-    assert!(!events.is_empty());
-    let mut sequences = events
-        .iter()
-        .filter_map(|event| event.get("sequence").and_then(Value::as_u64))
-        .collect::<Vec<_>>();
-    let sorted = {
-        sequences.sort();
-        sequences.clone()
-    };
-    assert_eq!(sequences, sorted);
+    let resume = client.request(
+        "tools/call",
+        json!({
+            "name": HSM_RESUME_TOOL,
+            "arguments": {
+                "state_marker": "validate:ready:advanced"
+            }
+        }),
+    );
+    assert_eq!(resume["result"]["isError"], Value::Bool(true));
+    let blocked_resume = &resume["result"]["content"][0]["json"];
+    assert_eq!(blocked_resume["error_type"], json!("HsmResumeBlocked"));
+    assert_eq!(blocked_resume["blockers"], json!(["checkpoint_unknown"]));
 }
 
 #[test]
-fn evt_03_invalid_filter_range_returns_deterministic_blocked_envelope() {
+fn hsm_03_status_and_resume_payload_include_small_model_hint_fields() {
     let mut client = McpStdioClient::spawn();
     initialize_client(&mut client);
 
-    let response = client.request(
+    let status = client.request(
         "tools/call",
         json!({
-            "name": EVENT_HISTORY_TOOL,
+            "name": HSM_STATUS_TOOL,
+            "arguments": {}
+        }),
+    );
+    assert_eq!(status["result"]["isError"], Value::Bool(false));
+    let status_payload = &status["result"]["content"][0]["json"];
+    assert_eq!(status_payload["display_state"], json!("ingest.pending"));
+    assert_eq!(status_payload["next_hint"], json!("advance_to_normalize"));
+    assert_eq!(
+        status_payload["resume_hint"],
+        json!("resume_from_ingest.pending")
+    );
+    assert_eq!(status_payload["blockers"], json!([]));
+
+    let resume = client.request(
+        "tools/call",
+        json!({
+            "name": HSM_RESUME_TOOL,
             "arguments": {
-                "time_start": "2023-02-01",
-                "time_end": "2023-01-01"
+                "state_marker": "ingest:pending:advanced"
             }
         }),
     );
-    assert_eq!(response["result"]["isError"], Value::Bool(true));
-    let payload = &response["result"]["content"][0]["json"];
-    assert_eq!(payload["error_type"], json!("EventHistoryBlocked"));
-    assert_eq!(payload["reason"], json!("time_range_invalid"));
+    assert_eq!(resume["result"]["isError"], Value::Bool(false));
+    let resume_payload = &resume["result"]["content"][0]["json"];
+    assert_eq!(
+        resume_payload["resume_from"],
+        json!("ingest:pending:advanced")
+    );
+    assert_eq!(resume_payload["resume_hint"], json!("advance_to_normalize"));
+    assert_eq!(resume_payload["blockers"], json!([]));
 }

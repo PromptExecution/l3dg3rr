@@ -1,6 +1,4 @@
-use turbo_mcp::{
-    HsmStatusRequest, HsmTransitionRequest, TurboLedgerService,
-};
+use ledgerr_mcp::{HsmStatusRequest, HsmTransitionRequest, TurboLedgerService};
 
 fn service() -> TurboLedgerService {
     TurboLedgerService::from_manifest_str(
@@ -59,11 +57,14 @@ fn hsm_02_invalid_transition_returns_deterministic_guard_reason_and_evidence() {
 
     assert_eq!(blocked.status, "blocked");
     assert_eq!(blocked.guard_reason, Some("invalid_transition".to_string()));
-    assert_eq!(blocked.transition_evidence, vec![
-        "from=ingest.pending".to_string(),
-        "to=reconcile.ready".to_string(),
-        "allowed=normalize.ready".to_string(),
-    ]);
+    assert_eq!(
+        blocked.transition_evidence,
+        vec![
+            "from=ingest.pending".to_string(),
+            "to=reconcile.ready".to_string(),
+            "allowed=normalize.ready".to_string(),
+        ]
+    );
     assert_eq!(blocked.state, "ingest");
     assert_eq!(blocked.substate, "pending");
 }
@@ -71,9 +72,7 @@ fn hsm_02_invalid_transition_returns_deterministic_guard_reason_and_evidence() {
 #[test]
 fn hsm_02_status_always_includes_deterministic_small_model_hints() {
     let svc = service();
-    let status = svc
-        .hsm_status_tool(HsmStatusRequest)
-        .expect("status");
+    let status = svc.hsm_status_tool(HsmStatusRequest).expect("status");
 
     assert_eq!(status.display_state, "ingest.pending");
     assert_eq!(status.next_hint, "advance_to_normalize");

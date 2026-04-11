@@ -1,5 +1,5 @@
 use ledger_core::ingest::TransactionInput;
-use turbo_mcp::{
+use ledgerr_mcp::{
     GetRawContextRequest, IngestPdfRequest, IngestStatementRowsRequest, ListAccountsRequest,
     TurboLedgerService, TurboLedgerTools,
 };
@@ -51,7 +51,9 @@ active_year = 2023
 "#;
 
     let service = TurboLedgerService::from_manifest_str(manifest).unwrap();
-    let err = service.validate_source_filename("bad-name.pdf").unwrap_err();
+    let err = service
+        .validate_source_filename("bad-name.pdf")
+        .unwrap_err();
 
     assert!(err.to_string().contains("invalid input"));
 }

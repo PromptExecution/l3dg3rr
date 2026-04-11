@@ -2,9 +2,9 @@ use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
+use ledgerr_mcp::ontology::{edge_content_hash, entity_content_hash};
+use ledgerr_mcp::{OntologyEdge, OntologyEntity, OntologyEntityKind, OntologyStore};
 use serde_json::{json, Value};
-use turbo_mcp::ontology::{entity_content_hash, edge_content_hash};
-use turbo_mcp::{OntologyEdge, OntologyEntity, OntologyEntityKind, OntologyStore};
 
 const TAX_ASSIST_TOOL: &str = "l3dg3rr_tax_assist";
 const TAX_EVIDENCE_CHAIN_TOOL: &str = "l3dg3rr_tax_evidence_chain";
@@ -19,7 +19,7 @@ struct McpStdioClient {
 
 impl McpStdioClient {
     fn spawn() -> Self {
-        let server_bin = env!("CARGO_BIN_EXE_turbo-mcp-server");
+        let server_bin = env!("CARGO_BIN_EXE_ledgerr-mcp-server");
         let mut child = Command::new(server_bin)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -88,7 +88,10 @@ fn initialize_client(client: &mut McpStdioClient) {
             "clientInfo": { "name": "tax-assist-mcp-e2e", "version": "0.1.0" }
         }),
     );
-    assert!(initialize.get("result").is_some(), "initialize must succeed");
+    assert!(
+        initialize.get("result").is_some(),
+        "initialize must succeed"
+    );
     client.send_notification_initialized();
 }
 
@@ -106,11 +109,20 @@ fn write_tax_ontology(path: &std::path::Path) -> String {
     let tax_id = entity_content_hash(OntologyEntityKind::TaxCategory, &tax_attrs);
 
     let mut schedule_prov = BTreeMap::new();
-    schedule_prov.insert("source_ref".to_string(), "source/wf-2023-01.rkyv".to_string());
+    schedule_prov.insert(
+        "source_ref".to_string(),
+        "source/wf-2023-01.rkyv".to_string(),
+    );
     let mut fbar_prov = BTreeMap::new();
-    fbar_prov.insert("source_ref".to_string(), "source/wf-2023-01.rkyv".to_string());
+    fbar_prov.insert(
+        "source_ref".to_string(),
+        "source/wf-2023-01.rkyv".to_string(),
+    );
     let mut ambiguity_prov = BTreeMap::new();
-    ambiguity_prov.insert("source_ref".to_string(), "source/wf-2023-01.rkyv".to_string());
+    ambiguity_prov.insert(
+        "source_ref".to_string(),
+        "source/wf-2023-01.rkyv".to_string(),
+    );
     ambiguity_prov.insert("reason".to_string(), "classification_conflict".to_string());
 
     let store = OntologyStore {
@@ -276,7 +288,10 @@ fn taxa_mcp_ambiguity_review_payload_includes_provenance_and_review_state() {
     assert_eq!(response["result"]["isError"], Value::Bool(false));
     let payload = &response["result"]["content"][0]["json"];
     assert_eq!(payload["status"], json!("review_ready"));
-    assert_eq!(payload["ambiguity"][0]["review_state"], json!("needs_review"));
+    assert_eq!(
+        payload["ambiguity"][0]["review_state"],
+        json!("needs_review")
+    );
     assert_eq!(
         payload["ambiguity"][0]["provenance_refs"],
         json!(["source/wf-2023-01.rkyv"])

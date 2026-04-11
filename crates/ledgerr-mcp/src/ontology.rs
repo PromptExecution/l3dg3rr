@@ -133,7 +133,11 @@ impl OntologyStore {
         let mut entity_ids = Vec::with_capacity(entities.len());
 
         for input in entities {
-            let id = entity_content_hash(input.kind, &input.attrs);
+            let id = if let Some(user_id) = input.attrs.get("id") {
+                user_id.clone()
+            } else {
+                entity_content_hash(input.kind, &input.attrs)
+            };
             entity_ids.push(id.clone());
             if self.entities.iter().any(|existing| existing.id == id) {
                 continue;
@@ -213,7 +217,9 @@ impl OntologyStore {
             .collect::<BTreeMap<_, _>>();
 
         let start = entity_lookup.get(from_entity_id).cloned().ok_or_else(|| {
-            ToolError::InvalidInput("missing_ref: from_entity_id must reference an existing entity".to_string())
+            ToolError::InvalidInput(
+                "missing_ref: from_entity_id must reference an existing entity".to_string(),
+            )
         })?;
 
         let depth_limit = max_depth.unwrap_or(usize::MAX);
@@ -237,9 +243,7 @@ impl OntologyStore {
                 .filter(|edge| edge.from == current_id)
                 .cloned()
                 .collect::<Vec<_>>();
-            outgoing.sort_by(|a, b| {
-                (&a.relation, &a.to, &a.id).cmp(&(&b.relation, &b.to, &b.id))
-            });
+            outgoing.sort_by(|a, b| (&a.relation, &a.to, &a.id).cmp(&(&b.relation, &b.to, &b.id)));
 
             for edge in outgoing {
                 if visited.contains(&edge.to) {

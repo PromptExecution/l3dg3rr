@@ -1,7 +1,7 @@
 use ledger_core::ingest::TransactionInput;
-use turbo_mcp::{
-    ClassifyIngestedRequest, FlagStatusRequest, IngestPdfRequest, QueryFlagsRequest, RunRhaiRuleRequest,
-    SampleTxRequest, TurboLedgerService, TurboLedgerTools,
+use ledgerr_mcp::{
+    ClassifyIngestedRequest, FlagStatusRequest, IngestPdfRequest, QueryFlagsRequest,
+    RunRhaiRuleRequest, SampleTxRequest, TurboLedgerService, TurboLedgerTools,
 };
 
 fn service() -> TurboLedgerService {

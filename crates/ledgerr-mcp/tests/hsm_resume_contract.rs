@@ -1,6 +1,4 @@
-use turbo_mcp::{
-    HsmResumeRequest, HsmStatusRequest, HsmTransitionRequest, TurboLedgerService,
-};
+use ledgerr_mcp::{HsmResumeRequest, HsmStatusRequest, HsmTransitionRequest, TurboLedgerService};
 
 fn service() -> TurboLedgerService {
     TurboLedgerService::from_manifest_str(

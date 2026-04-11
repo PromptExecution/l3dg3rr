@@ -5,10 +5,14 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::{
-    EventHistoryFilter, GetRawContextRequest, HsmResumeRequest, HsmStatusRequest, HsmTransitionRequest,
-    IngestPdfRequest, IngestStatementRowsRequest, ListAccountsRequest, OntologyQueryPathRequest,
-    OntologyStore, ReconciliationStageRequest, ReplayLifecycleRequest, TaxAmbiguityReviewRequest,
-    TaxAssistRequest, TaxEvidenceChainRequest, ToolError, TurboLedgerService, TurboLedgerTools,
+    ClassifyIngestedRequest, ClassifyTransactionRequest, EventHistoryFilter,
+    ExportCpaWorkbookRequest, FlagStatusRequest, GetRawContextRequest, GetScheduleSummaryRequest,
+    HsmResumeRequest, HsmStatusRequest, HsmTransitionRequest, IngestPdfRequest,
+    IngestStatementRowsRequest, ListAccountsRequest, OntologyQueryPathRequest, OntologyStore,
+    OntologyUpsertEdgesRequest, OntologyUpsertEntitiesRequest, QueryAuditLogRequest,
+    QueryFlagsRequest, ReconcileExcelClassificationRequest, ReconciliationStageRequest,
+    ReplayLifecycleRequest, ScheduleKindRequest, TaxAmbiguityReviewRequest, TaxAssistRequest,
+    TaxEvidenceChainRequest, ToolError, TurboLedgerService, TurboLedgerTools,
 };
 
 pub const LIST_ACCOUNTS_TOOL: &str = "l3dg3rr_list_accounts";
@@ -27,31 +31,115 @@ pub const TAX_ASSIST_TOOL: &str = "l3dg3rr_tax_assist";
 pub const TAX_EVIDENCE_CHAIN_TOOL: &str = "l3dg3rr_tax_evidence_chain";
 pub const TAX_AMBIGUITY_REVIEW_TOOL: &str = "l3dg3rr_tax_ambiguity_review";
 
+// P0 tools
+pub const CLASSIFY_INGESTED_TOOL: &str = "l3dg3rr_classify_ingested";
+pub const QUERY_FLAGS_TOOL: &str = "l3dg3rr_query_flags";
+pub const QUERY_AUDIT_LOG_TOOL: &str = "l3dg3rr_query_audit_log";
+
+// P1 tools
+pub const CLASSIFY_TRANSACTION_TOOL: &str = "l3dg3rr_classify_transaction";
+pub const RECONCILE_EXCEL_CLASSIFICATION_TOOL: &str = "l3dg3rr_reconcile_excel_classification";
+pub const GET_SCHEDULE_SUMMARY_TOOL: &str = "l3dg3rr_get_schedule_summary";
+
+// P2 tools
+pub const EXPORT_CPA_WORKBOOK_TOOL: &str = "l3dg3rr_export_cpa_workbook";
+pub const ONTOLOGY_UPSERT_ENTITIES_TOOL: &str = "l3dg3rr_ontology_upsert_entities";
+pub const ONTOLOGY_UPSERT_EDGES_TOOL: &str = "l3dg3rr_ontology_upsert_edges";
+
 pub const MCP_LIFECYCLE_METHODS: &[&str] = &["initialize", "tools/list", "tools/call"];
 
+pub const TOOL_GROUP_CORE: &[&str] = &[
+    LIST_ACCOUNTS_TOOL,
+    GET_RAW_CONTEXT_TOOL,
+    "proxy_docling_ingest_pdf",
+    "proxy_rustledger_ingest_statement_rows",
+    "l3dg3rr_get_pipeline_status",
+];
+pub const TOOL_GROUP_ONTOLOGY: &[&str] = &[ONTOLOGY_QUERY_PATH_TOOL, ONTOLOGY_EXPORT_SNAPSHOT_TOOL];
+pub const TOOL_GROUP_RECONCILIATION: &[&str] =
+    &[RECON_VALIDATE_TOOL, RECON_RECONCILE_TOOL, RECON_COMMIT_TOOL];
+pub const TOOL_GROUP_HSM: &[&str] = &[HSM_TRANSITION_TOOL, HSM_STATUS_TOOL, HSM_RESUME_TOOL];
+pub const TOOL_GROUP_EVENTS: &[&str] = &[EVENT_REPLAY_TOOL, EVENT_HISTORY_TOOL];
+pub const TOOL_GROUP_CLASSIFICATION: &[&str] = &[
+    CLASSIFY_INGESTED_TOOL,
+    QUERY_FLAGS_TOOL,
+    QUERY_AUDIT_LOG_TOOL,
+    CLASSIFY_TRANSACTION_TOOL,
+    RECONCILE_EXCEL_CLASSIFICATION_TOOL,
+];
+pub const TOOL_GROUP_TAX: &[&str] = &[
+    TAX_ASSIST_TOOL,
+    TAX_EVIDENCE_CHAIN_TOOL,
+    TAX_AMBIGUITY_REVIEW_TOOL,
+    GET_SCHEDULE_SUMMARY_TOOL,
+    EXPORT_CPA_WORKBOOK_TOOL,
+];
+pub const TOOL_GROUP_AUDIT: &[&str] = &[QUERY_AUDIT_LOG_TOOL];
+pub const TOOL_GROUP_ONTOLOGY_WRITE: &[&str] =
+    &[ONTOLOGY_UPSERT_ENTITIES_TOOL, ONTOLOGY_UPSERT_EDGES_TOOL];
+
+const MCP_LIFECYCLE: &[&str] = &["tools/list", "tools/call"];
+
 pub fn tool_catalog() -> Vec<String> {
-    vec![
-        LIST_ACCOUNTS_TOOL.to_string(),
-        GET_RAW_CONTEXT_TOOL.to_string(),
-        "proxy_docling_ingest_pdf".to_string(),
-        "proxy_rustledger_ingest_statement_rows".to_string(),
-        "l3dg3rr_get_pipeline_status".to_string(),
-        ONTOLOGY_QUERY_PATH_TOOL.to_string(),
-        ONTOLOGY_EXPORT_SNAPSHOT_TOOL.to_string(),
-        RECON_VALIDATE_TOOL.to_string(),
-        RECON_RECONCILE_TOOL.to_string(),
-        RECON_COMMIT_TOOL.to_string(),
-        HSM_TRANSITION_TOOL.to_string(),
-        HSM_STATUS_TOOL.to_string(),
-        HSM_RESUME_TOOL.to_string(),
-        EVENT_REPLAY_TOOL.to_string(),
-        EVENT_HISTORY_TOOL.to_string(),
-        TAX_ASSIST_TOOL.to_string(),
-        TAX_EVIDENCE_CHAIN_TOOL.to_string(),
-        TAX_AMBIGUITY_REVIEW_TOOL.to_string(),
-        "tools/list".to_string(),
-        "tools/call".to_string(),
-    ]
+    let mut features = Vec::new();
+
+    #[cfg(feature = "core")]
+    features.push("core");
+    #[cfg(feature = "events")]
+    features.push("events");
+    #[cfg(feature = "reconciliation")]
+    features.push("reconciliation");
+    #[cfg(feature = "hsm")]
+    features.push("hsm");
+    #[cfg(feature = "ontology")]
+    features.push("ontology");
+    #[cfg(feature = "classification")]
+    features.push("classification");
+    #[cfg(feature = "audit")]
+    features.push("audit");
+    #[cfg(feature = "tax")]
+    features.push("tax");
+
+    if features.is_empty() {
+        features.push("core");
+    }
+
+    tool_catalog_with_features(&features)
+}
+
+pub fn tool_catalog_with_features(features: &[&str]) -> Vec<String> {
+    let mut tools = Vec::new();
+
+    if features.iter().any(|f| *f == "core") {
+        tools.extend(TOOL_GROUP_CORE.iter().map(|s| s.to_string()));
+    }
+    if features.iter().any(|f| *f == "ontology") || features.iter().any(|f| *f == "tax") {
+        tools.extend(TOOL_GROUP_ONTOLOGY.iter().map(|s| s.to_string()));
+    }
+    if features.iter().any(|f| *f == "reconciliation") || features.iter().any(|f| *f == "tax") {
+        tools.extend(TOOL_GROUP_RECONCILIATION.iter().map(|s| s.to_string()));
+    }
+    if features.iter().any(|f| *f == "hsm") || features.iter().any(|f| *f == "tax") {
+        tools.extend(TOOL_GROUP_HSM.iter().map(|s| s.to_string()));
+    }
+    if features.iter().any(|f| *f == "events") || features.iter().any(|f| *f == "tax") {
+        tools.extend(TOOL_GROUP_EVENTS.iter().map(|s| s.to_string()));
+    }
+    if features.iter().any(|f| *f == "classification") {
+        tools.extend(TOOL_GROUP_CLASSIFICATION.iter().map(|s| s.to_string()));
+    }
+    if features.iter().any(|f| *f == "tax") {
+        tools.extend(TOOL_GROUP_TAX.iter().map(|s| s.to_string()));
+    }
+    if features.iter().any(|f| *f == "audit") {
+        tools.extend(TOOL_GROUP_AUDIT.iter().map(|s| s.to_string()));
+    }
+    if features.iter().any(|f| *f == "ontology") {
+        tools.extend(TOOL_GROUP_ONTOLOGY_WRITE.iter().map(|s| s.to_string()));
+    }
+
+    tools.extend(MCP_LIFECYCLE.iter().map(|s| s.to_string()));
+    tools
 }
 
 pub fn list_accounts_tool_result(service: &TurboLedgerService) -> Value {
@@ -708,18 +796,22 @@ pub fn event_history_tool_result(service: &TurboLedgerService, arguments: &Value
                 "isError": false
             })
         }
-        Err(ToolError::InvalidInput(message)) if message.contains("time_start must be <= time_end") => json!({
-            "content": [{
-                "type": "json",
-                "json": {
-                    "isError": true,
-                    "error_type": "EventHistoryBlocked",
-                    "reason": "time_range_invalid",
-                    "message": message,
-                }
-            }],
-            "isError": true
-        }),
+        Err(ToolError::InvalidInput(message))
+            if message.contains("time_start must be <= time_end") =>
+        {
+            json!({
+                "content": [{
+                    "type": "json",
+                    "json": {
+                        "isError": true,
+                        "error_type": "EventHistoryBlocked",
+                        "reason": "time_range_invalid",
+                        "message": message,
+                    }
+                }],
+                "isError": true
+            })
+        }
         Err(err) => json!({
             "content": [{
                 "type": "json",
@@ -921,6 +1013,418 @@ pub fn tax_ambiguity_review_tool_result(service: &TurboLedgerService, arguments:
     }
 }
 
+pub fn classify_ingested_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+    let request = match parse_classify_ingested_request(arguments) {
+        Ok(request) => request,
+        Err(err) => {
+            return json!({
+                "content": [{
+                    "type": "json",
+                    "json": map_tool_error(&err)
+                }],
+                "isError": true
+            });
+        }
+    };
+
+    match service.classify_ingested(request) {
+        Ok(response) => {
+            let classifications = response
+                .classifications
+                .into_iter()
+                .map(|c| {
+                    json!({
+                        "tx_id": c.tx_id,
+                        "category": c.category,
+                        "confidence": c.confidence,
+                        "needs_review": c.needs_review,
+                        "reason": c.reason,
+                    })
+                })
+                .collect::<Vec<_>>();
+            json!({
+                "content": [{
+                    "type": "json",
+                    "json": { "classifications": classifications }
+                }],
+                "isError": false
+            })
+        }
+        Err(err) => json!({
+            "content": [{
+                "type": "json",
+                "json": map_tool_error(&err)
+            }],
+            "isError": true
+        }),
+    }
+}
+
+pub fn query_flags_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+    let request = match parse_query_flags_request(arguments) {
+        Ok(request) => request,
+        Err(err) => {
+            return json!({
+                "content": [{
+                    "type": "json",
+                    "json": map_tool_error(&err)
+                }],
+                "isError": true
+            });
+        }
+    };
+
+    match service.query_flags(request) {
+        Ok(response) => {
+            let flags = response
+                .flags
+                .into_iter()
+                .map(|f| {
+                    json!({
+                        "tx_id": f.tx_id,
+                        "year": f.year,
+                        "status": match f.status {
+                            FlagStatusRequest::Open => "open",
+                            FlagStatusRequest::Resolved => "resolved",
+                        },
+                        "reason": f.reason,
+                        "category": f.category,
+                        "confidence": f.confidence,
+                    })
+                })
+                .collect::<Vec<_>>();
+            json!({
+                "content": [{
+                    "type": "json",
+                    "json": { "flags": flags }
+                }],
+                "isError": false
+            })
+        }
+        Err(err) => json!({
+            "content": [{
+                "type": "json",
+                "json": map_tool_error(&err)
+            }],
+            "isError": true
+        }),
+    }
+}
+
+pub fn query_audit_log_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+    let _request = match parse_query_audit_log_request(arguments) {
+        Ok(request) => request,
+        Err(err) => {
+            return json!({
+                "content": [{
+                    "type": "json",
+                    "json": map_tool_error(&err)
+                }],
+                "isError": true
+            });
+        }
+    };
+
+    match service.query_audit_log(QueryAuditLogRequest) {
+        Ok(response) => {
+            let entries = response
+                .entries
+                .into_iter()
+                .map(|e| {
+                    json!({
+                        "timestamp": e.timestamp,
+                        "actor": e.actor,
+                        "tx_id": e.tx_id,
+                        "field": e.field,
+                        "old_value": e.old_value,
+                        "new_value": e.new_value,
+                        "note": e.note,
+                    })
+                })
+                .collect::<Vec<_>>();
+            json!({
+                "content": [{
+                    "type": "json",
+                    "json": { "entries": entries }
+                }],
+                "isError": false
+            })
+        }
+        Err(err) => json!({
+            "content": [{
+                "type": "json",
+                "json": map_tool_error(&err)
+            }],
+            "isError": true
+        }),
+    }
+}
+
+pub fn classify_transaction_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+    let request = match parse_classify_transaction_request(arguments) {
+        Ok(request) => request,
+        Err(err) => {
+            return json!({
+                "content": [{
+                    "type": "json",
+                    "json": map_tool_error(&err)
+                }],
+                "isError": true
+            });
+        }
+    };
+
+    match service.classify_transaction(request) {
+        Ok(response) => {
+            let audit_entries = response
+                .audit_entries
+                .into_iter()
+                .map(|e| {
+                    json!({
+                        "timestamp": e.timestamp,
+                        "actor": e.actor,
+                        "tx_id": e.tx_id,
+                        "field": e.field,
+                        "old_value": e.old_value,
+                        "new_value": e.new_value,
+                        "note": e.note,
+                    })
+                })
+                .collect::<Vec<_>>();
+            json!({
+                "content": [{
+                    "type": "json",
+                    "json": {
+                        "tx_id": response.tx_id,
+                        "category": response.category,
+                        "confidence": response.confidence,
+                        "audit_entries": audit_entries,
+                    }
+                }],
+                "isError": false
+            })
+        }
+        Err(err) => json!({
+            "content": [{
+                "type": "json",
+                "json": map_tool_error(&err)
+            }],
+            "isError": true
+        }),
+    }
+}
+
+pub fn reconcile_excel_classification_tool_result(
+    service: &TurboLedgerService,
+    arguments: &Value,
+) -> Value {
+    let request = match parse_reconcile_excel_classification_request(arguments) {
+        Ok(request) => request,
+        Err(err) => {
+            return json!({
+                "content": [{
+                    "type": "json",
+                    "json": map_tool_error(&err)
+                }],
+                "isError": true
+            });
+        }
+    };
+
+    match service.reconcile_excel_classification(request) {
+        Ok(response) => {
+            let audit_entries = response
+                .audit_entries
+                .into_iter()
+                .map(|e| {
+                    json!({
+                        "timestamp": e.timestamp,
+                        "actor": e.actor,
+                        "tx_id": e.tx_id,
+                        "field": e.field,
+                        "old_value": e.old_value,
+                        "new_value": e.new_value,
+                        "note": e.note,
+                    })
+                })
+                .collect::<Vec<_>>();
+            json!({
+                "content": [{
+                    "type": "json",
+                    "json": {
+                        "tx_id": response.tx_id,
+                        "category": response.category,
+                        "confidence": response.confidence,
+                        "audit_entries": audit_entries,
+                    }
+                }],
+                "isError": false
+            })
+        }
+        Err(err) => json!({
+            "content": [{
+                "type": "json",
+                "json": map_tool_error(&err)
+            }],
+            "isError": true
+        }),
+    }
+}
+
+pub fn get_schedule_summary_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+    let request = match parse_get_schedule_summary_request(arguments) {
+        Ok(request) => request,
+        Err(err) => {
+            return json!({
+                "content": [{
+                    "type": "json",
+                    "json": map_tool_error(&err)
+                }],
+                "isError": true
+            });
+        }
+    };
+
+    match service.get_schedule_summary(request) {
+        Ok(response) => {
+            let schedule_str = match response.schedule {
+                ScheduleKindRequest::ScheduleC => "ScheduleC",
+                ScheduleKindRequest::ScheduleD => "ScheduleD",
+                ScheduleKindRequest::ScheduleE => "ScheduleE",
+                ScheduleKindRequest::Fbar => "Fbar",
+            };
+            let lines = response
+                .lines
+                .into_iter()
+                .map(|l| {
+                    json!({
+                        "key": l.key,
+                        "total": l.total,
+                    })
+                })
+                .collect::<Vec<_>>();
+            json!({
+                "content": [{
+                    "type": "json",
+                    "json": {
+                        "year": response.year,
+                        "schedule": schedule_str,
+                        "total": response.total,
+                        "lines": lines,
+                    }
+                }],
+                "isError": false
+            })
+        }
+        Err(err) => json!({
+            "content": [{
+                "type": "json",
+                "json": map_tool_error(&err)
+            }],
+            "isError": true
+        }),
+    }
+}
+
+pub fn export_cpa_workbook_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+    let request = match parse_export_cpa_workbook_request(arguments) {
+        Ok(request) => request,
+        Err(err) => {
+            return json!({
+                "content": [{
+                    "type": "json",
+                    "json": map_tool_error(&err)
+                }],
+                "isError": true
+            });
+        }
+    };
+
+    match service.export_cpa_workbook(request) {
+        Ok(response) => json!({
+            "content": [{
+                "type": "json",
+                "json": { "sheets_written": response.sheets_written }
+            }],
+            "isError": false
+        }),
+        Err(err) => json!({
+            "content": [{
+                "type": "json",
+                "json": map_tool_error(&err)
+            }],
+            "isError": true
+        }),
+    }
+}
+
+pub fn ontology_upsert_entities_tool_result(
+    service: &TurboLedgerService,
+    arguments: &Value,
+) -> Value {
+    let request = match parse_ontology_upsert_entities_request(arguments) {
+        Ok(request) => request,
+        Err(err) => {
+            return json!({
+                "content": [{
+                    "type": "json",
+                    "json": map_tool_error(&err)
+                }],
+                "isError": true
+            });
+        }
+    };
+
+    match service.ontology_upsert_entities_tool(request) {
+        Ok(response) => json!({
+            "content": [{
+                "type": "json",
+                "json": { "upserted": response.inserted_count }
+            }],
+            "isError": false
+        }),
+        Err(err) => json!({
+            "content": [{
+                "type": "json",
+                "json": map_tool_error(&err)
+            }],
+            "isError": true
+        }),
+    }
+}
+
+pub fn ontology_upsert_edges_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+    let request = match parse_ontology_upsert_edges_request(arguments) {
+        Ok(request) => request,
+        Err(err) => {
+            return json!({
+                "content": [{
+                    "type": "json",
+                    "json": map_tool_error(&err)
+                }],
+                "isError": true
+            });
+        }
+    };
+
+    match service.ontology_upsert_edges_tool(request) {
+        Ok(response) => json!({
+            "content": [{
+                "type": "json",
+                "json": { "upserted": response.inserted_count }
+            }],
+            "isError": false
+        }),
+        Err(err) => json!({
+            "content": [{
+                "type": "json",
+                "json": map_tool_error(&err)
+            }],
+            "isError": true
+        }),
+    }
+}
+
 pub struct McpAdapter<'a, T: TurboLedgerTools> {
     service: &'a T,
 }
@@ -967,7 +1471,9 @@ fn parse_get_raw_context_request(arguments: &Value) -> Result<GetRawContextReque
     })
 }
 
-fn parse_ontology_query_path_request(arguments: &Value) -> Result<OntologyQueryPathRequest, ToolError> {
+fn parse_ontology_query_path_request(
+    arguments: &Value,
+) -> Result<OntologyQueryPathRequest, ToolError> {
     let ontology_path = parse_ontology_path(arguments)?;
     let from_entity_id = required_str(arguments, "from_entity_id")?.to_string();
     let max_depth = match arguments.get("max_depth") {
@@ -994,7 +1500,9 @@ fn parse_ontology_query_path_request(arguments: &Value) -> Result<OntologyQueryP
     })
 }
 
-fn parse_reconciliation_stage_request(arguments: &Value) -> Result<ReconciliationStageRequest, ToolError> {
+fn parse_reconciliation_stage_request(
+    arguments: &Value,
+) -> Result<ReconciliationStageRequest, ToolError> {
     let source_total = required_str(arguments, "source_total")?.to_string();
     let extracted_total = required_str(arguments, "extracted_total")?.to_string();
     let posting_amounts = parse_string_array(arguments.get("posting_amounts"), "posting_amounts")?;
@@ -1048,7 +1556,9 @@ fn parse_tax_assist_request(arguments: &Value) -> Result<TaxAssistRequest, ToolE
     })
 }
 
-fn parse_tax_evidence_chain_request(arguments: &Value) -> Result<TaxEvidenceChainRequest, ToolError> {
+fn parse_tax_evidence_chain_request(
+    arguments: &Value,
+) -> Result<TaxEvidenceChainRequest, ToolError> {
     let ontology_path = PathBuf::from(required_str(arguments, "ontology_path")?);
     let from_entity_id = required_str(arguments, "from_entity_id")?.to_string();
     let tx_id = optional_str(arguments, "tx_id");
@@ -1076,7 +1586,9 @@ fn parse_tax_ambiguity_review_request(
     })
 }
 
-fn parse_nested_reconciliation_request(arguments: &Value) -> Result<ReconciliationStageRequest, ToolError> {
+fn parse_nested_reconciliation_request(
+    arguments: &Value,
+) -> Result<ReconciliationStageRequest, ToolError> {
     let reconciliation = arguments.get("reconciliation").ok_or_else(|| {
         ToolError::InvalidInput("missing or invalid `reconciliation` in tool arguments".to_string())
     })?;
@@ -1108,7 +1620,9 @@ fn parse_optional_bytes(value: Option<&Value>) -> Result<Option<Vec<u8>>, ToolEr
             .iter()
             .map(|item| {
                 let num = item.as_u64().ok_or_else(|| {
-                    ToolError::InvalidInput("raw_context_bytes must be an array of bytes".to_string())
+                    ToolError::InvalidInput(
+                        "raw_context_bytes must be an array of bytes".to_string(),
+                    )
                 })?;
                 u8::try_from(num).map_err(|_| {
                     ToolError::InvalidInput(
@@ -1167,9 +1681,216 @@ fn parse_string_array(value: Option<&Value>, field_name: &str) -> Result<Vec<Str
     items
         .iter()
         .map(|item| {
-            item.as_str()
-                .map(ToString::to_string)
-                .ok_or_else(|| ToolError::InvalidInput(format!("`{field_name}` must contain strings")))
+            item.as_str().map(ToString::to_string).ok_or_else(|| {
+                ToolError::InvalidInput(format!("`{field_name}` must contain strings"))
+            })
         })
         .collect()
+}
+
+fn parse_classify_ingested_request(
+    arguments: &Value,
+) -> Result<ClassifyIngestedRequest, ToolError> {
+    let rule_file = PathBuf::from(required_str(arguments, "rule_file")?);
+    let review_threshold = match arguments.get("review_threshold") {
+        Some(Value::String(s)) => s.parse::<f64>().map_err(|_| {
+            ToolError::InvalidInput("review_threshold must be a valid f64".to_string())
+        })?,
+        Some(Value::Number(n)) => n.as_f64().ok_or_else(|| {
+            ToolError::InvalidInput("review_threshold must be a valid number".to_string())
+        })?,
+        _ => {
+            return Err(ToolError::InvalidInput(
+                "missing or invalid `review_threshold` in tool arguments".to_string(),
+            ))
+        }
+    };
+    Ok(ClassifyIngestedRequest {
+        rule_file,
+        review_threshold,
+    })
+}
+
+fn parse_query_flags_request(arguments: &Value) -> Result<QueryFlagsRequest, ToolError> {
+    let year = match arguments.get("year") {
+        Some(Value::Number(n)) => n
+            .as_i64()
+            .ok_or_else(|| ToolError::InvalidInput("year must be a valid integer".to_string()))?
+            as i32,
+        _ => {
+            return Err(ToolError::InvalidInput(
+                "missing or invalid `year` in tool arguments".to_string(),
+            ))
+        }
+    };
+    let status = match arguments.get("status").and_then(Value::as_str) {
+        Some("open") => FlagStatusRequest::Open,
+        Some("resolved") => FlagStatusRequest::Resolved,
+        _ => {
+            return Err(ToolError::InvalidInput(
+                "missing or invalid `status` in tool arguments (must be 'open' or 'resolved')"
+                    .to_string(),
+            ))
+        }
+    };
+    Ok(QueryFlagsRequest { year, status })
+}
+
+fn parse_query_audit_log_request(_arguments: &Value) -> Result<QueryAuditLogRequest, ToolError> {
+    Ok(QueryAuditLogRequest)
+}
+
+fn parse_classify_transaction_request(
+    arguments: &Value,
+) -> Result<ClassifyTransactionRequest, ToolError> {
+    let tx_id = required_str(arguments, "tx_id")?.to_string();
+    let category = required_str(arguments, "category")?.to_string();
+    let confidence = required_str(arguments, "confidence")?.to_string();
+    let note = optional_str(arguments, "note");
+    let actor = required_str(arguments, "actor")?.to_string();
+    Ok(ClassifyTransactionRequest {
+        tx_id,
+        category,
+        confidence,
+        note,
+        actor,
+    })
+}
+
+fn parse_reconcile_excel_classification_request(
+    arguments: &Value,
+) -> Result<ReconcileExcelClassificationRequest, ToolError> {
+    let tx_id = required_str(arguments, "tx_id")?.to_string();
+    let category = required_str(arguments, "category")?.to_string();
+    let confidence = required_str(arguments, "confidence")?.to_string();
+    let note = optional_str(arguments, "note");
+    let actor = required_str(arguments, "actor")?.to_string();
+    Ok(ReconcileExcelClassificationRequest {
+        tx_id,
+        category,
+        confidence,
+        note,
+        actor,
+    })
+}
+
+fn parse_get_schedule_summary_request(
+    arguments: &Value,
+) -> Result<GetScheduleSummaryRequest, ToolError> {
+    let year = match arguments.get("year") {
+        Some(Value::Number(n)) => n
+            .as_i64()
+            .ok_or_else(|| ToolError::InvalidInput("year must be a valid integer".to_string()))?
+            as i32,
+        _ => {
+            return Err(ToolError::InvalidInput(
+                "missing or invalid `year` in tool arguments".to_string(),
+            ))
+        }
+    };
+    let schedule = match arguments.get("schedule").and_then(Value::as_str) {
+        Some("ScheduleC") => ScheduleKindRequest::ScheduleC,
+        Some("ScheduleD") => ScheduleKindRequest::ScheduleD,
+        Some("ScheduleE") => ScheduleKindRequest::ScheduleE,
+        Some("Fbar") => ScheduleKindRequest::Fbar,
+        _ => {
+            return Err(ToolError::InvalidInput(
+                "missing or invalid `schedule` in tool arguments (must be 'ScheduleC', 'ScheduleD', 'ScheduleE', or 'Fbar')".to_string(),
+            ))
+        }
+    };
+    Ok(GetScheduleSummaryRequest { year, schedule })
+}
+
+fn parse_export_cpa_workbook_request(
+    arguments: &Value,
+) -> Result<ExportCpaWorkbookRequest, ToolError> {
+    let workbook_path = PathBuf::from(required_str(arguments, "workbook_path")?);
+    Ok(ExportCpaWorkbookRequest { workbook_path })
+}
+
+fn parse_ontology_upsert_entities_request(
+    arguments: &Value,
+) -> Result<OntologyUpsertEntitiesRequest, ToolError> {
+    let ontology_path = parse_ontology_path(arguments)?;
+    let entities_json = arguments
+        .get("entities")
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            ToolError::InvalidInput("missing or invalid `entities` in tool arguments".to_string())
+        })?;
+    let entities = entities_json
+        .iter()
+        .map(|e| {
+            let kind = match e.get("kind").and_then(Value::as_str) {
+                Some("Document") => crate::OntologyEntityKind::Document,
+                Some("Account") => crate::OntologyEntityKind::Account,
+                Some("Institution") => crate::OntologyEntityKind::Institution,
+                Some("Transaction") => crate::OntologyEntityKind::Transaction,
+                Some("TaxCategory") => crate::OntologyEntityKind::TaxCategory,
+                Some("EvidenceReference") => crate::OntologyEntityKind::EvidenceReference,
+                _ => {
+                    return Err(ToolError::InvalidInput(
+                        "missing or invalid `kind` in entity (must be Document, Account, Institution, Transaction, TaxCategory, or EvidenceReference)".to_string(),
+                    ))
+                }
+            };
+            let mut attrs = std::collections::BTreeMap::new();
+            if let Some(id) = e.get("id").and_then(Value::as_str) {
+                attrs.insert("id".to_string(), id.to_string());
+            }
+            if let Some(label) = e.get("label").and_then(Value::as_str) {
+                attrs.insert("label".to_string(), label.to_string());
+            }
+            if let Some(obj) = e.get("properties").and_then(Value::as_object) {
+                for (k, v) in obj {
+                    attrs.insert(k.clone(), v.to_string());
+                }
+            }
+            Ok::<crate::OntologyEntityInput, ToolError>(crate::OntologyEntityInput { kind, attrs })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(OntologyUpsertEntitiesRequest {
+        ontology_path,
+        entities,
+    })
+}
+
+fn parse_ontology_upsert_edges_request(
+    arguments: &Value,
+) -> Result<OntologyUpsertEdgesRequest, ToolError> {
+    let ontology_path = parse_ontology_path(arguments)?;
+    let edges_json = arguments
+        .get("edges")
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            ToolError::InvalidInput("missing or invalid `edges` in tool arguments".to_string())
+        })?;
+    let edges = edges_json
+        .iter()
+        .map(|e| {
+            let from = required_str(e, "from_id").map(|s| s.to_string())?;
+            let to = required_str(e, "to_id").map(|s| s.to_string())?;
+            let relation = required_str(e, "relation").map(|s| s.to_string())?;
+            let provenance = e
+                .get("provenance")
+                .and_then(Value::as_object)
+                .map(|obj| {
+                    obj.iter()
+                        .map(|(k, v)| (k.clone(), v.to_string()))
+                        .collect::<std::collections::BTreeMap<_, _>>()
+                })
+                .unwrap_or_default();
+            Ok::<crate::OntologyEdgeInput, ToolError>(crate::OntologyEdgeInput {
+                from,
+                to,
+                relation,
+                provenance,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(OntologyUpsertEdgesRequest {
+        ontology_path,
+        edges,
+    })
 }

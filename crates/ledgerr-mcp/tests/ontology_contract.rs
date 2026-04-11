@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 
-use tempfile::tempdir;
-use turbo_mcp::{
+use ledgerr_mcp::{
     OntologyEdgeInput, OntologyEntityInput, OntologyEntityKind, OntologyQueryPathRequest,
     OntologyUpsertEdgesRequest, OntologyUpsertEntitiesRequest, TurboLedgerService,
 };
+use tempfile::tempdir;
 
 fn service() -> TurboLedgerService {
     let manifest = r#"
@@ -24,7 +24,10 @@ fn onto_01_persistence_integrity_persists_entities_and_edges_with_stable_ids() {
     let ontology_path = tmp.path().join("ontology.json");
 
     let mut doc_attrs = BTreeMap::new();
-    doc_attrs.insert("source_ref".to_string(), "2023/WF--BH-CHK--2023-01--statement.pdf".to_string());
+    doc_attrs.insert(
+        "source_ref".to_string(),
+        "2023/WF--BH-CHK--2023-01--statement.pdf".to_string(),
+    );
 
     let mut tx_attrs = BTreeMap::new();
     tx_attrs.insert("tx_id".to_string(), "tx-001".to_string());

@@ -2,16 +2,16 @@ set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 set dotenv-load := true
 
 mcp-build:
-    cargo build -p turbo-mcp --bin turbo-mcp-server
+    cargo build -p ledgerr-mcp --bin ledgerr-mcp-server
 
 mcp-start:
-    cargo run -p turbo-mcp --bin turbo-mcp-server
+    cargo run -p ledgerr-mcp --bin ledgerr-mcp-server
 
 mcp-start-release:
-    ./target/release/turbo-mcp-server
+    ./target/release/ledgerr-mcp-server
 
 mcp-stop:
-    pkill -f turbo-mcp-server || true
+    pkill -f ledgerr-mcp-server || true
 
 mcp-e2e:
     ./scripts/mcp_e2e.sh
@@ -28,7 +28,7 @@ mcp-doc-demo:
     ./scripts/mcp_e2e.sh
 
 test:
-    cargo build -p turbo-mcp --bin turbo-mcp-server --bin mcp-outcome-test
+    cargo build -p ledgerr-mcp --bin ledgerr-mcp-server --bin mcp-outcome-test
     ./target/debug/mcp-outcome-test
 
 gh-secrets-help:

@@ -1,4 +1,4 @@
-use turbo_mcp::{ReconciliationStageRequest, TurboLedgerService};
+use ledgerr_mcp::{ReconciliationStageRequest, TurboLedgerService};
 
 fn service() -> TurboLedgerService {
     TurboLedgerService::from_manifest_str(
@@ -20,10 +20,19 @@ fn recon_01_commit_is_blocked_when_postings_are_imbalanced() {
 
     assert_eq!(response.stage, "commit");
     assert_eq!(response.status, "blocked");
-    assert_eq!(response.blocked_reasons, vec!["imbalance_postings".to_string()]);
-    assert_eq!(response.stage_marker, "validate:passed|reconcile:passed|commit:blocked");
+    assert_eq!(
+        response.blocked_reasons,
+        vec!["imbalance_postings".to_string()]
+    );
+    assert_eq!(
+        response.stage_marker,
+        "validate:passed|reconcile:passed|commit:blocked"
+    );
     assert_eq!(response.diagnostics[0].key, "posting_balance_mismatch");
-    assert_eq!(response.diagnostics[0].message, "posting amounts must net to 0.00");
+    assert_eq!(
+        response.diagnostics[0].message,
+        "posting amounts must net to 0.00"
+    );
 }
 
 #[test]
@@ -39,9 +48,15 @@ fn recon_02_reconcile_fails_with_deterministic_totals_mismatch_diagnostics() {
 
     assert_eq!(response.stage, "reconcile");
     assert_eq!(response.status, "blocked");
-    assert_eq!(response.blocked_reasons, vec!["totals_mismatch".to_string()]);
+    assert_eq!(
+        response.blocked_reasons,
+        vec!["totals_mismatch".to_string()]
+    );
     assert_eq!(response.stage_marker, "validate:passed|reconcile:blocked");
-    assert_eq!(response.diagnostics[0].key, "source_extracted_total_mismatch");
+    assert_eq!(
+        response.diagnostics[0].key,
+        "source_extracted_total_mismatch"
+    );
     assert_eq!(
         response.diagnostics[0].message,
         "source_total and extracted_total must match"
