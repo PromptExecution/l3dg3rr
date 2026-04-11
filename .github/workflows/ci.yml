@@ -94,7 +94,8 @@ jobs:
             "entry_point": "ledgerr-mcp-server"
           }
           EOF
-          cd bundle && mcpb pack ../ledgerr-mcp.mcpb
+          cd bundle && mcpb pack ledgerr-mcp.mcpb
+          mv bundle/ledgerr-mcp.mcpb ../
 
       - name: Upload MCPB as release asset
         uses: softprops/action-gh-release@v1
