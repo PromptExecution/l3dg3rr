@@ -5,6 +5,7 @@ WORKDIR /app
 
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
+COPY xtask ./xtask
 
 RUN cargo test --workspace
 
