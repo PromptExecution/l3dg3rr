@@ -85,3 +85,40 @@ gh-secrets-set-org org="PromptExecution" repos="l3dg3rr" force="false":
         echo "SET $name: org={{org}} repos={{repos}}"; \
       fi; \
     done
+
+# Cocogitto release recipe (major|minor|patch, defaults to patch)
+release version="patch":
+    #!/bin/bash
+    set -euo pipefail
+    case "{{version}}" in
+        major|minor|patch) ;;
+        *) echo "Invalid version: {{version}} (use major, minor, or patch)" && exit 1 ;;
+    esac
+    echo "Running pre-release checks..."
+    cargo test --workspace --all-targets --all-features
+    ./scripts/e2e_mvp.sh
+    echo "Bumping {{version}} version with cocogitto..."
+    /home/wendy/.cargo/bin/cog bump {{version}}
+    /home/wendy/.cargo/bin/cog changelog
+    echo "Pushing tags..."
+    git push --follow-tags
+
+# Show current version
+v:
+    @/home/wendy/.cargo/bin/cog get-version
+
+# Validate commits
+validate:
+    @/home/wendy/.cargo/bin/cog check
+
+# Show changelog
+changelog:
+    @/home/wendy/.cargo/bin/cog changelog
+
+# Show release stats
+stats:
+    @echo "Tags:"
+    @git tag -l
+    @echo ""
+    @echo "Recent commits:"
+    @git log --oneline -5
