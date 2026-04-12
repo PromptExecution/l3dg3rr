@@ -23,20 +23,19 @@ jobs:
 
       - name: Install Cocogitto
         uses: cocogitto/cocogitto-action@v4
+        with:
+          command: bump
+          args: --auto
+          git-user: 'github-actions[bot]'
+          git-user-email: 'github-actions[bot]@users.noreply.github.com'
 
-      - name: Fetch all tags
-        run: git fetch --tags
-
-      - name: Configure git
+      - name: Generate changelog
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          TAG="$(git describe --tags --abbrev=0)"
+          cog changelog --at "$TAG" > RELEASE_NOTES.md
 
-      - name: Bump and generate changelog
-        run: |
-          cog bump --auto
-          cog changelog --at "$(git describe --tags --abbrev=0)" > RELEASE_NOTES.md
-          git push --follow-tags
+      - name: Push changes
+        run: git push --follow-tags
 
       - name: Create GitHub Release
         env:
