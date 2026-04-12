@@ -145,6 +145,160 @@ All notable changes to this project will be documented in this file. See [conven
 - (**planning**) persist autonomous closeout state - (b9ba437) - brianh
 - (**release**) add changelog for v1.1.0 - (acb4d27) - brianh
 - (**v1.1**) archive completed milestone phases - (cf9b3c2) - brianh
+- (**version**) 0.1.0 - (dcd8f0f) - github-actions[bot]
+- (**version**) 0.1.0 - (8e28f71) - github-actions[bot]
+- verify release badge - (44dcc54) - Claude Sonnet (coordinator)
+- test release workflow trigger - (c22303f) - Claude Sonnet (coordinator)
+- archive phase directories from completed milestones - (230159f) - brianh
+- archive v1.0 milestone - (571ab76) - brianh
+- ignore local PRD and refine phase 2 plan - (023da6b) - brianh
+- add project config - (f498561) - brianh
+
+- - -
+
+## 0.1.0 - 2026-04-12
+#### Features
+- (**13-01**) add stdio MCP adapter and proxy boundary - (c95c675) - brianh
+- (**13-02**) implement MCP stdio ingest e2e harness and replay checks - (cf28f37) - brianh
+- (**13-03**) wire rustledger proxy ingest rows over MCP tools/call - (fd96420) - brianh
+- (**14-01**) add service-owned ontology query tool wrappers - (587cbb4) - brianh
+- (**14-01**) implement ontology store with deterministic persistence - (c8a8dd1) - brianh
+- (**14-02**) add ontology MCP query/export transport handlers - (d5f6ca0) - brianh
+- (**15-01**) enforce deterministic reconciliation commit guardrails - (1f7b0ef) - brianh
+- (**15-01**) add reconciliation stage contracts and service APIs - (3518079) - brianh
+- (**15-02**) expose reconciliation stage tools over MCP transport - (e63959a) - brianh
+- (**16-01**) implement deterministic hsm transition and status APIs - (832e1f7) - brianh
+- (**16-01**) add hsm domain contracts and service stubs - (b87ded0) - brianh
+- (**16-02**) wire deterministic checkpoint persistence and resume - (35d8609) - brianh
+- (**16-02**) add hsm checkpoint and resume contracts - (db30cc4) - brianh
+- (**16-03**) expose hsm transition status resume over mcp - (674c433) - brianh
+- (**17-01**) append deterministic lifecycle events from service actions - (8e56aa5) - brianh
+- (**17-01**) add append-only lifecycle event store contracts - (9c2b6fd) - brianh
+- (**17-02**) wire lifecycle replay service API - (93d1918) - brianh
+- (**17-02**) add deterministic replay projector contracts - (17bf7c2) - brianh
+- (**17-03**) wire MCP event replay and history tools - (b02a324) - brianh
+- (**18-01**) implement deterministic tax-assist and ambiguity composition - (75b6b97) - brianh
+- (**18-01**) add tax-assist service contracts and tool stubs - (749adf0) - brianh
+- (**18-02**) implement deterministic evidence-chain retrieval - (8bc24e1) - brianh
+- (**18-03**) expose tax-assist interfaces over MCP transport - (621bbea) - brianh
+- (**mcp**) expose P0/P1/P2 tool gap handlers as wired MCP tools - (0482f67) - Claude Sonnet (coordinator)
+- (**mcp**) expose account listing and raw-context tools - (79b0e5f) - brianh
+- (**phase-03**) implement runtime rhai classification and review queue - (accd407) - brianh
+- (**phase-04**) add audited classification mutations with invariants - (d833758) - brianh
+- (**phase-05**) add cpa workbook export and schedule summaries - (1da735e) - brianh
+- (**phase-06**) add ci release automation and mvp e2e flow - (49b5a18) - brianh
+- (**phase-1**) scaffold contracts, bootstrap, and turbo MCP interface - (1699ce8) - brianh
+- (**phase-2**) complete deterministic ingest pipeline and verification - (ebf0fd5) - brianh
+- (**phase-2**) add ingest_pdf and get_raw_context MCP contracts - (3b757a8) - brianh
+- (**phase-2**) pivot ingest to rustledger-compatible beancount journals - (f69d7bd) - brianh
+- (**phase-2**) add deterministic ingest primitives with idempotency tests - (11b4b9f) - brianh
+- (**test**) add outcome-driven mcp flow runner behind just test - (f50d916) - brianh
+- add workflow_dispatch for manual release trigger - (6f1ab50) - Claude Sonnet (coordinator)
+- expand Cowork marketplace runtime and packaging guidance - (16fc219) - brianh
+- add Claude Cowork plugin marketplace distribution artifacts - (628bd9d) - brianh
+#### Bug Fixes
+- (**13-01**) harden deterministic status and MCP error mapping - (3f307c7) - brianh
+- (**ci**) use valid rust image and pin ledger-core publish version - (e9b1140) - brianh
+- (**mcp**) replace absolute paths in docs, fix service-only list, add path traversal guard to get_raw_context - (eac38fb) - copilot-swe-agent[bot]
+- simplify release workflow to use cocogitto-action v4 with bundled cog - (b3b927e) - Claude Sonnet (coordinator)
+- fetch all tags in release workflow and fix cog.toml config - (942d8f7) - Claude Sonnet (coordinator)
+- remove deprecated pre field from cog.toml - (bcfbdd1) - Claude Sonnet (coordinator)
+- allow workflow_dispatch trigger in release condition - (54243dc) - Claude Sonnet (coordinator)
+- simplify release workflow trigger condition - (8349560) - Claude Sonnet (coordinator)
+- use proper mcpb manifest v0.3 schema with server config - (d923aa5) - Claude Sonnet (coordinator)
+- use positional args for mcpb pack (directory output) - (1000c18) - Claude Sonnet (coordinator)
+- use -o flag for mcpb pack output path - (0ab1788) - Claude Sonnet (coordinator)
+- fix mcpb pack output path to stay in bundle dir - (ac8b823) - Claude Sonnet (coordinator)
+- add contents:write permission for release creation - (00bbf78) - Claude Sonnet (coordinator)
+- update package name from turbo-mcp to ledgerr-mcp in e2e script - (d800497) - Claude Sonnet (coordinator)
+- align marketplace and plugin manifests with Cowork validation - (13d10d5) - brianh
+- remove Zone.Identifier files, add gitignore rule, reconcile STATE.md - (6efa654) - copilot-swe-agent[bot]
+- address all PR review feedback (version alignment, path safety, classify_ingested, sheets count, active year, release loop guard) - (47ea635) - copilot-swe-agent[bot]
+#### Documentation
+- (**02**) research phase domain - (81b1b74) - brianh
+- (**02**) add phase plan - (7bd1a7d) - brianh
+- (**02**) discuss context - (ae7b8c7) - brianh
+- (**03**) discuss context - (3592081) - brianh
+- (**13**) add gap-closure plan for rustledger proxy MCP callable surface - (ea8424e) - brianh
+- (**13**) add verification report with gap findings - (89f6e11) - brianh
+- (**13**) add context research and validation artifacts - (aa12c52) - brianh
+- (**13**) create phase plans - (3cd7bb6) - brianh
+- (**13-01**) complete mcp boundary proxy surface plan - (a8a709f) - brianh
+- (**13-02**) complete mcp-only doc verification plan - (dfa4b63) - brianh
+- (**13-02**) publish MCP-only runbook and validation mapping - (787c501) - brianh
+- (**13-03**) complete rustledger proxy callable-surface plan - (69b4dfe) - brianh
+- (**13-03**) align runbook and validation to rustledger proxy transport - (ebbe75c) - brianh
+- (**14**) create ontology persistence phase plans - (eca1808) - brianh
+- (**14-01**) complete ontology persistence and query surface plan - (ee80513) - brianh
+- (**14-02**) complete ontology mcp transport plan - (0c816f4) - brianh
+- (**14-02**) align ontology MCP runbook and validation map - (9dad54e) - brianh
+- (**15**) add reconciliation and commit guardrail plans - (55e3bfe) - brianh
+- (**15-02**) complete reconciliation-and-commit-guardrails plan - (2468594) - brianh
+- (**15-02**) align reconciliation transport runbook and validation map - (8eba986) - brianh
+- (**16**) create autonomous HSM phase context and execution plans - (9106bb5) - brianh
+- (**16-03**) complete moku-hsm-deterministic-status-and-resume plan - (66ad731) - brianh
+- (**17**) create phase plan - (f6a86a5) - brianh
+- (**17-01**) complete event domain foundation plan - (b4b410e) - brianh
+- (**17-02**) complete deterministic replay plan - (8df1735) - brianh
+- (**17-03**) complete MCP event query plan - (2e051d2) - brianh
+- (**18**) plan tax assist evidence-chain interfaces - (f80d1f6) - brianh
+- (**18-03**) complete tax-assist evidence-chain interfaces plans - (115b5d1) - brianh
+- (**agents**) require session lesson capture for posterity - (ad47077) - brianh
+- (**milestone**) archive v1.0 roadmap and requirements - (482983d) - brianh
+- (**milestone**) add v1.0 audit report - (01ee29d) - brianh
+- (**phase-13**) evolve PROJECT.md after phase completion - (4eab3d8) - brianh
+- (**phase-13**) complete phase execution - (8939d74) - brianh
+- (**roadmap**) add gap closure phases 13-18 - (b347a67) - brianh
+- (**state**) align handoff to phase 14 after phase 13 completion - (bd72945) - brianh
+- create milestone v1.2 roadmap - (82c024e) - brianh
+- define milestone v1.2 requirements - (2e65b2e) - brianh
+- start milestone v1.2 Claude Connector Interop - (5960e4f) - brianh
+- capture todo - Add Claude Cowork MCP install matrix and CI gate - (c33cb11) - brianh
+- add concrete mcp usage examples to agents guide - (9831bc4) - brianh
+- add agent purpose/capability guide and README reference - (a1b1bb9) - brianh
+- start milestone v1.1 fdkms integrity - (9064ba6) - brianh
+- add backlog item 999.1 — CI + release automation hardening - (84de370) - brianh
+- create roadmap (6 phases) - (6e9bd7e) - brianh
+- define v1 requirements - (4ff43fb) - brianh
+- add project research - (c4619ba) - brianh
+- initialize project - (4677e99) - brianh
+#### Tests
+- (**13-01**) add failing MCP adapter contract tests - (546c56e) - brianh
+- (**13-02**) add failing MCP stdio DOC requirement tests - (d95d617) - brianh
+- (**13-03**) add failing rustledger proxy transport coverage - (1aa7970) - brianh
+- (**14-01**) add failing ONTO-01/02 ontology contract tests - (ce24318) - brianh
+- (**14-02**) add failing ontology MCP transport tests - (ae0098a) - brianh
+- (**15-01**) add failing reconciliation guardrail contracts - (163ebd9) - brianh
+- (**15-02**) add failing reconciliation MCP transport contracts - (7f75625) - brianh
+- (**16-01**) add failing hsm lifecycle and guard contracts - (fa2178b) - brianh
+- (**16-02**) add failing checkpoint and resume contracts - (181b02c) - brianh
+- (**16-03**) add failing hsm mcp transport e2e contracts - (8001964) - brianh
+- (**17-01**) add failing contracts for append-only lifecycle events - (c6ff2ef) - brianh
+- (**17-02**) add failing deterministic replay contracts - (30f3f20) - brianh
+- (**17-03**) add failing MCP event history e2e contracts - (ec4a80e) - brianh
+- (**18-01**) add failing tax-assist contracts for TAXA-01 and TAXA-03 - (ca1f8b6) - brianh
+- (**18-02**) add failing evidence-chain contract for TAXA-02 - (bde256f) - brianh
+- (**18-03**) add failing MCP e2e contracts for tax-assist tools - (baac788) - brianh
+- (**e2e**) expand bdd coverage for ingest tool behaviors - (7efd6ac) - brianh
+- (**turbo-mcp**) add phase6 failing tests for MCP exposure gaps (P0/P1/P2) - (d2b7354) - Claude Sonnet (coordinator)
+- add sample statement fixtures for e2e regression - (5f40bf6) - brianh
+#### Continuous Integration
+- disable MCP Registry publish (requires direct write access) - (abf6b60) - Claude Sonnet (coordinator)
+- add MCPB publish gate after tests - (676c58b) - Claude Sonnet (coordinator)
+- add clippy sarif upload and podman publish-on-main - (588a231) - brianh
+- add publish workflow for ghcr crates and pypi - (e6bb524) - brianh
+#### Refactoring
+- rename turbo-mcp to ledgerr-mcp - (4b484cd) - Claude Sonnet (coordinator)
+#### Miscellaneous Chores
+- (**16-03**) publish hsm validation map and operator verification docs - (eebdcda) - brianh
+- (**17**) capture MCP row-key normalization guidance in AGENTS - (1323e94) - brianh
+- (**17-03**) publish event MCP validation and verification docs - (2a7f381) - brianh
+- (**18-03**) publish tax-assist runbook and phase validation map - (54f8012) - brianh
+- (**dev**) add dotenv ignore and secret setup recipe fixes - (7a029d2) - brianh
+- (**docs**) add plugin usage validation flow and mcp cli demos - (d522338) - brianh
+- (**planning**) persist autonomous closeout state - (b9ba437) - brianh
+- (**release**) add changelog for v1.1.0 - (acb4d27) - brianh
+- (**v1.1**) archive completed milestone phases - (cf9b3c2) - brianh
 - (**version**) 0.1.0 - (8e28f71) - github-actions[bot]
 - test release workflow trigger - (c22303f) - Claude Sonnet (coordinator)
 - archive phase directories from completed milestones - (230159f) - brianh
