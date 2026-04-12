@@ -11,12 +11,7 @@ permissions:
 
 jobs:
   release:
-    # Skip if the triggering push was authored by the bot (avoids infinite release loop).
-    # 'github-actions[bot]' is the canonical identity set by this workflow in the "Configure git" step.
-    if: |
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_commit.author.name != 'github-actions[bot]'
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
