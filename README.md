@@ -35,14 +35,17 @@ docker run --rm \
   tax-ledger:dev
 ```
 
-## Versioning (Cocogitto)
+## Release
 
 ```bash
-./scripts/install-hooks.sh
-cog check
-cog changelog
-cog bump --auto
+just release           # patch release (default)
+just release major   # major release
+just release minor  # minor release
+
+# Or trigger via GitHub: Actions > Release > Run workflow
 ```
+
+Uses cocogitto for conventional commit versioning. Releases trigger on CI success or manual dispatch.
 
 ## Behavior-Driven MVP E2E
 
