@@ -22,7 +22,10 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Cocogitto
-        uses: cocogitto/cocogitto-action@v3
+        uses: cocogitto/cocogitto-action@v4
+
+      - name: Fetch all tags
+        run: git fetch --tags
 
       - name: Configure git
         run: |
