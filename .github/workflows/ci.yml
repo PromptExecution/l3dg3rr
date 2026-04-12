@@ -88,10 +88,19 @@ jobs:
           cp ledgerr-mcp-server bundle/
           cat > bundle/manifest.json << EOF
           {
+            "manifest_version": "0.3",
             "name": "ledgerr-mcp",
-            "description": "Tax ledger MCP server for document intelligence and U.S. expat tax preparation",
             "version": "${{ env.VERSION }}",
-            "entry_point": "ledgerr-mcp-server"
+            "description": "Tax ledger MCP server for document intelligence and U.S. expat tax preparation",
+            "author": { "name": "Tax Ledger" },
+            "server": {
+              "type": "binary",
+              "entry_point": "ledgerr-mcp-server",
+              "mcp_config": {
+                "command": "./ledgerr-mcp-server",
+                "args": []
+              }
+            }
           }
           EOF
           mcpb pack bundle ../ledgerr-mcp.mcpb
