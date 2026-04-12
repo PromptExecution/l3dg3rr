@@ -1,7 +1,7 @@
 # MCP Capability Contract (Operator View)
 
 This document describes what is currently exposed through:
-- MCP transport (`turbo-mcp-server`)
+- MCP transport (`ledgerr-mcp-server`)
 - local CLI/runtime entrypoints (`Justfile`, Python launcher)
 - internal Rust service API (`TurboLedgerTools`)
 
@@ -11,8 +11,8 @@ It is intentionally concrete and code-aligned.
 
 MCP boundary:
 - Methods: `initialize`, `tools/list`, `tools/call`
-- Server: [crates/turbo-mcp/src/bin/turbo-mcp-server.rs](crates/turbo-mcp/src/bin/turbo-mcp-server.rs#L8)
-- Tool catalog: [crates/turbo-mcp/src/mcp_adapter.rs](crates/turbo-mcp/src/mcp_adapter.rs#L30)
+- Server: [crates/ledgerr-mcp/src/bin/ledgerr-mcp-server.rs](crates/ledgerr-mcp/src/bin/ledgerr-mcp-server.rs#L8)
+- Tool catalog: [crates/ledgerr-mcp/src/mcp_adapter.rs](crates/ledgerr-mcp/src/mcp_adapter.rs#L30)
 
 ### Tool Matrix
 
@@ -38,19 +38,19 @@ MCP boundary:
 | `l3dg3rr_tax_ambiguity_review` | ambiguity review queue payload | `ontology_path`, `from_entity_id`, `reconciliation` | `tax_ambiguity_review_tool` |
 
 Input parsing and validation live in:
-[crates/turbo-mcp/src/mcp_adapter.rs](crates/turbo-mcp/src/mcp_adapter.rs#L160)
+[crates/ledgerr-mcp/src/mcp_adapter.rs](crates/ledgerr-mcp/src/mcp_adapter.rs#L160)
 
 ## 2) Internal Rust Service API (Wider Than MCP)
 
 Canonical trait:
-[TurboLedgerTools in crates/turbo-mcp/src/lib.rs](crates/turbo-mcp/src/lib.rs#L275)
+[TurboLedgerTools in crates/ledgerr-mcp/src/lib.rs](crates/ledgerr-mcp/src/lib.rs#L275)
 
 Important distinction:
 - Some service capabilities exist but are not exposed as MCP tools yet.
 - Examples currently service-only: `run_rhai_rule`, `classify_ingested`, `query_flags`, `classify_transaction`, `query_audit_log`, `export_cpa_workbook`, `get_schedule_summary`, ontology upserts.
 
 This is the current API layering:
-1. `turbo-mcp-server` (stdio transport)
+1. `ledgerr-mcp-server` (stdio transport)
 2. `mcp_adapter` (argument parsing + envelope shaping)
 3. `TurboLedgerService` (domain logic, guardrails, state/event/HSM ops)
 4. `ledger-core` (ingest, filename validation, classification primitives)
