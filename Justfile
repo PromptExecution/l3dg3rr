@@ -86,6 +86,71 @@ gh-secrets-set-org org="PromptExecution" repos="l3dg3rr" force="false":
       fi; \
     done
 
+# ─── MCPB bundle + publish ────────────────────────────────────────────────────
+
+# Build release binary and assemble a deterministic .mcpb bundle for one target
+bundle target="x86_64-unknown-linux-musl":
+    cargo build -p ledgerr-mcp --release --bin ledgerr-mcp-server --target {{target}}
+    cargo xtask-mcpb bundle \
+        --binary target/{{target}}/release/ledgerr-mcp-server \
+        --output dist/ledgerr-mcp-{{target}}.mcpb \
+        --version $(just v)
+
+# Bundle for all tier-1 distribution targets (requires cross-compilation toolchains)
+bundle-all:
+    just bundle x86_64-unknown-linux-musl
+    just bundle x86_64-apple-darwin
+    just bundle aarch64-apple-darwin
+
+# Print the manifest.json for the current version (no bundle created)
+manifest:
+    cargo xtask-mcpb manifest --version $(just v)
+
+# Verify a .mcpb bundle's structure and manifest
+verify path:
+    cargo xtask-mcpb verify {{path}}
+
+# Upload all dist/*.mcpb artifacts to a GitHub release
+publish-mcpb tag="":
+    #!/bin/bash
+    set -euo pipefail
+    TAG="{{tag}}"
+    if [ -z "$TAG" ]; then TAG=$(just v); fi
+    shopt -s nullglob
+    bundles=(dist/*.mcpb)
+    if [ ${#bundles[@]} -eq 0 ]; then
+      echo "error: no .mcpb files found in dist/ — run 'just bundle' first"
+      exit 1
+    fi
+    for f in "${bundles[@]}"; do
+      cargo xtask-mcpb publish-github --release-tag "$TAG" --artifact "$f"
+    done
+
+# Update server.json with the current release version + sha256 from a bundle artifact.
+# Run before `mcp-publisher publish`.
+update-server-json artifact sha256="":
+    #!/bin/bash
+    set -euo pipefail
+    SHA="{{sha256}}"
+    if [ -z "$SHA" ]; then
+        SHA=$(sha256sum "{{artifact}}" | cut -d' ' -f1)
+    fi
+    VERSION=$(just v)
+    FILENAME=$(basename "{{artifact}}")
+    cargo xtask-mcpb update-server-json \
+        --version "$VERSION" \
+        --sha256 "$SHA" \
+        --artifact-url "https://github.com/PromptExecution/l3dg3rr/releases/download/$VERSION/$FILENAME"
+
+# Submit bundle to MCP Registry (requires mcp-publisher on PATH + registry auth)
+publish-registry tag artifact-url sha256:
+    cargo xtask-mcpb publish-registry \
+        --release-tag {{tag}} \
+        --artifact-url {{artifact-url}} \
+        --sha256 {{sha256}}
+
+# ─── Cocogitto release recipe (major|minor|patch, defaults to patch) ──────────
+
 # Cocogitto release recipe (major|minor|patch, defaults to patch)
 release version="patch":
     #!/bin/bash

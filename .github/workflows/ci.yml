@@ -64,14 +64,13 @@ jobs:
           name: ledgerr-mcp
           path: .
 
-      - name: Make binary executable
-        run: chmod +x ledgerr-mcp-server
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Get version
-        run: |
-          echo "VERSION=v$(cargo pkgid -p ledgerr-mcp | cut -d'#' -f2)" >> $GITHUB_ENV
+        run: echo "VERSION=v$(cargo pkgid -p ledgerr-mcp | cut -d'#' -f2)" >> $GITHUB_ENV
 
-      - name: Create release
+      - name: Create GitHub release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ env.VERSION }}
@@ -79,60 +78,22 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install mcpb CLI
-        run: npm install -g @anthropic-ai/mcpb
-
-      - name: Create MCPB bundle
+      - name: Bundle .mcpb via xtask
         run: |
-          mkdir -p bundle
-          cp ledgerr-mcp-server bundle/
-          cat > bundle/manifest.json << EOF
-          {
-            "manifest_version": "0.3",
-            "name": "ledgerr-mcp",
-            "version": "${{ env.VERSION }}",
-            "description": "Tax ledger MCP server for document intelligence and U.S. expat tax preparation",
-            "author": { "name": "Tax Ledger" },
-            "server": {
-              "type": "binary",
-              "entry_point": "ledgerr-mcp-server",
-              "mcp_config": {
-                "command": "./ledgerr-mcp-server",
-                "args": []
-              }
-            }
-          }
-          EOF
-          mcpb pack bundle ../ledgerr-mcp.mcpb
+          mkdir -p dist
+          cp ledgerr-mcp-server dist/
+          cargo xtask-mcpb bundle \
+            --binary dist/ledgerr-mcp-server \
+            --output dist/ledgerr-mcp-x86_64-unknown-linux-gnu.mcpb \
+            --version ${{ env.VERSION }}
+
+      - name: Verify bundle
+        run: cargo xtask-mcpb verify dist/ledgerr-mcp-x86_64-unknown-linux-gnu.mcpb
 
       - name: Upload MCPB as release asset
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ env.VERSION }}
-          files: ./ledgerr-mcp.mcpb
+          files: dist/ledgerr-mcp-x86_64-unknown-linux-gnu.mcpb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # MCP Registry publish disabled - requires direct write access
-      # - name: Install mcp-publisher
-      #   run: |
-      #     curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_x86_64.tar.gz" | tar xz
-      # - name: Publish to MCP Registry
-      #   run: |
-      #     SHA=$(sha256sum ledgerr-mcp-server | cut -d' ' -f1)
-      #     cat > server.json << EOF
-      #     {
-      #       "name": "io.github.prompt-execution/ledgerr-mcp",
-      #       "description": "Tax ledger MCP server for document intelligence and U.S. expat tax preparation",
-      #       "version": "${{ env.VERSION }}",
-      #       "packages": [
-      #         {
-      #           "registryType": "mcpb",
-      #           "identifier": "https://github.com/PromptExecution/l3dg3rr/releases/download/${{ env.VERSION }}/ledgerr-mcp.mcpb",
-      #           "fileSha256": "$SHA"
-      #         }
-      #       ]
-      #     }
-      #     EOF
-      #     ./mcp-publisher login github-oidc
-      #     ./mcp-publisher publish server.json

@@ -1,0 +1,178 @@
+name: MCPB Multi-Platform Publish
+
+on:
+  # Trigger automatically when a GitHub release is published (after release.yml tags)
+  release:
+    types: [published]
+  # Allow manual re-runs with an explicit tag
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.1.0)"
+        required: true
+
+permissions:
+  contents: write  # needed for gh release upload
+
+jobs:
+  # ── Per-platform binary build + bundle ──────────────────────────────────────
+  build-bundle:
+    name: bundle (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            use_cross: true
+          - os: macos-13        # Intel runner
+            target: x86_64-apple-darwin
+            use_cross: false
+          - os: macos-latest    # Apple Silicon runner
+            target: aarch64-apple-darwin
+            use_cross: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install just
+        uses: taiki-e/install-action@v2
+        with:
+          tool: just
+
+      - name: Install cross (Linux musl only)
+        if: matrix.use_cross
+        run: cargo install cross --locked
+
+      - name: Resolve release tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build binary (cross — Linux musl)
+        if: matrix.use_cross
+        run: cross build -p ledgerr-mcp --release --bin ledgerr-mcp-server --target ${{ matrix.target }}
+
+      - name: Build binary (native)
+        if: '!matrix.use_cross'
+        run: cargo build -p ledgerr-mcp --release --bin ledgerr-mcp-server --target ${{ matrix.target }}
+
+      - name: Bundle .mcpb via xtask
+        run: |
+          cargo xtask-mcpb bundle \
+            --binary target/${{ matrix.target }}/release/ledgerr-mcp-server \
+            --output dist/ledgerr-mcp-${{ matrix.target }}.mcpb \
+            --version ${{ steps.tag.outputs.tag }}
+
+      - name: Verify bundle
+        run: cargo xtask-mcpb verify dist/ledgerr-mcp-${{ matrix.target }}.mcpb
+
+      - name: Upload bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcpb-${{ matrix.target }}
+          path: dist/ledgerr-mcp-${{ matrix.target }}.mcpb
+          if-no-files-found: error
+
+  # ── Upload all bundles to the GitHub release ────────────────────────────────
+  publish-github:
+    name: publish to GitHub release
+    needs: build-bundle
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install just
+        uses: taiki-e/install-action@v2
+        with:
+          tool: just
+
+      - name: Resolve release tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download all bundles
+        uses: actions/download-artifact@v4
+        with:
+          pattern: mcpb-*
+          path: dist
+          merge-multiple: true
+
+      - name: List bundles
+        run: ls -lh dist/
+
+      - name: Upload all .mcpb artifacts to release
+        run: just publish-mcpb ${{ steps.tag.outputs.tag }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── MCP Registry submission via GitHub OIDC (no secrets required) ───────────
+  publish-registry:
+    name: publish to MCP Registry
+    needs: publish-github
+    runs-on: ubuntu-latest
+    # Only run on real release events (not manual dispatch, which is for re-uploading assets)
+    if: github.event_name == 'release'
+    permissions:
+      id-token: write   # required for GitHub OIDC authentication
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install just
+        uses: taiki-e/install-action@v2
+        with:
+          tool: just
+
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL \
+            "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" \
+            | tar xz mcp-publisher
+
+      - name: Download canonical bundle (Linux musl)
+        uses: actions/download-artifact@v4
+        with:
+          name: mcpb-x86_64-unknown-linux-musl
+          path: dist
+
+      - name: Compute sha256
+        id: sha
+        run: |
+          SHA=$(sha256sum dist/ledgerr-mcp-x86_64-unknown-linux-musl.mcpb | cut -d' ' -f1)
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Update server.json for this release
+        run: |
+          just update-server-json \
+            dist/ledgerr-mcp-x86_64-unknown-linux-musl.mcpb \
+            ${{ steps.sha.outputs.sha256 }}
+
+      - name: Authenticate via GitHub OIDC
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish to MCP Registry
+        run: ./mcp-publisher publish

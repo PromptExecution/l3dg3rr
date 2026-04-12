@@ -1,0 +1,37 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.PromptExecution/ledgerr-mcp",
+  "title": "l3dg3rr Tax Ledger",
+  "description": "Local-first U.S. expat tax document intelligence MCP server. Ingests PDF statements, classifies transactions, and produces CPA-auditable Excel workbooks — no data leaves your machine.",
+  "repository": {
+    "url": "https://github.com/PromptExecution/l3dg3rr",
+    "source": "github"
+  },
+  "version": "0.0.0",
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/PromptExecution/l3dg3rr/releases/download/v0.0.0/ledgerr-mcp-x86_64-unknown-linux-musl.mcpb",
+      "fileSha256": "",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "LEDGER_WORKBOOK_PATH",
+          "description": "Path to the Excel workbook (default: tax-ledger.xlsx in CWD)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "LEDGER_PDF_INBOX",
+          "description": "Directory watched for incoming PDF statements",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}

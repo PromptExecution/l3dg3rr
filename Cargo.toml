@@ -2,6 +2,7 @@
 members = [
   "crates/ledger-core",
   "crates/ledgerr-mcp",
+  "xtask",
 ]
 resolver = "2"
 

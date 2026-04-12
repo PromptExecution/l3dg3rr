@@ -1,0 +1,27 @@
+[package]
+name = "xtask-mcpb"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Build and publish automation for l3dg3rr (mcpb bundling, GitHub release upload, MCP Registry submission)"
+
+[[bin]]
+name = "xtask-mcpb"
+path = "src/main.rs"
+
+[lib]
+name = "xtask_mcpb"
+path = "src/lib.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+hex = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "2"
+zip = "2"
+
+[lints]
+workspace = true
