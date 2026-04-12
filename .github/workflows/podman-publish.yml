@@ -2,7 +2,7 @@ name: Publish Podman Image
 
 on:
   workflow_run:
-    workflows: ["CI"]
+    workflows: ["CI with MCP Registry Publish"]
     types: [completed]
     branches: [main]
 
