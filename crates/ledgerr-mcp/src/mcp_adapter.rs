@@ -46,8 +46,6 @@ pub const EXPORT_CPA_WORKBOOK_TOOL: &str = "l3dg3rr_export_cpa_workbook";
 pub const ONTOLOGY_UPSERT_ENTITIES_TOOL: &str = "l3dg3rr_ontology_upsert_entities";
 pub const ONTOLOGY_UPSERT_EDGES_TOOL: &str = "l3dg3rr_ontology_upsert_edges";
 
-pub const MCP_LIFECYCLE_METHODS: &[&str] = &["initialize", "tools/list", "tools/call"];
-
 pub const TOOL_GROUP_CORE: &[&str] = &[
     LIST_ACCOUNTS_TOOL,
     GET_RAW_CONTEXT_TOOL,
@@ -63,7 +61,6 @@ pub const TOOL_GROUP_EVENTS: &[&str] = &[EVENT_REPLAY_TOOL, EVENT_HISTORY_TOOL];
 pub const TOOL_GROUP_CLASSIFICATION: &[&str] = &[
     CLASSIFY_INGESTED_TOOL,
     QUERY_FLAGS_TOOL,
-    QUERY_AUDIT_LOG_TOOL,
     CLASSIFY_TRANSACTION_TOOL,
     RECONCILE_EXCEL_CLASSIFICATION_TOOL,
 ];
@@ -77,8 +74,6 @@ pub const TOOL_GROUP_TAX: &[&str] = &[
 pub const TOOL_GROUP_AUDIT: &[&str] = &[QUERY_AUDIT_LOG_TOOL];
 pub const TOOL_GROUP_ONTOLOGY_WRITE: &[&str] =
     &[ONTOLOGY_UPSERT_ENTITIES_TOOL, ONTOLOGY_UPSERT_EDGES_TOOL];
-
-const MCP_LIFECYCLE: &[&str] = &["tools/list", "tools/call"];
 
 pub fn tool_catalog() -> Vec<String> {
     let mut features = Vec::new();
@@ -138,8 +133,273 @@ pub fn tool_catalog_with_features(features: &[&str]) -> Vec<String> {
         tools.extend(TOOL_GROUP_ONTOLOGY_WRITE.iter().map(|s| s.to_string()));
     }
 
-    tools.extend(MCP_LIFECYCLE.iter().map(|s| s.to_string()));
     tools
+}
+
+/// Return the full MCP-spec tool objects (name + inputSchema) for all enabled tools.
+/// Use this in tools/list responses — do NOT use tool_catalog() directly for that.
+pub fn tool_list_entries() -> Vec<Value> {
+    tool_catalog()
+        .into_iter()
+        .map(|name| {
+            let schema = tool_input_schema(&name);
+            json!({ "name": name, "inputSchema": schema })
+        })
+        .collect()
+}
+
+/// Returns the JSON Schema for the input arguments of a named tool.
+pub fn tool_input_schema(name: &str) -> Value {
+    match name {
+        // ── no-argument tools ──────────────────────────────────────────────
+        LIST_ACCOUNTS_TOOL
+        | "l3dg3rr_get_pipeline_status"
+        | ONTOLOGY_EXPORT_SNAPSHOT_TOOL
+        | HSM_STATUS_TOOL
+        | QUERY_AUDIT_LOG_TOOL => json!({ "type": "object", "properties": {} }),
+
+        // ── get_raw_context ───────────────────────────────────────────────
+        GET_RAW_CONTEXT_TOOL => json!({
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+                "path": { "type": "string", "description": "Path to the rkyv context file" }
+            }
+        }),
+
+        // ── proxy_docling_ingest_pdf ───────────────────────────────────────
+        "proxy_docling_ingest_pdf" => json!({
+            "type": "object",
+            "required": ["source_ref"],
+            "properties": {
+                "source_ref": { "type": "string", "description": "VENDOR--ACCOUNT--YYYY-MM--DOCTYPE source filename" },
+                "raw_context_bytes": {
+                    "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 255 },
+                    "description": "Raw PDF bytes as a byte array (optional if source_ref already exists)"
+                },
+                "extracted_rows": {
+                    "type": "array", "items": { "type": "object" },
+                    "description": "Pre-extracted transaction rows from Docling (optional)"
+                }
+            }
+        }),
+
+        // ── proxy_rustledger_ingest_statement_rows ────────────────────────
+        "proxy_rustledger_ingest_statement_rows" => json!({
+            "type": "object",
+            "required": ["rows"],
+            "properties": {
+                "rows": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["account_id", "date", "amount", "description", "source_ref"],
+                        "properties": {
+                            "account_id": { "type": "string" },
+                            "date": { "type": "string", "format": "date" },
+                            "amount": { "type": "string", "description": "Decimal string, e.g. \"-42.11\"" },
+                            "description": { "type": "string" },
+                            "source_ref": { "type": "string" }
+                        }
+                    }
+                }
+            }
+        }),
+
+        // ── ontology_query_path ───────────────────────────────────────────
+        ONTOLOGY_QUERY_PATH_TOOL => json!({
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+                "path": { "type": "string", "description": "Filesystem path to the ontology file" },
+                "max_depth": { "type": "integer", "minimum": 0, "description": "Maximum traversal depth (optional)" }
+            }
+        }),
+
+        // ── reconciliation tools (validate / reconcile / commit) ──────────
+        RECON_VALIDATE_TOOL | RECON_RECONCILE_TOOL | RECON_COMMIT_TOOL => json!({
+            "type": "object",
+            "required": ["source_total", "extracted_total", "posting_amounts"],
+            "properties": {
+                "source_total": { "type": "string", "description": "Total from source document (decimal string)" },
+                "extracted_total": { "type": "string", "description": "Total of extracted rows (decimal string)" },
+                "posting_amounts": {
+                    "type": "array", "items": { "type": "string" },
+                    "description": "Individual posting amounts as decimal strings"
+                }
+            }
+        }),
+
+        // ── hsm_transition ────────────────────────────────────────────────
+        HSM_TRANSITION_TOOL => json!({
+            "type": "object",
+            "required": ["target_state", "target_substate"],
+            "properties": {
+                "target_state": { "type": "string" },
+                "target_substate": { "type": "string" }
+            }
+        }),
+
+        // ── hsm_resume ────────────────────────────────────────────────────
+        HSM_RESUME_TOOL => json!({
+            "type": "object",
+            "required": ["state_marker"],
+            "properties": {
+                "state_marker": { "type": "string" }
+            }
+        }),
+
+        // ── event_history ─────────────────────────────────────────────────
+        EVENT_HISTORY_TOOL => json!({
+            "type": "object",
+            "properties": {
+                "tx_id": { "type": "string" },
+                "document_ref": { "type": "string" },
+                "time_start": { "type": "string", "format": "date-time" },
+                "time_end": { "type": "string", "format": "date-time" }
+            }
+        }),
+
+        // ── event_replay ──────────────────────────────────────────────────
+        EVENT_REPLAY_TOOL => json!({
+            "type": "object",
+            "properties": {
+                "tx_id": { "type": "string" },
+                "document_ref": { "type": "string" }
+            }
+        }),
+
+        // ── classify_ingested ─────────────────────────────────────────────
+        CLASSIFY_INGESTED_TOOL => json!({
+            "type": "object",
+            "required": ["rule_file", "review_threshold"],
+            "properties": {
+                "rule_file": { "type": "string", "description": "Path to the Rhai rule file" },
+                "review_threshold": { "type": "number", "description": "Confidence threshold below which transactions are flagged for review" }
+            }
+        }),
+
+        // ── query_flags ───────────────────────────────────────────────────
+        QUERY_FLAGS_TOOL => json!({
+            "type": "object",
+            "required": ["year", "status"],
+            "properties": {
+                "year": { "type": "integer" },
+                "status": { "type": "string", "enum": ["open", "resolved"] }
+            }
+        }),
+
+        // ── classify_transaction / reconcile_excel_classification ─────────
+        CLASSIFY_TRANSACTION_TOOL | RECONCILE_EXCEL_CLASSIFICATION_TOOL => json!({
+            "type": "object",
+            "required": ["tx_id", "category", "confidence", "actor"],
+            "properties": {
+                "tx_id": { "type": "string" },
+                "category": { "type": "string" },
+                "confidence": { "type": "string" },
+                "note": { "type": "string" },
+                "actor": { "type": "string" }
+            }
+        }),
+
+        // ── tax_assist / tax_ambiguity_review ─────────────────────────────
+        TAX_ASSIST_TOOL | TAX_AMBIGUITY_REVIEW_TOOL => json!({
+            "type": "object",
+            "required": ["ontology_path", "from_entity_id", "reconciliation"],
+            "properties": {
+                "ontology_path": { "type": "string" },
+                "from_entity_id": { "type": "string" },
+                "max_depth": { "type": "integer", "minimum": 0 },
+                "reconciliation": {
+                    "type": "object",
+                    "required": ["source_total", "extracted_total", "posting_amounts"],
+                    "properties": {
+                        "source_total": { "type": "string" },
+                        "extracted_total": { "type": "string" },
+                        "posting_amounts": { "type": "array", "items": { "type": "string" } }
+                    }
+                }
+            }
+        }),
+
+        // ── tax_evidence_chain ────────────────────────────────────────────
+        TAX_EVIDENCE_CHAIN_TOOL => json!({
+            "type": "object",
+            "required": ["ontology_path", "from_entity_id"],
+            "properties": {
+                "ontology_path": { "type": "string" },
+                "from_entity_id": { "type": "string" },
+                "tx_id": { "type": "string" },
+                "document_ref": { "type": "string" }
+            }
+        }),
+
+        // ── get_schedule_summary ──────────────────────────────────────────
+        GET_SCHEDULE_SUMMARY_TOOL => json!({
+            "type": "object",
+            "required": ["year", "schedule"],
+            "properties": {
+                "year": { "type": "integer" },
+                "schedule": { "type": "string", "enum": ["ScheduleC", "ScheduleD", "ScheduleE", "Fbar"] }
+            }
+        }),
+
+        // ── export_cpa_workbook ───────────────────────────────────────────
+        EXPORT_CPA_WORKBOOK_TOOL => json!({
+            "type": "object",
+            "required": ["workbook_path"],
+            "properties": {
+                "workbook_path": { "type": "string", "description": "Output path for the Excel workbook" }
+            }
+        }),
+
+        // ── ontology_upsert_entities ──────────────────────────────────────
+        ONTOLOGY_UPSERT_ENTITIES_TOOL => json!({
+            "type": "object",
+            "required": ["path", "entities"],
+            "properties": {
+                "path": { "type": "string" },
+                "entities": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["kind"],
+                        "properties": {
+                            "kind": { "type": "string", "enum": ["Document", "Account", "Institution", "Transaction", "TaxCategory", "EvidenceReference"] },
+                            "id": { "type": "string" },
+                            "label": { "type": "string" },
+                            "properties": { "type": "object" }
+                        }
+                    }
+                }
+            }
+        }),
+
+        // ── ontology_upsert_edges ─────────────────────────────────────────
+        ONTOLOGY_UPSERT_EDGES_TOOL => json!({
+            "type": "object",
+            "required": ["path", "edges"],
+            "properties": {
+                "path": { "type": "string" },
+                "edges": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["from_id", "to_id", "relation"],
+                        "properties": {
+                            "from_id": { "type": "string" },
+                            "to_id": { "type": "string" },
+                            "relation": { "type": "string" },
+                            "provenance": { "type": "object" }
+                        }
+                    }
+                }
+            }
+        }),
+
+        // ── unknown / future tools ────────────────────────────────────────
+        _ => json!({ "type": "object" }),
+    }
 }
 
 pub fn list_accounts_tool_result(service: &TurboLedgerService) -> Value {

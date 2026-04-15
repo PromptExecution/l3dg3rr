@@ -10,8 +10,10 @@ fn doc_01_mcp_boundary_tool_catalog_exposes_passthrough_proxy_surface() {
     assert!(tools.contains(&"l3dg3rr_list_accounts".to_string()));
     assert!(tools.contains(&"l3dg3rr_get_raw_context".to_string()));
     assert!(tools.contains(&"l3dg3rr_get_pipeline_status".to_string()));
-    assert!(tools.contains(&"tools/list".to_string()));
-    assert!(tools.contains(&"tools/call".to_string()));
+    // MCP lifecycle methods (tools/list, tools/call) are JSON-RPC methods, not tools —
+    // they must NOT appear in the tool catalog per MCP spec.
+    assert!(!tools.contains(&"tools/list".to_string()));
+    assert!(!tools.contains(&"tools/call".to_string()));
 }
 
 // DOC-02 (D-02, D-04): Canonical rows + provenance fields must be deterministic.

@@ -46,10 +46,7 @@ fn handle_request(request: Value) -> Option<Value> {
         })),
         "notifications/initialized" => None,
         "tools/list" => {
-            let tools: Vec<Value> = mcp_adapter::tool_catalog()
-                .into_iter()
-                .map(|name| json!({ "name": name }))
-                .collect();
+            let tools = mcp_adapter::tool_list_entries();
             Some(json!({
                 "jsonrpc": "2.0",
                 "id": id,

@@ -13,6 +13,21 @@ mcp-start-release:
 mcp-stop:
     pkill -f ledgerr-mcp-server || true
 
+# Pull and run the MCP server from GHCR using podman (stdio transport)
+# Usage: just mcp-podman-run        — latest image on main
+#        just mcp-podman-run v0.2.0 — specific release tag
+mcp-podman-run tag="main":
+    @command -v podman >/dev/null || { echo "error: podman not found — install podman first"; exit 1; }
+    podman pull ghcr.io/promptexecution/l3dg3rr:{{tag}}
+    podman run --rm -i \
+      -v "${LEDGER_DATA_DIR:-$PWD/data}:/data" \
+      ghcr.io/promptexecution/l3dg3rr:{{tag}}
+
+# Verify the GHCR image exists for a given tag without pulling the full image
+mcp-podman-verify tag="main":
+    @command -v podman >/dev/null || { echo "error: podman not found"; exit 1; }
+    podman manifest inspect ghcr.io/promptexecution/l3dg3rr:{{tag}}
+
 mcp-e2e:
     ./scripts/mcp_e2e.sh
 
@@ -28,7 +43,8 @@ mcp-doc-demo:
     ./scripts/mcp_e2e.sh
 
 test:
-    cargo build -p ledgerr-mcp --bin ledgerr-mcp-server --bin mcp-outcome-test
+    cargo test --workspace --all-targets --all-features
+    cargo build -p ledgerr-mcp --bin mcp-outcome-test
     ./target/debug/mcp-outcome-test
 
 gh-secrets-help:
@@ -163,22 +179,22 @@ release version="patch":
     cargo test --workspace --all-targets --all-features
     ./scripts/e2e_mvp.sh
     echo "Bumping {{version}} version with cocogitto..."
-    /home/wendy/.cargo/bin/cog bump {{version}}
-    /home/wendy/.cargo/bin/cog changelog
+    cog bump {{version}}
+    cog changelog
     echo "Pushing tags..."
     git push --follow-tags
 
 # Show current version
 v:
-    @/home/wendy/.cargo/bin/cog get-version
+    @cog get-version
 
 # Validate commits
 validate:
-    @/home/wendy/.cargo/bin/cog check
+    @cog check
 
 # Show changelog
 changelog:
-    @/home/wendy/.cargo/bin/cog changelog
+    @cog changelog
 
 # Show release stats
 stats:

@@ -18,20 +18,40 @@ See [docs/mcp-capability-contract.md](docs/mcp-capability-contract.md) for the c
 - Git-friendly plain-text ingest output via Beancount journal entries (rustledger-compatible)
 - Idiomatic turbo MCP interface surface for `list_accounts` and `ingest_statement_rows`
 
+## Prerequisites
+
+| Tool | Install | Purpose |
+|------|---------|---------|
+| Rust 1.88+ | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` | Build toolchain |
+| [just](https://github.com/casey/just) | `cargo install just` | Task runner (all `just *` recipes) |
+| [cocogitto](https://docs.cocogitto.io/) | `cargo install cocogitto` | Conventional commits + version bumps |
+| [cross](https://github.com/cross-rs/cross) | `cargo install cross --locked` | Cross-compilation for musl/macOS release bundles |
+| [mcp-publisher](https://github.com/modelcontextprotocol/registry) | See registry releases | MCP Registry submission (`just publish-registry`) |
+
+Optional: Docker or Podman for container builds.
+
 ## Quickstart
 
 ```bash
-cargo test
+# Run the full test suite
+cargo test --workspace --all-features
+
+# Or via just (also runs mcp-outcome-test)
+just test
+
+# Start the MCP server (stdio transport)
+just mcp-start
 ```
 
 ## Docker
 
+The container runs the `ledgerr-mcp-server` binary (stdio MCP transport).
+Mount `/data` for the workbook and PDF inbox.
+
 ```bash
 docker build -t tax-ledger:dev .
-docker run --rm \
+docker run --rm -i \
   -v "$PWD/data:/data" \
-  -v "$PWD/rules:/rules" \
-  -v "$PWD/tax-years:/tax-years" \
   tax-ledger:dev
 ```
 
@@ -67,5 +87,5 @@ This validates the full ingest -> classify -> audit -> schedule summary flow.
 - Trigger: GitHub Release `published` (or manual `workflow_dispatch`)
 - Targets:
   - GHCR image: `ghcr.io/promptexecution/l3dg3rr`
-  - crates.io crates: `ledger-core`, `turbo-mcp` (requires `CRATES_IO_TOKEN`)
+  - crates.io crates: `ledger-core`, `ledgerr-mcp` (requires `CRATES_IO_TOKEN`)
   - PyPI package: `l3dg3rr-mcp-launcher` (requires `PYPI_API_TOKEN`)
