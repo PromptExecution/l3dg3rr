@@ -1,15 +1,20 @@
+#![cfg(phase6_gap_tests)]
+#![allow(unexpected_cfgs)]
+
 /// Phase 6: MCP Exposure Gaps — Failing Test Suite
 ///
 /// These tests document capabilities that exist in the `TurboLedgerTools` service API
 /// but are NOT yet exposed as MCP tools. Every test in this file is expected to FAIL
-/// until the corresponding MCP wiring is added.
+/// until the corresponding MCP wiring is added, so this suite is opt-in and skipped
+/// by default in normal CI/test runs.
 ///
 /// Priority labels follow `docs/mcp-capability-contract.md` Section 6:
 ///   P0 — Mission-critical; blocks AI-first classification workflows
 ///   P1 — High value; required for CPA-ready outputs
 ///   P2 — Valuable; completes the write/curate surface
 ///
-/// Reproduction: `cargo test --test phase6_mcp_exposure_gaps`
+/// Reproduction:
+/// `RUSTFLAGS="--cfg phase6_gap_tests" cargo test --test phase6_mcp_exposure_gaps`
 /// All failures are tracked in GitHub Issues with labels per AGENTS.md protocol.
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
@@ -237,9 +242,15 @@ fn p0_query_flags_call_returns_open_review_queue() {
     let rule_file = write_rhai_rule(&dir);
 
     // Classify first to populate flags (low-confidence Uncategorized → review)
-    client.call(
+    let classify_result = client.call(
         "l3dg3rr_classify_ingested",
         json!({ "rule_file": rule_file, "review_threshold": "0.80" }),
+    );
+    assert_eq!(
+        classify_result["result"]["isError"],
+        Value::Bool(false),
+        "P0: l3dg3rr_classify_ingested setup must succeed, got:\n{}",
+        serde_json::to_string_pretty(&classify_result).unwrap_or_default()
     );
 
     let result = client.call(
@@ -292,7 +303,7 @@ fn p0_query_audit_log_call_returns_audit_entries() {
     let tx_id = ingest_one_tx(&mut client, &dir);
 
     // Manually classify to generate an audit entry
-    client.call(
+    let classify_result = client.call(
         "l3dg3rr_classify_transaction",
         json!({
             "tx_id": tx_id,
@@ -301,6 +312,12 @@ fn p0_query_audit_log_call_returns_audit_entries() {
             "actor": "test-agent",
             "note": "phase6 audit test"
         }),
+    );
+    assert_eq!(
+        classify_result["result"]["isError"],
+        Value::Bool(false),
+        "P0: l3dg3rr_classify_transaction setup must succeed, got:\n{}",
+        serde_json::to_string_pretty(&classify_result).unwrap_or_default()
     );
 
     let result = client.call("l3dg3rr_query_audit_log", json!({}));
@@ -462,7 +479,7 @@ fn p1_get_schedule_summary_call_returns_schedule_c_payload() {
     let dir = tempfile::tempdir().expect("tempdir");
     let tx_id = ingest_one_tx(&mut client, &dir);
 
-    client.call(
+    let classify_result = client.call(
         "l3dg3rr_classify_transaction",
         json!({
             "tx_id": &tx_id,
@@ -470,6 +487,12 @@ fn p1_get_schedule_summary_call_returns_schedule_c_payload() {
             "confidence": "0.90",
             "actor": "test-agent"
         }),
+    );
+    assert_eq!(
+        classify_result["result"]["isError"],
+        Value::Bool(false),
+        "P1: l3dg3rr_classify_transaction setup must succeed, got:\n{}",
+        serde_json::to_string_pretty(&classify_result).unwrap_or_default()
     );
 
     let result = client.call(
@@ -521,7 +544,7 @@ fn p2_export_cpa_workbook_call_produces_workbook() {
     client.initialized();
     let dir = tempfile::tempdir().expect("tempdir");
     let tx_id = ingest_one_tx(&mut client, &dir);
-    client.call(
+    let classify_result = client.call(
         "l3dg3rr_classify_transaction",
         json!({
             "tx_id": &tx_id,
@@ -529,6 +552,12 @@ fn p2_export_cpa_workbook_call_produces_workbook() {
             "confidence": "0.90",
             "actor": "test-agent"
         }),
+    );
+    assert_eq!(
+        classify_result["result"]["isError"],
+        Value::Bool(false),
+        "P2: l3dg3rr_classify_transaction setup must succeed, got:\n{}",
+        serde_json::to_string_pretty(&classify_result).unwrap_or_default()
     );
 
     let workbook_path = dir.path().join("cpa-output.xlsx");
@@ -629,11 +658,10 @@ fn p2_ontology_upsert_edges_call_persists_edge() {
     let dir = tempfile::tempdir().expect("tempdir");
     let ontology_path = dir.path().join("ontology.json");
 
-    // Seed entities first (at service level, since upsert_entities isn't exposed yet)
-    // We call via MCP but that will hit "unknown tool" — so this test implicitly
-    // requires P2 upsert_entities to work first. That's intentional: edge test
-    // depends on entity test passing.
-    client.call(
+    // Seed entities first. This test intentionally depends on upsert_entities (P2)
+    // working — edge upsert requires entities to exist. Assert success so failures
+    // point to the broken step rather than the edge assertion downstream.
+    let entities_result = client.call(
         "l3dg3rr_ontology_upsert_entities",
         json!({
             "ontology_path": ontology_path.display().to_string(),
@@ -642,6 +670,12 @@ fn p2_ontology_upsert_edges_call_persists_edge() {
                 { "id": "TXN-001",    "kind": "Transaction", "label": "Coffee",  "properties": {} }
             ]
         }),
+    );
+    assert_eq!(
+        entities_result["result"]["isError"],
+        Value::Bool(false),
+        "P2: l3dg3rr_ontology_upsert_entities setup must succeed (2 entities), got:\n{}",
+        serde_json::to_string_pretty(&entities_result).unwrap_or_default()
     );
 
     let result = client.call(
@@ -729,14 +763,19 @@ fn invariant_classify_ingested_confidence_is_decimal_exact() {
     assert_eq!(classified.classifications.len(), 1);
     let conf = classified.classifications[0].confidence;
 
-    // The confidence field is currently f64. Verify it round-trips through Decimal
-    // without precision loss. If confidence is stored as f64 = 0.9199999... this
-    // assertion will fail, demonstrating the invariant violation.
-    let conf_str = format!("{conf}");
+    // Rust's default f64 Display (Ryu) prints "0.92" even for the imprecise binary
+    // float, so `format!("{conf}")` would silently pass when confidence is f64.
+    // Instead, convert via Decimal::from_f64 and compare against the exact parsed
+    // value — Decimal::from_f64(0.92_f64) != Decimal::from_str("0.92") because the
+    // IEEE 754 representation of 0.92 is 0.91999999999999993..., exposing the violation.
+    use rust_decimal::prelude::*;
+    let conf_as_decimal = Decimal::from_f64(conf)
+        .expect("confidence must be a finite number");
+    let expected = Decimal::from_str("0.92").expect("parse exact decimal");
     assert_eq!(
-        conf_str, "0.92",
+        conf_as_decimal, expected,
         "INVARIANT: confidence must be representable as exact Decimal; \
-         got `{conf_str}` (f64 precision loss detected). \
+         Decimal::from_f64({conf}) = {conf_as_decimal} != {expected}. \
          Fix: change RunRhaiRuleResponse.confidence to rust_decimal::Decimal."
     );
 }
@@ -795,11 +834,17 @@ fn invariant_query_flags_confidence_is_decimal_exact() {
 
     assert_eq!(flags.flags.len(), 1);
     let conf = flags.flags[0].confidence;
-    let conf_str = format!("{conf}");
+
+    // Same reasoning as the classify_ingested invariant: Ryu Display hides f64
+    // imprecision for 0.33. Use Decimal conversion to reliably detect the violation.
+    use rust_decimal::prelude::*;
+    let conf_as_decimal = Decimal::from_f64(conf)
+        .expect("confidence must be a finite number");
+    let expected = Decimal::from_str("0.33").expect("parse exact decimal");
     assert_eq!(
-        conf_str, "0.33",
+        conf_as_decimal, expected,
         "INVARIANT: flag confidence must be exact Decimal; \
-         got `{conf_str}` (f64 precision loss). \
+         Decimal::from_f64({conf}) = {conf_as_decimal} != {expected}. \
          Fix: change FlagRecordResponse.confidence to rust_decimal::Decimal."
     );
 }
