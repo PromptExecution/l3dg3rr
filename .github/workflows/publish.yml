@@ -69,8 +69,8 @@ jobs:
       - name: Wait for crates.io index propagation
         run: sleep 20
 
-      - name: Publish turbo-mcp
-        run: cargo publish -p turbo-mcp --token "${CRATES_IO_TOKEN}"
+      - name: Publish ledgerr-mcp
+        run: cargo publish -p ledgerr-mcp --token "${CRATES_IO_TOKEN}"
         env:
           CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
 

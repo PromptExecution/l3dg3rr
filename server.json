@@ -11,7 +11,7 @@
   "packages": [
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/PromptExecution/l3dg3rr/releases/download/v0.1.0/ledgerr-mcp-x86_64-unknown-linux-gnu.mcpb",
+      "identifier": "https://github.com/PromptExecution/l3dg3rr/releases/download/v0.1.0/ledgerr-mcp-x86_64-unknown-linux-musl.mcpb",
       "fileSha256": "a21ca4312f18da93fd715716ccd207168496a15625c1c71854973e1a7e180ed1",
       "transport": {
         "type": "stdio"
