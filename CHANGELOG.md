@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.3.5 - 2026-04-16
+#### Bug Fixes
+- (**mcpb**) drop ./ from command; set author to Prompt Execution Pty Ltd. - (a421da0) - Claude Sonnet (coordinator)
+
+- - -
+
 ## v1.3.4 - 2026-04-16
 #### Bug Fixes
 - (**mcpb**) derive entry_point and command from binary filename - (3ce9e03) - Claude Sonnet (coordinator)
