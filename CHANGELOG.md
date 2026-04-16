@@ -2,6 +2,68 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.2.0 - 2026-04-16
+#### Features
+- (**ci**) add Windows binary to mcpb-publish matrix + claude mcp add install docs - (0417ab5) - Claude Sonnet (coordinator)
+- (**mcpb**) add xtask-mcpb library + deterministic bundle pipeline - (d2490cf) - Claude Sonnet (coordinator)
+- (**release**) verify release workflow operational with cocogitto versioning - (52e3702) - Claude Sonnet (coordinator)
+- add workflow_dispatch for manual release trigger - (6f1ab50) - Claude Sonnet (coordinator)
+#### Bug Fixes
+- (**ci**) align podman-publish trigger to current CI workflow name; stamp server.json v0.1.0 - (33f838c) - Claude Sonnet (coordinator)
+- (**devops**) clear QA backlog — MCP spec, CI wiring, Dockerfile, deps, docs - (8cafec1) - Claude Sonnet (coordinator)
+- (**docker**) add xtask/ to Dockerfile COPY so workspace resolves in container - (38ac8d9) - Claude Sonnet (coordinator)
+- (**release**) set tag_prefix=v in cog.toml; guard against duplicate releases - (00a5f66) - Claude Sonnet (coordinator)
+- (**release**) use --patch flag for cog bump (cog v7 syntax) - (50061d0) - Claude Sonnet (coordinator)
+- (**test**) address Copilot review comments on phase6 exposure-gap suite - (9bb99b4) - Claude Sonnet (coordinator)
+- simplify release workflow to use cocogitto-action v4 with bundled cog - (b3b927e) - Claude Sonnet (coordinator)
+- fetch all tags in release workflow and fix cog.toml config - (942d8f7) - Claude Sonnet (coordinator)
+- remove deprecated pre field from cog.toml - (bcfbdd1) - Claude Sonnet (coordinator)
+- allow workflow_dispatch trigger in release condition - (54243dc) - Claude Sonnet (coordinator)
+- simplify release workflow trigger condition - (8349560) - Claude Sonnet (coordinator)
+- use proper mcpb manifest v0.3 schema with server config - (d923aa5) - Claude Sonnet (coordinator)
+- use positional args for mcpb pack (directory output) - (1000c18) - Claude Sonnet (coordinator)
+- use -o flag for mcpb pack output path - (0ab1788) - Claude Sonnet (coordinator)
+- fix mcpb pack output path to stay in bundle dir - (ac8b823) - Claude Sonnet (coordinator)
+#### Documentation
+- update versioning section to reference justfile release recipe - (95c0652) - Claude Sonnet (coordinator)
+#### Miscellaneous Chores
+- (**version**) 0.0.1 - (9949944) - Claude Sonnet (coordinator)
+- (**version**) 0.1.0 - (c588d71) - github-actions[bot]
+- (**version**) 0.1.0 - (e890d6c) - github-actions[bot]
+- (**version**) 0.1.0 - (3f6bbac) - github-actions[bot]
+- (**version**) 0.1.0 - (b64a975) - github-actions[bot]
+- (**version**) 0.1.0 - (dcd8f0f) - github-actions[bot]
+- (**version**) 0.1.0 - (8e28f71) - github-actions[bot]
+- verify release badge - (44dcc54) - Claude Sonnet (coordinator)
+- test release workflow trigger - (c22303f) - Claude Sonnet (coordinator)
+
+- - -
+
+## v0.1.0 - 2026-04-16
+#### Features
+- (**mcp**) expose P0/P1/P2 tool gap handlers as wired MCP tools - (0482f67) - Claude Sonnet (coordinator)
+- (**mcp**) expose account listing and raw-context tools - (79b0e5f) - brianh
+- (**test**) add outcome-driven mcp flow runner behind just test - (f50d916) - brianh
+#### Bug Fixes
+- (**ci**) use valid rust image and pin ledger-core publish version - (e9b1140) - brianh
+- (**mcp**) replace absolute paths in docs, fix service-only list, add path traversal guard to get_raw_context - (eac38fb) - copilot-swe-agent[bot]
+- add contents:write permission for release creation - (00bbf78) - Claude Sonnet (coordinator)
+- update package name from turbo-mcp to ledgerr-mcp in e2e script - (d800497) - Claude Sonnet (coordinator)
+- align marketplace and plugin manifests with Cowork validation - (13d10d5) - brianh
+#### Tests
+- (**turbo-mcp**) add phase6 failing tests for MCP exposure gaps (P0/P1/P2) - (d2b7354) - Claude Sonnet (coordinator)
+#### Continuous Integration
+- disable MCP Registry publish (requires direct write access) - (abf6b60) - Claude Sonnet (coordinator)
+- add MCPB publish gate after tests - (676c58b) - Claude Sonnet (coordinator)
+- add clippy sarif upload and podman publish-on-main - (588a231) - brianh
+#### Refactoring
+- rename turbo-mcp to ledgerr-mcp - (4b484cd) - Claude Sonnet (coordinator)
+#### Miscellaneous Chores
+- (**dev**) add dotenv ignore and secret setup recipe fixes - (7a029d2) - brianh
+- (**docs**) add plugin usage validation flow and mcp cli demos - (d522338) - brianh
+
+- - -
+
 ## 0.0.1 - 2026-04-16
 #### Features
 - (**13-01**) add stdio MCP adapter and proxy boundary - (c95c675) - brianh
