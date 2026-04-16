@@ -26,12 +26,19 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
             use_cross: true
+            binary_name: ledgerr-mcp-server
           - os: macos-13        # Intel runner
             target: x86_64-apple-darwin
             use_cross: false
+            binary_name: ledgerr-mcp-server
           - os: macos-latest    # Apple Silicon runner
             target: aarch64-apple-darwin
             use_cross: false
+            binary_name: ledgerr-mcp-server
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            use_cross: false
+            binary_name: ledgerr-mcp-server.exe
 
     steps:
       - uses: actions/checkout@v4
@@ -52,6 +59,7 @@ jobs:
 
       - name: Resolve release tag
         id: tag
+        shell: bash
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
@@ -64,17 +72,20 @@ jobs:
         run: cross build -p ledgerr-mcp --release --bin ledgerr-mcp-server --target ${{ matrix.target }}
 
       - name: Build binary (native)
-        if: '!matrix.use_cross'
+        if: "!matrix.use_cross"
         run: cargo build -p ledgerr-mcp --release --bin ledgerr-mcp-server --target ${{ matrix.target }}
 
       - name: Bundle .mcpb via xtask
+        shell: bash
         run: |
+          mkdir -p dist
           cargo xtask-mcpb bundle \
-            --binary target/${{ matrix.target }}/release/ledgerr-mcp-server \
+            --binary target/${{ matrix.target }}/release/${{ matrix.binary_name }} \
             --output dist/ledgerr-mcp-${{ matrix.target }}.mcpb \
             --version ${{ steps.tag.outputs.tag }}
 
       - name: Verify bundle
+        shell: bash
         run: cargo xtask-mcpb verify dist/ledgerr-mcp-${{ matrix.target }}.mcpb
 
       - name: Upload bundle artifact
