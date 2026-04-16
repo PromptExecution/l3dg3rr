@@ -27,7 +27,7 @@ jobs:
             target: x86_64-unknown-linux-musl
             use_cross: true
             binary_name: ledgerr-mcp-server
-          - os: macos-13        # Intel runner
+          - os: macos-14        # ARM runner cross-compiling to x86_64
             target: x86_64-apple-darwin
             use_cross: false
             binary_name: ledgerr-mcp-server
@@ -98,7 +98,9 @@ jobs:
   # ── Upload all bundles to the GitHub release ────────────────────────────────
   publish-github:
     name: publish to GitHub release
+    # Run if at least one bundle succeeded (matrix failures on non-critical platforms don't block)
     needs: build-bundle
+    if: always() && contains(needs.build-bundle.result, 'success')
     runs-on: ubuntu-latest
 
     steps:
