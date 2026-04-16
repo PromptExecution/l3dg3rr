@@ -51,7 +51,7 @@ Download the pre-built binary for your platform from the [latest GitHub Release]
 
 ```bash
 # Replace VERSION with the latest release tag, e.g. v0.1.1
-VERSION=v0.1.1
+VERSION=v1.2.1
 
 # macOS (Apple Silicon)
 curl -fsSL "https://github.com/PromptExecution/l3dg3rr/releases/download/${VERSION}/ledgerr-mcp-aarch64-apple-darwin.mcpb" -o /tmp/ledgerr-mcp.mcpb
@@ -69,7 +69,7 @@ claude mcp add ledgerr /tmp/ledgerr-mcp.mcpb
 ### Windows (PowerShell)
 
 ```powershell
-$v = "v0.1.1"   # replace with latest
+$v = "v1.2.1"   # replace with latest
 Invoke-WebRequest `
   "https://github.com/PromptExecution/l3dg3rr/releases/download/$v/ledgerr-mcp-x86_64-pc-windows-msvc.mcpb" `
   -OutFile "$env:TEMP\ledgerr-mcp.mcpb"
