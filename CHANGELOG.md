@@ -2,6 +2,18 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## refactor/mcp-adapter-clarity - 2026-04-16
+#### Refactor
+- (**ledgerr-mcp**) extracted `error_envelope` private helper — ~29 duplicated parse-error/service-error JSON construction blocks collapsed to a single call site
+- (**ledgerr-mcp**) renamed 23 handler functions: single-tool handlers `*_tool_result` → `handle_*`; multi-tool dispatchers `reconciliation_tool_result`/`hsm_tool_result` → `dispatch_reconciliation`/`dispatch_hsm`
+- (**ledgerr-mcp**) renamed `map_tool_error` → `error_payload`; name now reflects JSON rendering, not error transformation
+- (**ledgerr-mcp**) renamed `normalize_rows_with_provenance` → `rows_to_json_with_provenance`; rows are already normalised — the function converts them to JSON with provenance annotation
+- (**ledgerr-mcp**) removed `pub` from `parse_ingest_pdf_request` and `parse_ingest_statement_rows_request`; both had no external callers
+- (**ledgerr-mcp**) renamed catalog/descriptor trio: `tool_catalog` → `tool_names`, `tool_catalog_with_features` → `tool_names_for`, `tool_list_entries` → `tool_descriptors`; names now distinguish "names only" from "names + schemas"
+- (**ledgerr-mcp**) routed `handle_ontology_export_snapshot` through `TurboLedgerService` instead of calling `OntologyStore::load` directly; added `OntologyExportSnapshotRequest`/`OntologyExportSnapshotResponse` types, service method, and covering test
+- (**ledgerr-mcp**) removed vestigial `McpAdapter` struct — only method discarded its service reference immediately; no call sites existed in the crate
+
+- - -
 ## v1.3.5 - 2026-04-16
 #### Bug Fixes
 - (**mcpb**) drop ./ from command; set author to Prompt Execution Pty Ltd. - (a421da0) - Claude Sonnet (coordinator)

@@ -46,7 +46,7 @@ fn handle_request(request: Value) -> Option<Value> {
         })),
         "notifications/initialized" => None,
         "tools/list" => {
-            let tools = mcp_adapter::tool_list_entries();
+            let tools = mcp_adapter::tool_descriptors();
             Some(json!({
                 "jsonrpc": "2.0",
                 "id": id,
@@ -58,7 +58,7 @@ fn handle_request(request: Value) -> Option<Value> {
             let tool_name = params.get("name").and_then(Value::as_str).unwrap_or("");
             let result = match tool_name {
                 mcp_adapter::LIST_ACCOUNTS_TOOL => {
-                    mcp_adapter::list_accounts_tool_result(global_service())
+                    mcp_adapter::handle_list_accounts(global_service())
                 }
                 "l3dg3rr_get_pipeline_status" => {
                     let status = mcp_adapter::get_pipeline_status(true, true, true, Vec::new());
@@ -72,7 +72,7 @@ fn handle_request(request: Value) -> Option<Value> {
                 }
                 "proxy_docling_ingest_pdf" => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::ingest_pdf_tool_result(
+                    mcp_adapter::handle_ingest_pdf(
                         global_service(),
                         &arguments,
                         Some(format!("mcp-call-{id}")),
@@ -80,7 +80,7 @@ fn handle_request(request: Value) -> Option<Value> {
                 }
                 "proxy_rustledger_ingest_statement_rows" => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::ingest_statement_rows_tool_result(
+                    mcp_adapter::handle_ingest_statement_rows(
                         global_service(),
                         &arguments,
                         Some(format!("mcp-call-{id}")),
@@ -88,89 +88,89 @@ fn handle_request(request: Value) -> Option<Value> {
                 }
                 mcp_adapter::GET_RAW_CONTEXT_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::get_raw_context_tool_result(global_service(), &arguments)
+                    mcp_adapter::handle_get_raw_context(global_service(), &arguments)
                 }
                 mcp_adapter::ONTOLOGY_QUERY_PATH_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::ontology_query_path_tool_result(global_service(), &arguments)
+                    mcp_adapter::handle_ontology_query_path(global_service(), &arguments)
                 }
                 mcp_adapter::ONTOLOGY_EXPORT_SNAPSHOT_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::ontology_export_snapshot_tool_result(&arguments)
+                    mcp_adapter::handle_ontology_export_snapshot(global_service(), &arguments)
                 }
                 mcp_adapter::RECON_VALIDATE_TOOL
                 | mcp_adapter::RECON_RECONCILE_TOOL
                 | mcp_adapter::RECON_COMMIT_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::reconciliation_tool_result(global_service(), tool_name, &arguments)
+                    mcp_adapter::dispatch_reconciliation(global_service(), tool_name, &arguments)
                 }
                 mcp_adapter::HSM_TRANSITION_TOOL
                 | mcp_adapter::HSM_STATUS_TOOL
                 | mcp_adapter::HSM_RESUME_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::hsm_tool_result(global_service(), tool_name, &arguments)
+                    mcp_adapter::dispatch_hsm(global_service(), tool_name, &arguments)
                 }
                 mcp_adapter::EVENT_HISTORY_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::event_history_tool_result(global_service(), &arguments)
+                    mcp_adapter::handle_event_history(global_service(), &arguments)
                 }
                 mcp_adapter::EVENT_REPLAY_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::event_replay_tool_result(global_service(), &arguments)
+                    mcp_adapter::handle_event_replay(global_service(), &arguments)
                 }
                 mcp_adapter::TAX_ASSIST_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::tax_assist_tool_result(global_service(), &arguments)
+                    mcp_adapter::handle_tax_assist(global_service(), &arguments)
                 }
                 mcp_adapter::TAX_EVIDENCE_CHAIN_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::tax_evidence_chain_tool_result(global_service(), &arguments)
+                    mcp_adapter::handle_tax_evidence_chain(global_service(), &arguments)
                 }
                 mcp_adapter::TAX_AMBIGUITY_REVIEW_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::tax_ambiguity_review_tool_result(global_service(), &arguments)
+                    mcp_adapter::handle_tax_ambiguity_review(global_service(), &arguments)
                 }
                 // P0 tools
                 mcp_adapter::CLASSIFY_INGESTED_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::classify_ingested_tool_result(global_service(), &arguments)
+                    mcp_adapter::handle_classify_ingested(global_service(), &arguments)
                 }
                 mcp_adapter::QUERY_FLAGS_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::query_flags_tool_result(global_service(), &arguments)
+                    mcp_adapter::handle_query_flags(global_service(), &arguments)
                 }
                 mcp_adapter::QUERY_AUDIT_LOG_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::query_audit_log_tool_result(global_service(), &arguments)
+                    mcp_adapter::handle_query_audit_log(global_service(), &arguments)
                 }
                 // P1 tools
                 mcp_adapter::CLASSIFY_TRANSACTION_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::classify_transaction_tool_result(global_service(), &arguments)
+                    mcp_adapter::handle_classify_transaction(global_service(), &arguments)
                 }
                 mcp_adapter::RECONCILE_EXCEL_CLASSIFICATION_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::reconcile_excel_classification_tool_result(
+                    mcp_adapter::handle_reconcile_excel_classification(
                         global_service(),
                         &arguments,
                     )
                 }
                 mcp_adapter::GET_SCHEDULE_SUMMARY_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::get_schedule_summary_tool_result(global_service(), &arguments)
+                    mcp_adapter::handle_get_schedule_summary(global_service(), &arguments)
                 }
                 // P2 tools
                 mcp_adapter::EXPORT_CPA_WORKBOOK_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::export_cpa_workbook_tool_result(global_service(), &arguments)
+                    mcp_adapter::handle_export_cpa_workbook(global_service(), &arguments)
                 }
                 mcp_adapter::ONTOLOGY_UPSERT_ENTITIES_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::ontology_upsert_entities_tool_result(global_service(), &arguments)
+                    mcp_adapter::handle_ontology_upsert_entities(global_service(), &arguments)
                 }
                 mcp_adapter::ONTOLOGY_UPSERT_EDGES_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::ontology_upsert_edges_tool_result(global_service(), &arguments)
+                    mcp_adapter::handle_ontology_upsert_edges(global_service(), &arguments)
                 }
                 _ => mcp_adapter::unknown_tool_result(tool_name),
             };
