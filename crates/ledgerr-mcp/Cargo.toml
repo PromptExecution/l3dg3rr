@@ -13,6 +13,17 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 
+# plugin_info — always available (cross-platform system metadata)
+sysinfo = { version = "0.33", default-features = false, features = ["system"] }
+
+# self-update feature deps — only compiled when the feature is active
+reqwest = { version = "0.12", features = ["blocking", "rustls-tls"], default-features = false, optional = true }
+semver = { version = "1", optional = true }
+
+# winreg — Windows-only, safe registry wrapper; gated at the cfg level in code
+[target.'cfg(windows)'.dependencies]
+winreg = "0.52"
+
 [features]
 default = ["core", "events", "reconciliation", "hsm", "ontology", "classification", "audit", "tax"]
 core = []
@@ -24,6 +35,7 @@ classification = ["core"]
 audit = ["core"]
 tax = ["core"]
 full = ["core", "events", "reconciliation", "hsm", "ontology", "classification", "audit", "tax"]
+self-update = ["dep:reqwest", "dep:semver"]
 
 [dev-dependencies]
 tempfile = "3"

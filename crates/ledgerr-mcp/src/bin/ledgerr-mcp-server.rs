@@ -165,6 +165,10 @@ fn handle_request(request: Value) -> Option<Value> {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
                     mcp_adapter::handle_ontology_upsert_edges(global_service(), &arguments)
                 }
+                mcp_adapter::PLUGIN_INFO_TOOL => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::handle_plugin_info(&arguments)
+                }
                 _ => mcp_adapter::unknown_tool_result(tool_name),
             };
             Some(json!({
