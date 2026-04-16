@@ -11,6 +11,7 @@ use rust_decimal::Decimal;
 use rust_xlsxwriter::Workbook;
 
 pub mod mcp_adapter;
+pub mod plugin_info;
 pub mod events;
 pub mod hsm;
 pub mod ontology;

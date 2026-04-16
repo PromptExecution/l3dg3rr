@@ -47,6 +47,9 @@ pub const EXPORT_CPA_WORKBOOK_TOOL: &str = "l3dg3rr_export_cpa_workbook";
 pub const ONTOLOGY_UPSERT_ENTITIES_TOOL: &str = "l3dg3rr_ontology_upsert_entities";
 pub const ONTOLOGY_UPSERT_EDGES_TOOL: &str = "l3dg3rr_ontology_upsert_edges";
 
+// Meta / self-management (always included regardless of feature flags)
+pub use crate::plugin_info::PLUGIN_INFO_TOOL;
+
 pub const TOOL_GROUP_CORE: &[&str] = &[
     LIST_ACCOUNTS_TOOL,
     GET_RAW_CONTEXT_TOOL,
@@ -133,6 +136,9 @@ pub fn tool_names_for(features: &[&str]) -> Vec<String> {
     if features.iter().any(|f| *f == "ontology") {
         tools.extend(TOOL_GROUP_ONTOLOGY_WRITE.iter().map(|s| s.to_string()));
     }
+
+    // plugin_info is always available — not gated by any feature flag.
+    tools.push(PLUGIN_INFO_TOOL.to_string());
 
     tools
 }
@@ -408,6 +414,9 @@ pub fn tool_input_schema(name: &str) -> Value {
             }
         }),
 
+        // ── plugin_info ───────────────────────────────────────────────────
+        PLUGIN_INFO_TOOL => crate::plugin_info::input_schema(),
+
         // ── unknown / future tools ────────────────────────────────────────
         _ => json!({ "type": "object" }),
     }
@@ -563,6 +572,16 @@ pub fn unknown_tool_result(tool_name: &str) -> Value {
                 "message": format!("unknown tool: {tool_name}")
             }))],
         "isError": true
+    })
+}
+
+/// Handle a `l3dg3rr_plugin_info` tool call.
+/// Wraps `crate::plugin_info::handle` in the standard MCP content envelope.
+pub fn handle_plugin_info(arguments: &Value) -> Value {
+    let payload = crate::plugin_info::handle(arguments);
+    json!({
+        "content": [text_content(payload)],
+        "isError": false
     })
 }
 
