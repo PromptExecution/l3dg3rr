@@ -74,10 +74,3 @@ jobs:
             --title "${{ steps.tag.outputs.tag }}" \
             --notes-file RELEASE_NOTES.md
 
-      - name: Trigger MCPB multi-platform publish
-        if: steps.release_check.outputs.exists == 'false'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh workflow run "MCPB Multi-Platform Publish" \
-            --field tag="${{ steps.tag.outputs.tag }}"

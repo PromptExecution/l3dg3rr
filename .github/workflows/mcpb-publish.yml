@@ -1,9 +1,10 @@
 name: MCPB Multi-Platform Publish
 
 on:
-  # Trigger automatically when a GitHub release is published (after release.yml tags)
-  release:
-    types: [published]
+  # Auto-trigger when Release workflow completes successfully
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
   # Allow manual re-runs with an explicit tag
   workflow_dispatch:
     inputs:
@@ -17,6 +18,7 @@ permissions:
 jobs:
   # ── Per-platform binary build + bundle ──────────────────────────────────────
   build-bundle:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     name: bundle (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -60,11 +62,15 @@ jobs:
       - name: Resolve release tag
         id: tag
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+            # workflow_run trigger: fetch the latest release tag
+            TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName')
+            echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build binary (cross — Linux musl)
