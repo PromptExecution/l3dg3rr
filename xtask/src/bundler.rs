@@ -62,14 +62,10 @@ impl McpbBundler {
         zip.start_file("manifest.json", options)?;
         zip.write_all(manifest_json.as_bytes())?;
 
-        // 2. binary — unix permissions 0o755 so it's executable on extraction
-        let binary_name = self.binary_path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("ledgerr-mcp-server");
-
+        // 2. binary — stored under the canonical entry_point name from the manifest
+        //    (drops .exe suffix on Windows so the ZIP is cross-platform consistent)
         let bin_options = options.unix_permissions(0o755);
-        zip.start_file(binary_name, bin_options)?;
+        zip.start_file(&self.manifest.server.entry_point, bin_options)?;
         let mut bin_file = fs::File::open(&self.binary_path)?;
         io::copy(&mut bin_file, &mut zip)?;
 
