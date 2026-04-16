@@ -45,33 +45,29 @@ just mcp-start
 
 ## Install in Claude Code
 
-Download the pre-built binary for your platform from the [latest GitHub Release](https://github.com/PromptExecution/l3dg3rr/releases/latest), then register it with Claude Code:
-
-### macOS / Linux
-
-```bash
-# Replace VERSION with the latest release tag, e.g. v0.1.1
-VERSION=v1.2.1
-
-# macOS (Apple Silicon)
-curl -fsSL "https://github.com/PromptExecution/l3dg3rr/releases/download/${VERSION}/ledgerr-mcp-aarch64-apple-darwin.mcpb" -o /tmp/ledgerr-mcp.mcpb
-
-# macOS (Intel)
-curl -fsSL "https://github.com/PromptExecution/l3dg3rr/releases/download/${VERSION}/ledgerr-mcp-x86_64-apple-darwin.mcpb" -o /tmp/ledgerr-mcp.mcpb
-
-# Linux (x86_64)
-curl -fsSL "https://github.com/PromptExecution/l3dg3rr/releases/download/${VERSION}/ledgerr-mcp-x86_64-unknown-linux-musl.mcpb" -o /tmp/ledgerr-mcp.mcpb
-
-# Register with Claude Code
-claude mcp add ledgerr /tmp/ledgerr-mcp.mcpb
-```
-
 ### Windows (PowerShell)
 
 ```powershell
-$v = "v1.2.1"
-Invoke-WebRequest "https://github.com/PromptExecution/l3dg3rr/releases/download/$v/ledgerr-mcp-x86_64-pc-windows-msvc.mcpb" -OutFile "$env:TEMP\ledgerr-mcp.mcpb"
+Invoke-WebRequest "https://github.com/PromptExecution/l3dg3rr/releases/latest/download/ledgerr-mcp-x86_64-pc-windows-msvc.mcpb" -OutFile "$env:TEMP\ledgerr-mcp.mcpb"
 claude mcp add ledgerr "$env:TEMP\ledgerr-mcp.mcpb"
+```
+
+### macOS (Apple Silicon)
+
+```bash
+curl -fsSL "https://github.com/PromptExecution/l3dg3rr/releases/latest/download/ledgerr-mcp-aarch64-apple-darwin.mcpb" -o /tmp/ledgerr-mcp.mcpb
+claude mcp add ledgerr /tmp/ledgerr-mcp.mcpb
+```
+
+### macOS (Intel) / Linux
+
+```bash
+# Intel Mac
+curl -fsSL "https://github.com/PromptExecution/l3dg3rr/releases/latest/download/ledgerr-mcp-x86_64-apple-darwin.mcpb" -o /tmp/ledgerr-mcp.mcpb
+# Linux x86_64
+curl -fsSL "https://github.com/PromptExecution/l3dg3rr/releases/latest/download/ledgerr-mcp-x86_64-unknown-linux-musl.mcpb" -o /tmp/ledgerr-mcp.mcpb
+
+claude mcp add ledgerr /tmp/ledgerr-mcp.mcpb
 ```
 
 After adding, restart Claude Code. The `l3dg3rr_*` tools will appear automatically.
