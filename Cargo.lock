@@ -733,7 +733,7 @@ checksum = "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2"
 
 [[package]]
 name = "ledger-core"
-version = "0.1.0"
+version = "1.3.7"
 dependencies = [
  "blake3",
  "calamine",
@@ -747,7 +747,7 @@ dependencies = [
 
 [[package]]
 name = "ledgerr-mcp"
-version = "0.1.0"
+version = "1.3.7"
 dependencies = [
  "blake3",
  "calamine",
@@ -1720,7 +1720,7 @@ dependencies = [
 
 [[package]]
 name = "xtask-mcpb"
-version = "0.1.0"
+version = "1.3.7"
 dependencies = [
  "clap",
  "hex",
