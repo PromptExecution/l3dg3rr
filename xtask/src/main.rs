@@ -95,7 +95,12 @@ fn main() {
 fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
         Commands::Bundle { binary, output, version } => {
-            let manifest = ledgerr_manifest(&version);
+            let binary_name = binary
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("ledgerr-mcp-server")
+                .to_string();
+            let manifest = ledgerr_manifest(&version, &binary_name);
             let bundler = McpbBundler::new(manifest, binary, output);
             let artifact = bundler.bundle()?;
             println!("bundled: {}", artifact.path.display());
@@ -104,7 +109,7 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         }
 
         Commands::Manifest { version } => {
-            let manifest = ledgerr_manifest(&version);
+            let manifest = ledgerr_manifest(&version, "ledgerr-mcp-server");
             println!("{}", serde_json::to_string_pretty(&manifest)?);
         }
 
@@ -118,7 +123,7 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         }
 
         Commands::PublishRegistry { release_tag, artifact_url, sha256, server_name } => {
-            let manifest = ledgerr_manifest(&release_tag);
+            let manifest = ledgerr_manifest(&release_tag, "ledgerr-mcp-server");
             let publisher =
                 McpRegistryPublisher::new(&release_tag, &server_name, &manifest.description);
             publisher.publish(&artifact_url, &sha256)?;
@@ -144,8 +149,10 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Canonical manifest definition for ledgerr-mcp.
-/// Update this when the server's configuration surface changes.
-fn ledgerr_manifest(version: &str) -> McpbManifest {
+/// `binary_name` is the filename of the binary (e.g. `ledgerr-mcp-server` or
+/// `ledgerr-mcp-server.exe`) and is used as both `entry_point` and the
+/// `mcp_config.command` so the bundle works correctly on Windows (needs .exe).
+fn ledgerr_manifest(version: &str, binary_name: &str) -> McpbManifest {
     McpbManifest {
         manifest_version: "0.3".into(),
         name: "ledgerr-mcp".into(),
@@ -161,9 +168,9 @@ fn ledgerr_manifest(version: &str) -> McpbManifest {
         },
         server: ManifestServer {
             server_type: ServerType::Binary,
-            entry_point: "ledgerr-mcp-server".into(),
+            entry_point: binary_name.into(),
             mcp_config: McpConfig {
-                command: "./ledgerr-mcp-server".into(),
+                command: format!("./{binary_name}"),
                 args: vec![],
                 env: None,
             },
