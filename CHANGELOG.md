@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.3.0 - 2026-04-16
+#### Features
+- (**skills**) add agent skills scaffold — 5 SKILL.md runbooks - (7f74db7) - Claude Sonnet (coordinator)
+
+- - -
+
 ## v1.2.2 - 2026-04-16
 #### Bug Fixes
 - (**ci**) use macos-14 for Intel cross-compile; publish even if one target fails - (1138121) - Claude Sonnet (coordinator)
