@@ -2,6 +2,15 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.2.2 - 2026-04-16
+#### Bug Fixes
+- (**ci**) use macos-14 for Intel cross-compile; publish even if one target fails - (1138121) - Claude Sonnet (coordinator)
+- (**release**) trigger mcpb-publish explicitly after gh release create - (3e9d52a) - Claude Sonnet (coordinator)
+#### Documentation
+- update install examples to v1.2.1 - (2bbabd2) - Claude Sonnet (coordinator)
+
+- - -
+
 ## v1.2.1 - 2026-04-16
 #### Bug Fixes
 - (**mcpb**) store binary under entry_point name, not filename - (777271d) - Claude Sonnet (coordinator)
