@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand};
 use xtask_mcpb::{
     bundler::McpbBundler,
     manifest::{
-        ConfigField, ConfigFieldType, ManifestAuthor, ManifestServer, McpConfig, McpbManifest,
+        ManifestAuthor, ManifestServer, McpConfig, McpbManifest,
         ServerType,
     },
     publisher::{GitHubPublisher, McpRegistryPublisher},
@@ -168,20 +168,6 @@ fn ledgerr_manifest(version: &str) -> McpbManifest {
                 env: None,
             },
         },
-        configuration: Some(vec![
-            ConfigField {
-                name: "LEDGER_WORKBOOK_PATH".into(),
-                description: "Path to the Excel workbook (default: tax-ledger.xlsx in CWD)"
-                    .into(),
-                required: false,
-                field_type: ConfigFieldType::String,
-            },
-            ConfigField {
-                name: "LEDGER_PDF_INBOX".into(),
-                description: "Directory watched for incoming PDF statements".into(),
-                required: false,
-                field_type: ConfigFieldType::String,
-            },
-        ]),
+        configuration: None,
     }
 }
