@@ -129,7 +129,7 @@ fn ingest_one_tx(client: &mut McpClient, dir: &tempfile::TempDir) -> String {
         Value::Bool(false),
         "setup ingest must succeed"
     );
-    result["result"]["content"][0]["json"]["tx_ids"][0]
+    parse_response_payload(&result["result"])["tx_ids"][0]
         .as_str()
         .expect("tx_id")
         .to_owned()
@@ -201,7 +201,7 @@ fn p0_classify_ingested_call_returns_success() {
         "P0: l3dg3rr_classify_ingested must succeed, got:\n{}",
         serde_json::to_string_pretty(&result).unwrap_or_default()
     );
-    let classifications = result["result"]["content"][0]["json"]["classifications"]
+    let classifications = parse_response_payload(&result["result"])["classifications"]
         .as_array()
         .expect("classifications array must be present");
     assert_eq!(
@@ -263,7 +263,7 @@ fn p0_query_flags_call_returns_open_review_queue() {
         "P0: l3dg3rr_query_flags must succeed, got:\n{}",
         serde_json::to_string_pretty(&result).unwrap_or_default()
     );
-    let flags = result["result"]["content"][0]["json"]["flags"]
+    let flags = parse_response_payload(&result["result"])["flags"]
         .as_array()
         .expect("flags array must be present");
     assert_eq!(
@@ -327,7 +327,7 @@ fn p0_query_audit_log_call_returns_audit_entries() {
         "P0: l3dg3rr_query_audit_log must succeed, got:\n{}",
         serde_json::to_string_pretty(&result).unwrap_or_default()
     );
-    let entries = result["result"]["content"][0]["json"]["entries"]
+    let entries = parse_response_payload(&result["result"])["entries"]
         .as_array()
         .expect("entries array must be present");
     assert!(
@@ -383,11 +383,11 @@ fn p1_classify_transaction_call_persists_and_returns_audit() {
         serde_json::to_string_pretty(&result).unwrap_or_default()
     );
     assert_eq!(
-        result["result"]["content"][0]["json"]["category"],
+        parse_response_payload(&result["result"])["category"],
         json!("OfficeSupplies"),
         "P1: category must be persisted"
     );
-    let entries = result["result"]["content"][0]["json"]["audit_entries"]
+    let entries = parse_response_payload(&result["result"])["audit_entries"]
         .as_array()
         .expect("audit_entries must be present");
     assert!(
@@ -444,7 +444,7 @@ fn p1_reconcile_excel_classification_call_returns_updated_category() {
         serde_json::to_string_pretty(&result).unwrap_or_default()
     );
     assert_eq!(
-        result["result"]["content"][0]["json"]["category"],
+        parse_response_payload(&result["result"])["category"],
         json!("Travel"),
         "P1: Excel-reconciled category must be persisted"
     );
@@ -505,7 +505,7 @@ fn p1_get_schedule_summary_call_returns_schedule_c_payload() {
         "P1: l3dg3rr_get_schedule_summary must succeed, got:\n{}",
         serde_json::to_string_pretty(&result).unwrap_or_default()
     );
-    let json = &result["result"]["content"][0]["json"];
+    let json = parse_response_payload(&result["result"]);
     assert_eq!(json["year"], json!(2023), "P1: year must be present");
     assert_eq!(
         json["schedule"],
@@ -571,7 +571,7 @@ fn p2_export_cpa_workbook_call_produces_workbook() {
         "P2: l3dg3rr_export_cpa_workbook must succeed, got:\n{}",
         serde_json::to_string_pretty(&result).unwrap_or_default()
     );
-    let sheets_written = result["result"]["content"][0]["json"]["sheets_written"]
+    let sheets_written = parse_response_payload(&result["result"])["sheets_written"]
         .as_u64()
         .expect("sheets_written must be a number");
     assert!(sheets_written > 0, "P2: at least one sheet must be written");
@@ -644,7 +644,7 @@ fn p2_ontology_upsert_entities_call_persists_entity() {
         "P2: l3dg3rr_ontology_upsert_entities must succeed, got:\n{}",
         serde_json::to_string_pretty(&result).unwrap_or_default()
     );
-    let upserted = result["result"]["content"][0]["json"]["upserted"]
+    let upserted = parse_response_payload(&result["result"])["upserted"]
         .as_u64()
         .expect("upserted count must be present");
     assert_eq!(upserted, 1, "P2: one entity must be reported as upserted");
@@ -695,7 +695,7 @@ fn p2_ontology_upsert_edges_call_persists_edge() {
         "P2: l3dg3rr_ontology_upsert_edges must succeed, got:\n{}",
         serde_json::to_string_pretty(&result).unwrap_or_default()
     );
-    let upserted = result["result"]["content"][0]["json"]["upserted"]
+    let upserted = parse_response_payload(&result["result"])["upserted"]
         .as_u64()
         .expect("upserted edge count must be present");
     assert_eq!(upserted, 1, "P2: one edge must be reported as upserted");

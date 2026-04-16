@@ -93,6 +93,12 @@ fn initialize_client(client: &mut McpStdioClient) {
     client.send_notification_initialized();
 }
 
+
+fn parse_response_payload(response: &serde_json::Value) -> serde_json::Value {
+    let text = response["content"][0]["text"].as_str().unwrap_or("null");
+    serde_json::from_str(text).unwrap_or(serde_json::Value::Null)
+}
+
 #[test]
 fn hsm_03_tools_list_includes_transition_status_and_resume_tools() {
     let mut client = McpStdioClient::spawn();
@@ -127,7 +133,7 @@ fn hsm_03_invalid_transition_and_resume_return_deterministic_blocked_payloads() 
         }),
     );
     assert_eq!(transition["result"]["isError"], Value::Bool(true));
-    let blocked_transition = &transition["result"]["content"][0]["json"];
+    let blocked_transition = parse_response_payload(&transition["result"]);
     assert_eq!(
         blocked_transition["error_type"],
         json!("HsmTransitionBlocked")
@@ -155,7 +161,7 @@ fn hsm_03_invalid_transition_and_resume_return_deterministic_blocked_payloads() 
         }),
     );
     assert_eq!(resume["result"]["isError"], Value::Bool(true));
-    let blocked_resume = &resume["result"]["content"][0]["json"];
+    let blocked_resume = parse_response_payload(&resume["result"]);
     assert_eq!(blocked_resume["error_type"], json!("HsmResumeBlocked"));
     assert_eq!(blocked_resume["blockers"], json!(["checkpoint_unknown"]));
 }
@@ -173,7 +179,7 @@ fn hsm_03_status_and_resume_payload_include_small_model_hint_fields() {
         }),
     );
     assert_eq!(status["result"]["isError"], Value::Bool(false));
-    let status_payload = &status["result"]["content"][0]["json"];
+    let status_payload = parse_response_payload(&status["result"]);
     assert_eq!(status_payload["display_state"], json!("ingest.pending"));
     assert_eq!(status_payload["next_hint"], json!("advance_to_normalize"));
     assert_eq!(
@@ -192,7 +198,7 @@ fn hsm_03_status_and_resume_payload_include_small_model_hint_fields() {
         }),
     );
     assert_eq!(resume["result"]["isError"], Value::Bool(false));
-    let resume_payload = &resume["result"]["content"][0]["json"];
+    let resume_payload = parse_response_payload(&resume["result"]);
     assert_eq!(
         resume_payload["resume_from"],
         json!("ingest:pending:advanced")

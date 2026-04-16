@@ -61,14 +61,7 @@ fn handle_request(request: Value) -> Option<Value> {
                     mcp_adapter::handle_list_accounts(global_service())
                 }
                 "l3dg3rr_get_pipeline_status" => {
-                    let status = mcp_adapter::get_pipeline_status(true, true, true, Vec::new());
-                    json!({
-                        "content": [{
-                            "type": "json",
-                            "json": status
-                        }],
-                        "isError": false
-                    })
+                    mcp_adapter::handle_pipeline_status(true, true, true, Vec::new())
                 }
                 "proxy_docling_ingest_pdf" => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);

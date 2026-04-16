@@ -171,6 +171,12 @@ fn seed_ontology(path: &std::path::Path) -> (String, String, String, String) {
 }
 
 // ONTO-03 (D-03): tools/list advertises ontology query/export transport surfaces.
+
+fn parse_response_payload(response: &serde_json::Value) -> serde_json::Value {
+    let text = response["content"][0]["text"].as_str().unwrap_or("null");
+    serde_json::from_str(text).unwrap_or(serde_json::Value::Null)
+}
+
 #[test]
 fn onto_03_tools_list_advertises_ontology_query_and_export_tools() {
     let mut client = McpStdioClient::spawn();
@@ -212,7 +218,7 @@ fn onto_03_tools_call_query_and_export_snapshot_payloads_are_deterministic() {
 
     assert_eq!(query["result"]["isError"], Value::Bool(false));
 
-    let query_json = &query["result"]["content"][0]["json"];
+    let query_json = parse_response_payload(&query["result"]);
     let node_ids = query_json["nodes"]
         .as_array()
         .expect("nodes array")
@@ -233,7 +239,7 @@ fn onto_03_tools_call_query_and_export_snapshot_payloads_are_deterministic() {
 
     assert_eq!(export["result"]["isError"], Value::Bool(false));
 
-    let export_json = &export["result"]["content"][0]["json"];
+    let export_json = parse_response_payload(&export["result"]);
     let entity_kinds = export_json["entities"]
         .as_array()
         .expect("entities array")
@@ -298,9 +304,9 @@ fn onto_03_export_snapshot_stable_json_serialization_over_transport() {
     assert_eq!(first["result"]["isError"], Value::Bool(false));
     assert_eq!(second["result"]["isError"], Value::Bool(false));
 
-    let first_payload = serde_json::to_string(&first["result"]["content"][0]["json"])
+    let first_payload = serde_json::to_string(&parse_response_payload(&first["result"]))
         .expect("serialize first payload");
-    let second_payload = serde_json::to_string(&second["result"]["content"][0]["json"])
+    let second_payload = serde_json::to_string(&parse_response_payload(&second["result"]))
         .expect("serialize second payload");
 
     assert_eq!(first_payload, second_payload);
@@ -337,7 +343,7 @@ fn onto_03_export_snapshot_routes_through_service() {
     let result = mcp_adapter::handle_ontology_export_snapshot(&service, &args);
 
     assert_eq!(result["isError"], Value::Bool(false));
-    let json_payload = &result["content"][0]["json"];
+    let json_payload = parse_response_payload(&result);
     assert!(json_payload["entities"].is_array());
     assert!(json_payload["edges"].is_array());
     assert_eq!(

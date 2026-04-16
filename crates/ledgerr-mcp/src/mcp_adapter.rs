@@ -422,10 +422,7 @@ pub fn handle_list_accounts(service: &TurboLedgerService) -> Value {
                 .map(|account| json!({ "account_id": account.account_id }))
                 .collect::<Vec<_>>();
             json!({
-                "content": [{
-                    "type": "json",
-                    "json": { "accounts": accounts }
-                }],
+                "content": [text_content(json!({ "accounts": accounts }))],
                 "isError": false
             })
         }
@@ -441,10 +438,7 @@ pub fn handle_get_raw_context(service: &TurboLedgerService, arguments: &Value) -
 
     match service.get_raw_context(request) {
         Ok(response) => json!({
-            "content": [{
-                "type": "json",
-                "json": { "bytes": response.bytes }
-            }],
+            "content": [text_content(json!({ "bytes": response.bytes }))],
             "isError": false
         }),
         Err(err) => error_envelope(&err),
@@ -491,6 +485,23 @@ pub fn get_pipeline_status(
     }
 }
 
+pub fn handle_pipeline_status(
+    manifest_ready: bool,
+    rustledger_ready: bool,
+    docling_ready: bool,
+    blockers: Vec<String>,
+) -> Value {
+    let status = get_pipeline_status(manifest_ready, rustledger_ready, docling_ready, blockers);
+    json!({
+        "content": [text_content(json!({
+            "status": status.status,
+            "blockers": status.blockers,
+            "next_hint": status.next_hint,
+        }))],
+        "isError": false
+    })
+}
+
 pub fn rows_to_json_with_provenance(
     provider: &str,
     backend_tool: &str,
@@ -518,9 +529,13 @@ pub fn rows_to_json_with_provenance(
         .collect()
 }
 
+fn text_content(payload: Value) -> Value {
+    json!({ "type": "text", "text": payload.to_string() })
+}
+
 fn error_envelope(err: &ToolError) -> Value {
     json!({
-        "content": [{ "type": "json", "json": error_payload(err) }],
+        "content": [text_content(error_payload(err))],
         "isError": true
     })
 }
@@ -542,14 +557,11 @@ pub fn error_payload(error: &ToolError) -> Value {
 
 pub fn unknown_tool_result(tool_name: &str) -> Value {
     json!({
-        "content": [{
-            "type": "json",
-            "json": {
+        "content": [text_content(json!({
                 "isError": true,
                 "error_type": "InvalidInput",
                 "message": format!("unknown tool: {tool_name}")
-            }
-        }],
+            }))],
         "isError": true
     })
 }
@@ -628,14 +640,11 @@ pub fn handle_ingest_pdf<T: TurboLedgerTools>(
                 response.tx_ids
             };
             json!({
-                "content": [{
-                    "type": "json",
-                    "json": {
+                "content": [text_content(json!({
                         "inserted_count": response.inserted_count,
                         "tx_ids": tx_ids,
                         "canonical_rows": canonical_rows,
-                    }
-                }],
+                    }))],
                 "isError": false
             })
         }
@@ -673,16 +682,13 @@ pub fn handle_ingest_statement_rows<T: TurboLedgerTools>(
                 response.tx_ids
             };
             json!({
-                "content": [{
-                    "type": "json",
-                    "json": {
+                "content": [text_content(json!({
                         "inserted_count": response.inserted_count,
                         "tx_ids": tx_ids,
                         "canonical_rows": canonical_rows,
                         "provider": "rustledger",
                         "backend_tool": "ingest_statement_rows",
-                    }
-                }],
+                    }))],
                 "isError": false
             })
         }
@@ -698,13 +704,10 @@ pub fn handle_ontology_query_path(service: &TurboLedgerService, arguments: &Valu
 
     match service.ontology_query_path_tool(request) {
         Ok(response) => json!({
-            "content": [{
-                "type": "json",
-                "json": {
+            "content": [text_content(json!({
                     "nodes": response.nodes,
                     "edges": response.edges,
-                }
-            }],
+                }))],
             "isError": false
         }),
         Err(err) => error_envelope(&err),
@@ -719,17 +722,14 @@ pub fn handle_ontology_export_snapshot(service: &TurboLedgerService, arguments: 
 
     match service.ontology_export_snapshot(OntologyExportSnapshotRequest { ontology_path }) {
         Ok(response) => json!({
-            "content": [{
-                "type": "json",
-                "json": {
+            "content": [text_content(json!({
                     "entities": response.entities,
                     "edges": response.edges,
                     "snapshot": {
                         "entity_count": response.entity_count,
                         "edge_count": response.edge_count,
                     }
-                }
-            }],
+                }))],
             "isError": false
         }),
         Err(err) => error_envelope(&err),
@@ -790,10 +790,7 @@ pub fn dispatch_reconciliation(
             };
 
             json!({
-                "content": [{
-                    "type": "json",
-                    "json": payload
-                }],
+                "content": [text_content(payload)],
                 "isError": blocked
             })
         }
@@ -835,10 +832,7 @@ pub fn dispatch_hsm(service: &TurboLedgerService, tool_name: &str, arguments: &V
                         })
                     };
                     json!({
-                        "content": [{
-                            "type": "json",
-                            "json": payload
-                        }],
+                        "content": [text_content(payload)],
                         "isError": blocked
                     })
                 }
@@ -847,17 +841,14 @@ pub fn dispatch_hsm(service: &TurboLedgerService, tool_name: &str, arguments: &V
         }
         HSM_STATUS_TOOL => match service.hsm_status_tool(HsmStatusRequest) {
             Ok(response) => json!({
-                "content": [{
-                    "type": "json",
-                    "json": {
+                "content": [text_content(json!({
                         "state": response.state,
                         "substate": response.substate,
                         "display_state": response.display_state,
                         "next_hint": response.next_hint,
                         "resume_hint": response.resume_hint,
                         "blockers": response.blockers,
-                    }
-                }],
+                    }))],
                 "isError": false
             }),
             Err(err) => error_envelope(&err),
@@ -890,10 +881,7 @@ pub fn dispatch_hsm(service: &TurboLedgerService, tool_name: &str, arguments: &V
                         })
                     };
                     json!({
-                        "content": [{
-                            "type": "json",
-                            "json": payload
-                        }],
+                        "content": [text_content(payload)],
                         "isError": blocked
                     })
                 }
@@ -930,9 +918,7 @@ pub fn handle_event_history(service: &TurboLedgerService, arguments: &Value) -> 
                 .collect::<Vec<_>>();
 
             json!({
-                "content": [{
-                    "type": "json",
-                    "json": {
+                "content": [text_content(json!({
                         "filter": {
                             "tx_id": filter.tx_id,
                             "document_ref": filter.document_ref,
@@ -940,8 +926,7 @@ pub fn handle_event_history(service: &TurboLedgerService, arguments: &Value) -> 
                             "time_end": filter.time_end,
                         },
                         "events": events,
-                    }
-                }],
+                    }))],
                 "isError": false
             })
         }
@@ -949,15 +934,12 @@ pub fn handle_event_history(service: &TurboLedgerService, arguments: &Value) -> 
             if message.contains("time_start must be <= time_end") =>
         {
             json!({
-                "content": [{
-                    "type": "json",
-                    "json": {
+                "content": [text_content(json!({
                         "isError": true,
                         "error_type": "EventHistoryBlocked",
                         "reason": "time_range_invalid",
                         "message": message,
-                    }
-                }],
+                    }))],
                 "isError": true
             })
         }
@@ -973,9 +955,7 @@ pub fn handle_event_replay(service: &TurboLedgerService, arguments: &Value) -> V
 
     match service.replay_lifecycle(request) {
         Ok(response) => json!({
-            "content": [{
-                "type": "json",
-                "json": {
+            "content": [text_content(json!({
                     "reconstructed_state": response.reconstructed_state,
                     "event_count": response.event_count,
                     "diagnostics": response.diagnostics,
@@ -985,8 +965,7 @@ pub fn handle_event_replay(service: &TurboLedgerService, arguments: &Value) -> V
                         "time_start": response.filter.time_start,
                         "time_end": response.filter.time_end,
                     }
-                }
-            }],
+                }))],
             "isError": false
         }),
         Err(err) => error_envelope(&err),
@@ -1027,10 +1006,7 @@ pub fn handle_tax_assist(service: &TurboLedgerService, arguments: &Value) -> Val
                 })
             };
             json!({
-                "content": [{
-                    "type": "json",
-                    "json": payload
-                }],
+                "content": [text_content(payload)],
                 "isError": blocked
             })
         }
@@ -1046,15 +1022,12 @@ pub fn handle_tax_evidence_chain(service: &TurboLedgerService, arguments: &Value
 
     match service.tax_evidence_chain_tool(request) {
         Ok(response) => json!({
-            "content": [{
-                "type": "json",
-                "json": {
+            "content": [text_content(json!({
                     "source": response.source,
                     "events": response.events,
                     "current_state": response.current_state,
                     "ambiguity": response.ambiguity,
-                }
-            }],
+                }))],
             "isError": false
         }),
         Err(err) => error_envelope(&err),
@@ -1089,10 +1062,7 @@ pub fn handle_tax_ambiguity_review(service: &TurboLedgerService, arguments: &Val
                 })
             };
             json!({
-                "content": [{
-                    "type": "json",
-                    "json": payload
-                }],
+                "content": [text_content(payload)],
                 "isError": blocked
             })
         }
@@ -1122,10 +1092,7 @@ pub fn handle_classify_ingested(service: &TurboLedgerService, arguments: &Value)
                 })
                 .collect::<Vec<_>>();
             json!({
-                "content": [{
-                    "type": "json",
-                    "json": { "classifications": classifications }
-                }],
+                "content": [text_content(json!({ "classifications": classifications }))],
                 "isError": false
             })
         }
@@ -1159,10 +1126,7 @@ pub fn handle_query_flags(service: &TurboLedgerService, arguments: &Value) -> Va
                 })
                 .collect::<Vec<_>>();
             json!({
-                "content": [{
-                    "type": "json",
-                    "json": { "flags": flags }
-                }],
+                "content": [text_content(json!({ "flags": flags }))],
                 "isError": false
             })
         }
@@ -1194,10 +1158,7 @@ pub fn handle_query_audit_log(service: &TurboLedgerService, arguments: &Value) -
                 })
                 .collect::<Vec<_>>();
             json!({
-                "content": [{
-                    "type": "json",
-                    "json": { "entries": entries }
-                }],
+                "content": [text_content(json!({ "entries": entries }))],
                 "isError": false
             })
         }
@@ -1229,15 +1190,12 @@ pub fn handle_classify_transaction(service: &TurboLedgerService, arguments: &Val
                 })
                 .collect::<Vec<_>>();
             json!({
-                "content": [{
-                    "type": "json",
-                    "json": {
+                "content": [text_content(json!({
                         "tx_id": response.tx_id,
                         "category": response.category,
                         "confidence": response.confidence,
                         "audit_entries": audit_entries,
-                    }
-                }],
+                    }))],
                 "isError": false
             })
         }
@@ -1272,15 +1230,12 @@ pub fn handle_reconcile_excel_classification(
                 })
                 .collect::<Vec<_>>();
             json!({
-                "content": [{
-                    "type": "json",
-                    "json": {
+                "content": [text_content(json!({
                         "tx_id": response.tx_id,
                         "category": response.category,
                         "confidence": response.confidence,
                         "audit_entries": audit_entries,
-                    }
-                }],
+                    }))],
                 "isError": false
             })
         }
@@ -1313,15 +1268,12 @@ pub fn handle_get_schedule_summary(service: &TurboLedgerService, arguments: &Val
                 })
                 .collect::<Vec<_>>();
             json!({
-                "content": [{
-                    "type": "json",
-                    "json": {
+                "content": [text_content(json!({
                         "year": response.year,
                         "schedule": schedule_str,
                         "total": response.total,
                         "lines": lines,
-                    }
-                }],
+                    }))],
                 "isError": false
             })
         }
@@ -1337,10 +1289,7 @@ pub fn handle_export_cpa_workbook(service: &TurboLedgerService, arguments: &Valu
 
     match service.export_cpa_workbook(request) {
         Ok(response) => json!({
-            "content": [{
-                "type": "json",
-                "json": { "sheets_written": response.sheets_written }
-            }],
+            "content": [text_content(json!({ "sheets_written": response.sheets_written }))],
             "isError": false
         }),
         Err(err) => error_envelope(&err),
@@ -1358,10 +1307,7 @@ pub fn handle_ontology_upsert_entities(
 
     match service.ontology_upsert_entities_tool(request) {
         Ok(response) => json!({
-            "content": [{
-                "type": "json",
-                "json": { "upserted": response.inserted_count }
-            }],
+            "content": [text_content(json!({ "upserted": response.inserted_count }))],
             "isError": false
         }),
         Err(err) => error_envelope(&err),
@@ -1376,10 +1322,7 @@ pub fn handle_ontology_upsert_edges(service: &TurboLedgerService, arguments: &Va
 
     match service.ontology_upsert_edges_tool(request) {
         Ok(response) => json!({
-            "content": [{
-                "type": "json",
-                "json": { "upserted": response.inserted_count }
-            }],
+            "content": [text_content(json!({ "upserted": response.inserted_count }))],
             "isError": false
         }),
         Err(err) => error_envelope(&err),

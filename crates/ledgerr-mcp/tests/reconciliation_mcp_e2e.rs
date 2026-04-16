@@ -109,6 +109,12 @@ fn imbalanced_request() -> Value {
     })
 }
 
+
+fn parse_response_payload(response: &serde_json::Value) -> serde_json::Value {
+    let text = response["content"][0]["text"].as_str().unwrap_or("null");
+    serde_json::from_str(text).unwrap_or(serde_json::Value::Null)
+}
+
 #[test]
 fn recon_03_tools_list_includes_reconciliation_stage_tools() {
     let mut client = McpStdioClient::spawn();
@@ -141,7 +147,7 @@ fn recon_03_failing_commit_returns_deterministic_blocking_diagnostics() {
     );
 
     assert_eq!(commit["result"]["isError"], Value::Bool(true));
-    let payload = &commit["result"]["content"][0]["json"];
+    let payload = parse_response_payload(&commit["result"]);
     assert_eq!(payload["error_type"], json!("ReconciliationBlocked"));
     assert_eq!(
         payload["message"],
@@ -169,11 +175,11 @@ fn recon_03_validate_and_reconcile_then_commit_returns_explicit_ready_payload() 
     );
     assert_eq!(validate["result"]["isError"], Value::Bool(false));
     assert_eq!(
-        validate["result"]["content"][0]["json"]["stage"],
+        parse_response_payload(&validate["result"])["stage"],
         json!("validate")
     );
     assert_eq!(
-        validate["result"]["content"][0]["json"]["status"],
+        parse_response_payload(&validate["result"])["status"],
         json!("passed")
     );
 
@@ -186,11 +192,11 @@ fn recon_03_validate_and_reconcile_then_commit_returns_explicit_ready_payload() 
     );
     assert_eq!(reconcile["result"]["isError"], Value::Bool(false));
     assert_eq!(
-        reconcile["result"]["content"][0]["json"]["stage"],
+        parse_response_payload(&reconcile["result"])["stage"],
         json!("reconcile")
     );
     assert_eq!(
-        reconcile["result"]["content"][0]["json"]["status"],
+        parse_response_payload(&reconcile["result"])["status"],
         json!("passed")
     );
 
@@ -203,7 +209,7 @@ fn recon_03_validate_and_reconcile_then_commit_returns_explicit_ready_payload() 
     );
     assert_eq!(commit["result"]["isError"], Value::Bool(false));
 
-    let payload = &commit["result"]["content"][0]["json"];
+    let payload = parse_response_payload(&commit["result"]);
     assert_eq!(payload["stage"], json!("commit"));
     assert_eq!(payload["status"], json!("ready"));
     assert_eq!(
