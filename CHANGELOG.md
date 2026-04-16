@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.3.6 - 2026-04-16
+#### Bug Fixes
+- (**mcpb**) use server/ subdir and ${__dirname} in command per mcpb spec - (faba56d) - Claude Sonnet (coordinator)
+
+- - -
+
 ## v1.3.5 - 2026-04-16
 #### Bug Fixes
 - (**mcpb**) drop ./ from command; set author to Prompt Execution Pty Ltd. - (a421da0) - Claude Sonnet (coordinator)
