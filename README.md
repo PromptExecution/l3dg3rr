@@ -69,10 +69,8 @@ claude mcp add ledgerr /tmp/ledgerr-mcp.mcpb
 ### Windows (PowerShell)
 
 ```powershell
-$v = "v1.2.1"   # replace with latest
-Invoke-WebRequest `
-  "https://github.com/PromptExecution/l3dg3rr/releases/download/$v/ledgerr-mcp-x86_64-pc-windows-msvc.mcpb" `
-  -OutFile "$env:TEMP\ledgerr-mcp.mcpb"
+$v = "v1.2.1"
+Invoke-WebRequest "https://github.com/PromptExecution/l3dg3rr/releases/download/$v/ledgerr-mcp-x86_64-pc-windows-msvc.mcpb" -OutFile "$env:TEMP\ledgerr-mcp.mcpb"
 claude mcp add ledgerr "$env:TEMP\ledgerr-mcp.mcpb"
 ```
 
