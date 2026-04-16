@@ -179,7 +179,7 @@ release version="patch":
     cargo test --workspace --all-targets --all-features
     ./scripts/e2e_mvp.sh
     echo "Bumping {{version}} version with cocogitto..."
-    cog bump {{version}}
+    cog bump --{{version}}
     cog changelog
     echo "Pushing tags..."
     git push --follow-tags
