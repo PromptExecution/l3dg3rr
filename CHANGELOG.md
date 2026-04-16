@@ -2,6 +2,15 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.3.1 - 2026-04-16
+#### Bug Fixes
+- (**mcpb**) remove configuration field from manifest (not in Claude Code spec) - (e914af4) - Claude Sonnet (coordinator)
+- (**release**) manual-only trigger; use latest/download URLs in README - (1a7ce13) - Claude Sonnet (coordinator)
+#### Documentation
+- simplify Windows install to single-line PowerShell (no backtick continuation) - (99a0199) - Claude Sonnet (coordinator)
+
+- - -
+
 ## v1.3.0 - 2026-04-16
 #### Features
 - (**skills**) add agent skills scaffold — 5 SKILL.md runbooks - (7f74db7) - Claude Sonnet (coordinator)
