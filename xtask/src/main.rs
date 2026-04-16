@@ -162,7 +162,7 @@ fn ledgerr_manifest(version: &str, binary_name: &str) -> McpbManifest {
             CPA-auditable Excel workbooks — no data leaves your machine."
             .into(),
         author: ManifestAuthor {
-            name: "l3dg3rr".into(),
+            name: "Prompt Execution Pty Ltd.".into(),
             email: None,
             url: Some("https://github.com/PromptExecution/l3dg3rr".into()),
         },
@@ -170,7 +170,8 @@ fn ledgerr_manifest(version: &str, binary_name: &str) -> McpbManifest {
             server_type: ServerType::Binary,
             entry_point: binary_name.into(),
             mcp_config: McpConfig {
-                command: format!("./{binary_name}"),
+                // No ./ prefix — Claude Code resolves the extraction path itself
+                command: binary_name.into(),
                 args: vec![],
                 env: None,
             },
