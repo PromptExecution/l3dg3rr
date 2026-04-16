@@ -62,14 +62,32 @@ tax-ledger is a local-first personal financial document intelligence system focu
 | Deployment | Docker + cargo-chef | Raw host-only toolchain installs | Harder reproducibility across machines; weaker onboarding and release confidence |
 ## Explicit "Do Not Use" List
 ## Installation
-# Core runtime + API
-# Ledger data model + Excel roundtrip
-# File/system behavior
-# Errors + observability
-# Agent protocol + analytics
-# Tooling
-# Document extraction sidecar (local only)
-# or
+
+### Required developer tools
+
+```sh
+# Rust toolchain
+rustup update stable
+
+# Conventional commits, changelog, and version bump automation
+cargo install cocogitto
+
+# Workspace version management — required by cog pre_bump_hooks
+# (cargo set-version updates Cargo.toml on every cog bump)
+cargo install cargo-edit
+
+# MCP bundle + registry publish automation
+cargo install --path xtask
+```
+
+### Releasing a new version
+
+```sh
+cog bump --auto          # calculates next semver from commits, runs pre_bump_hooks
+                         # (which calls cargo set-version), updates CHANGELOG.md,
+                         # creates bump commit + vX.Y.Z tag in one shot
+git push --follow-tags
+```
 ## Sources
 - `rust_xlsxwriter` docs (0.94.0): https://docs.rs/rust_xlsxwriter/latest/rust_xlsxwriter/
 - `rust_xlsxwriter` data validation examples: https://rustxlsxwriter.github.io/examples/data_validation.html
