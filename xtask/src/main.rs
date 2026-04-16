@@ -168,10 +168,11 @@ fn ledgerr_manifest(version: &str, binary_name: &str) -> McpbManifest {
         },
         server: ManifestServer {
             server_type: ServerType::Binary,
-            entry_point: binary_name.into(),
+            // Binary lives in server/ subdirectory per mcpb spec
+            entry_point: format!("server/{binary_name}"),
             mcp_config: McpConfig {
-                // No ./ prefix — Claude Code resolves the extraction path itself
-                command: binary_name.into(),
+                // ${__dirname} is resolved by Claude Code to the extraction directory
+                command: format!("${{__dirname}}/server/{binary_name}"),
                 args: vec![],
                 env: None,
             },

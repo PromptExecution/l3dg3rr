@@ -62,8 +62,8 @@ impl McpbBundler {
         zip.start_file("manifest.json", options)?;
         zip.write_all(manifest_json.as_bytes())?;
 
-        // 2. binary — stored under the canonical entry_point name from the manifest
-        //    (drops .exe suffix on Windows so the ZIP is cross-platform consistent)
+        // 2. binary — stored under server/<entry_point> per mcpb spec
+        //    (${__dirname}/server/<binary> is how Claude Code resolves the absolute path)
         let bin_options = options.unix_permissions(0o755);
         zip.start_file(&self.manifest.server.entry_point, bin_options)?;
         let mut bin_file = fs::File::open(&self.binary_path)?;
