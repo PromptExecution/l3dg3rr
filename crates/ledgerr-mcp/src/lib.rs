@@ -230,6 +230,19 @@ pub struct ExportCpaWorkbookResponse {
     pub sheets_written: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OntologyExportSnapshotRequest {
+    pub ontology_path: PathBuf,
+}
+
+#[derive(Debug, Clone)]
+pub struct OntologyExportSnapshotResponse {
+    pub entities: Vec<OntologyEntity>,
+    pub edges: Vec<OntologyEdge>,
+    pub entity_count: usize,
+    pub edge_count: usize,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScheduleKindRequest {
     ScheduleC,
@@ -412,6 +425,19 @@ impl TurboLedgerService {
         request: OntologyQueryPathRequest,
     ) -> Result<OntologyQueryPathResponse, ToolError> {
         self.ontology_query_path(request)
+    }
+
+    pub fn ontology_export_snapshot(
+        &self,
+        request: OntologyExportSnapshotRequest,
+    ) -> Result<OntologyExportSnapshotResponse, ToolError> {
+        let store = OntologyStore::load(&request.ontology_path)?;
+        Ok(OntologyExportSnapshotResponse {
+            entity_count: store.entities.len(),
+            edge_count: store.edges.len(),
+            entities: store.entities,
+            edges: store.edges,
+        })
     }
 
     pub fn validate_reconciliation_stage_tool(

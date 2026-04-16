@@ -8,11 +8,12 @@ use crate::{
     ClassifyIngestedRequest, ClassifyTransactionRequest, EventHistoryFilter,
     ExportCpaWorkbookRequest, FlagStatusRequest, GetRawContextRequest, GetScheduleSummaryRequest,
     HsmResumeRequest, HsmStatusRequest, HsmTransitionRequest, IngestPdfRequest,
-    IngestStatementRowsRequest, ListAccountsRequest, OntologyQueryPathRequest, OntologyStore,
-    OntologyUpsertEdgesRequest, OntologyUpsertEntitiesRequest, QueryAuditLogRequest,
-    QueryFlagsRequest, ReconcileExcelClassificationRequest, ReconciliationStageRequest,
-    ReplayLifecycleRequest, ScheduleKindRequest, TaxAmbiguityReviewRequest, TaxAssistRequest,
-    TaxEvidenceChainRequest, ToolError, TurboLedgerService, TurboLedgerTools,
+    IngestStatementRowsRequest, ListAccountsRequest, OntologyExportSnapshotRequest,
+    OntologyQueryPathRequest, OntologyUpsertEdgesRequest, OntologyUpsertEntitiesRequest,
+    QueryAuditLogRequest, QueryFlagsRequest, ReconcileExcelClassificationRequest,
+    ReconciliationStageRequest, ReplayLifecycleRequest, ScheduleKindRequest,
+    TaxAmbiguityReviewRequest, TaxAssistRequest, TaxEvidenceChainRequest, ToolError,
+    TurboLedgerService, TurboLedgerTools,
 };
 
 pub const LIST_ACCOUNTS_TOOL: &str = "l3dg3rr_list_accounts";
@@ -75,7 +76,7 @@ pub const TOOL_GROUP_AUDIT: &[&str] = &[QUERY_AUDIT_LOG_TOOL];
 pub const TOOL_GROUP_ONTOLOGY_WRITE: &[&str] =
     &[ONTOLOGY_UPSERT_ENTITIES_TOOL, ONTOLOGY_UPSERT_EDGES_TOOL];
 
-pub fn tool_catalog() -> Vec<String> {
+pub fn tool_names() -> Vec<String> {
     let mut features = Vec::new();
 
     #[cfg(feature = "core")]
@@ -99,10 +100,10 @@ pub fn tool_catalog() -> Vec<String> {
         features.push("core");
     }
 
-    tool_catalog_with_features(&features)
+    tool_names_for(&features)
 }
 
-pub fn tool_catalog_with_features(features: &[&str]) -> Vec<String> {
+pub fn tool_names_for(features: &[&str]) -> Vec<String> {
     let mut tools = Vec::new();
 
     if features.iter().any(|f| *f == "core") {
@@ -137,9 +138,9 @@ pub fn tool_catalog_with_features(features: &[&str]) -> Vec<String> {
 }
 
 /// Return the full MCP-spec tool objects (name + inputSchema) for all enabled tools.
-/// Use this in tools/list responses — do NOT use tool_catalog() directly for that.
-pub fn tool_list_entries() -> Vec<Value> {
-    tool_catalog()
+/// Use this in tools/list responses — do NOT use tool_names() directly for that.
+pub fn tool_descriptors() -> Vec<Value> {
+    tool_names()
         .into_iter()
         .map(|name| {
             let schema = tool_input_schema(&name);
@@ -154,9 +155,17 @@ pub fn tool_input_schema(name: &str) -> Value {
         // ── no-argument tools ──────────────────────────────────────────────
         LIST_ACCOUNTS_TOOL
         | "l3dg3rr_get_pipeline_status"
-        | ONTOLOGY_EXPORT_SNAPSHOT_TOOL
         | HSM_STATUS_TOOL
         | QUERY_AUDIT_LOG_TOOL => json!({ "type": "object", "properties": {} }),
+
+        // ── ontology_export_snapshot ───────────────────────────────────────
+        ONTOLOGY_EXPORT_SNAPSHOT_TOOL => json!({
+            "type": "object",
+            "required": ["ontology_path"],
+            "properties": {
+                "ontology_path": { "type": "string", "description": "Path to the ontology file" }
+            }
+        }),
 
         // ── get_raw_context ───────────────────────────────────────────────
         GET_RAW_CONTEXT_TOOL => json!({
@@ -170,16 +179,18 @@ pub fn tool_input_schema(name: &str) -> Value {
         // ── proxy_docling_ingest_pdf ───────────────────────────────────────
         "proxy_docling_ingest_pdf" => json!({
             "type": "object",
-            "required": ["source_ref"],
+            "required": ["pdf_path", "journal_path", "workbook_path"],
             "properties": {
-                "source_ref": { "type": "string", "description": "VENDOR--ACCOUNT--YYYY-MM--DOCTYPE source filename" },
+                "pdf_path": { "type": "string", "description": "Path to the PDF file (VENDOR--ACCOUNT--YYYY-MM--DOCTYPE naming required)" },
+                "journal_path": { "type": "string", "description": "Path to the journal file" },
+                "workbook_path": { "type": "string", "description": "Path to the Excel workbook" },
                 "raw_context_bytes": {
                     "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 255 },
-                    "description": "Raw PDF bytes as a byte array (optional if source_ref already exists)"
+                    "description": "Raw PDF bytes as a byte array (required when source file does not yet exist on disk)"
                 },
                 "extracted_rows": {
                     "type": "array", "items": { "type": "object" },
-                    "description": "Pre-extracted transaction rows from Docling (optional)"
+                    "description": "Pre-extracted transaction rows from Docling (optional; omit or pass [] to ingest without rows)"
                 }
             }
         }),
@@ -402,7 +413,7 @@ pub fn tool_input_schema(name: &str) -> Value {
     }
 }
 
-pub fn list_accounts_tool_result(service: &TurboLedgerService) -> Value {
+pub fn handle_list_accounts(service: &TurboLedgerService) -> Value {
     match service.list_accounts_tool(ListAccountsRequest) {
         Ok(response) => {
             let accounts = response
@@ -418,28 +429,14 @@ pub fn list_accounts_tool_result(service: &TurboLedgerService) -> Value {
                 "isError": false
             })
         }
-        Err(err) => json!({
-            "content": [{
-                "type": "json",
-                "json": map_tool_error(&err)
-            }],
-            "isError": true
-        }),
+        Err(err) => error_envelope(&err),
     }
 }
 
-pub fn get_raw_context_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+pub fn handle_get_raw_context(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_get_raw_context_request(arguments) {
         Ok(request) => request,
-        Err(err) => {
-            return json!({
-                "content": [{
-                    "type": "json",
-                    "json": map_tool_error(&err)
-                }],
-                "isError": true
-            });
-        }
+        Err(err) => return error_envelope(&err),
     };
 
     match service.get_raw_context(request) {
@@ -450,13 +447,7 @@ pub fn get_raw_context_tool_result(service: &TurboLedgerService, arguments: &Val
             }],
             "isError": false
         }),
-        Err(err) => json!({
-            "content": [{
-                "type": "json",
-                "json": map_tool_error(&err)
-            }],
-            "isError": true
-        }),
+        Err(err) => error_envelope(&err),
     }
 }
 
@@ -500,7 +491,7 @@ pub fn get_pipeline_status(
     }
 }
 
-pub fn normalize_rows_with_provenance(
+pub fn rows_to_json_with_provenance(
     provider: &str,
     backend_tool: &str,
     backend_version: Option<&str>,
@@ -527,7 +518,14 @@ pub fn normalize_rows_with_provenance(
         .collect()
 }
 
-pub fn map_tool_error(error: &ToolError) -> Value {
+fn error_envelope(err: &ToolError) -> Value {
+    json!({
+        "content": [{ "type": "json", "json": error_payload(err) }],
+        "isError": true
+    })
+}
+
+pub fn error_payload(error: &ToolError) -> Value {
     match error {
         ToolError::InvalidInput(message) => json!({
             "isError": true,
@@ -567,12 +565,15 @@ pub fn protocol_method_not_found(id: Value, method: &str) -> Value {
     })
 }
 
-pub fn parse_ingest_pdf_request(arguments: &Value) -> Result<IngestPdfRequest, ToolError> {
+fn parse_ingest_pdf_request(arguments: &Value) -> Result<IngestPdfRequest, ToolError> {
     let pdf_path = required_str(arguments, "pdf_path")?.to_string();
     let journal_path = PathBuf::from(required_str(arguments, "journal_path")?);
     let workbook_path = PathBuf::from(required_str(arguments, "workbook_path")?);
     let raw_context_bytes = parse_optional_bytes(arguments.get("raw_context_bytes"))?;
-    let extracted_rows = parse_rows(arguments.get("extracted_rows"), "extracted_rows")?;
+    let extracted_rows = match arguments.get("extracted_rows") {
+        None | Some(Value::Null) => Vec::new(),
+        some => parse_rows(some, "extracted_rows")?,
+    };
 
     Ok(IngestPdfRequest {
         pdf_path,
@@ -583,7 +584,7 @@ pub fn parse_ingest_pdf_request(arguments: &Value) -> Result<IngestPdfRequest, T
     })
 }
 
-pub fn parse_ingest_statement_rows_request(
+fn parse_ingest_statement_rows_request(
     arguments: &Value,
 ) -> Result<IngestStatementRowsRequest, ToolError> {
     let journal_path = PathBuf::from(required_str(arguments, "journal_path")?);
@@ -597,25 +598,17 @@ pub fn parse_ingest_statement_rows_request(
     })
 }
 
-pub fn ingest_pdf_tool_result<T: TurboLedgerTools>(
+pub fn handle_ingest_pdf<T: TurboLedgerTools>(
     service: &T,
     arguments: &Value,
     backend_call_id: Option<String>,
 ) -> Value {
     let request = match parse_ingest_pdf_request(arguments) {
         Ok(request) => request,
-        Err(err) => {
-            return json!({
-                "content": [{
-                    "type": "json",
-                    "json": map_tool_error(&err)
-                }],
-                "isError": true
-            });
-        }
+        Err(err) => return error_envelope(&err),
     };
 
-    let canonical_rows = normalize_rows_with_provenance(
+    let canonical_rows = rows_to_json_with_provenance(
         "docling",
         "ingest_pdf",
         Some(env!("CARGO_PKG_VERSION")),
@@ -646,35 +639,21 @@ pub fn ingest_pdf_tool_result<T: TurboLedgerTools>(
                 "isError": false
             })
         }
-        Err(err) => json!({
-            "content": [{
-                "type": "json",
-                "json": map_tool_error(&err)
-            }],
-            "isError": true
-        }),
+        Err(err) => error_envelope(&err),
     }
 }
 
-pub fn ingest_statement_rows_tool_result<T: TurboLedgerTools>(
+pub fn handle_ingest_statement_rows<T: TurboLedgerTools>(
     service: &T,
     arguments: &Value,
     backend_call_id: Option<String>,
 ) -> Value {
     let request = match parse_ingest_statement_rows_request(arguments) {
         Ok(request) => request,
-        Err(err) => {
-            return json!({
-                "content": [{
-                    "type": "json",
-                    "json": map_tool_error(&err)
-                }],
-                "isError": true
-            });
-        }
+        Err(err) => return error_envelope(&err),
     };
 
-    let canonical_rows = normalize_rows_with_provenance(
+    let canonical_rows = rows_to_json_with_provenance(
         "rustledger",
         "ingest_statement_rows",
         Some(env!("CARGO_PKG_VERSION")),
@@ -707,28 +686,14 @@ pub fn ingest_statement_rows_tool_result<T: TurboLedgerTools>(
                 "isError": false
             })
         }
-        Err(err) => json!({
-            "content": [{
-                "type": "json",
-                "json": map_tool_error(&err)
-            }],
-            "isError": true
-        }),
+        Err(err) => error_envelope(&err),
     }
 }
 
-pub fn ontology_query_path_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+pub fn handle_ontology_query_path(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_ontology_query_path_request(arguments) {
         Ok(request) => request,
-        Err(err) => {
-            return json!({
-                "content": [{
-                    "type": "json",
-                    "json": map_tool_error(&err)
-                }],
-                "isError": true
-            });
-        }
+        Err(err) => return error_envelope(&err),
     };
 
     match service.ontology_query_path_tool(request) {
@@ -742,71 +707,43 @@ pub fn ontology_query_path_tool_result(service: &TurboLedgerService, arguments: 
             }],
             "isError": false
         }),
-        Err(err) => json!({
-            "content": [{
-                "type": "json",
-                "json": map_tool_error(&err)
-            }],
-            "isError": true
-        }),
+        Err(err) => error_envelope(&err),
     }
 }
 
-pub fn ontology_export_snapshot_tool_result(arguments: &Value) -> Value {
+pub fn handle_ontology_export_snapshot(service: &TurboLedgerService, arguments: &Value) -> Value {
     let ontology_path = match parse_ontology_path(arguments) {
         Ok(path) => path,
-        Err(err) => {
-            return json!({
-                "content": [{
-                    "type": "json",
-                    "json": map_tool_error(&err)
-                }],
-                "isError": true
-            });
-        }
+        Err(err) => return error_envelope(&err),
     };
 
-    match OntologyStore::load(&ontology_path) {
-        Ok(store) => json!({
+    match service.ontology_export_snapshot(OntologyExportSnapshotRequest { ontology_path }) {
+        Ok(response) => json!({
             "content": [{
                 "type": "json",
                 "json": {
-                    "entities": store.entities,
-                    "edges": store.edges,
+                    "entities": response.entities,
+                    "edges": response.edges,
                     "snapshot": {
-                        "entity_count": store.entities.len(),
-                        "edge_count": store.edges.len(),
+                        "entity_count": response.entity_count,
+                        "edge_count": response.edge_count,
                     }
                 }
             }],
             "isError": false
         }),
-        Err(err) => json!({
-            "content": [{
-                "type": "json",
-                "json": map_tool_error(&err)
-            }],
-            "isError": true
-        }),
+        Err(err) => error_envelope(&err),
     }
 }
 
-pub fn reconciliation_tool_result(
+pub fn dispatch_reconciliation(
     service: &TurboLedgerService,
     tool_name: &str,
     arguments: &Value,
 ) -> Value {
     let request = match parse_reconciliation_stage_request(arguments) {
         Ok(request) => request,
-        Err(err) => {
-            return json!({
-                "content": [{
-                    "type": "json",
-                    "json": map_tool_error(&err)
-                }],
-                "isError": true
-            });
-        }
+        Err(err) => return error_envelope(&err),
     };
 
     let response = match tool_name {
@@ -860,30 +797,16 @@ pub fn reconciliation_tool_result(
                 "isError": blocked
             })
         }
-        Err(err) => json!({
-            "content": [{
-                "type": "json",
-                "json": map_tool_error(&err)
-            }],
-            "isError": true
-        }),
+        Err(err) => error_envelope(&err),
     }
 }
 
-pub fn hsm_tool_result(service: &TurboLedgerService, tool_name: &str, arguments: &Value) -> Value {
+pub fn dispatch_hsm(service: &TurboLedgerService, tool_name: &str, arguments: &Value) -> Value {
     match tool_name {
         HSM_TRANSITION_TOOL => {
             let request = match parse_hsm_transition_request(arguments) {
                 Ok(request) => request,
-                Err(err) => {
-                    return json!({
-                        "content": [{
-                            "type": "json",
-                            "json": map_tool_error(&err)
-                        }],
-                        "isError": true
-                    });
-                }
+                Err(err) => return error_envelope(&err),
             };
 
             match service.hsm_transition_tool(request) {
@@ -919,13 +842,7 @@ pub fn hsm_tool_result(service: &TurboLedgerService, tool_name: &str, arguments:
                         "isError": blocked
                     })
                 }
-                Err(err) => json!({
-                    "content": [{
-                        "type": "json",
-                        "json": map_tool_error(&err)
-                    }],
-                    "isError": true
-                }),
+                Err(err) => error_envelope(&err),
             }
         }
         HSM_STATUS_TOOL => match service.hsm_status_tool(HsmStatusRequest) {
@@ -943,26 +860,12 @@ pub fn hsm_tool_result(service: &TurboLedgerService, tool_name: &str, arguments:
                 }],
                 "isError": false
             }),
-            Err(err) => json!({
-                "content": [{
-                    "type": "json",
-                    "json": map_tool_error(&err)
-                }],
-                "isError": true
-            }),
+            Err(err) => error_envelope(&err),
         },
         HSM_RESUME_TOOL => {
             let request = match parse_hsm_resume_request(arguments) {
                 Ok(request) => request,
-                Err(err) => {
-                    return json!({
-                        "content": [{
-                            "type": "json",
-                            "json": map_tool_error(&err)
-                        }],
-                        "isError": true
-                    });
-                }
+                Err(err) => return error_envelope(&err),
             };
 
             match service.hsm_resume_tool(request) {
@@ -994,31 +897,17 @@ pub fn hsm_tool_result(service: &TurboLedgerService, tool_name: &str, arguments:
                         "isError": blocked
                     })
                 }
-                Err(err) => json!({
-                    "content": [{
-                        "type": "json",
-                        "json": map_tool_error(&err)
-                    }],
-                    "isError": true
-                }),
+                Err(err) => error_envelope(&err),
             }
         }
         _ => unknown_tool_result(tool_name),
     }
 }
 
-pub fn event_history_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+pub fn handle_event_history(service: &TurboLedgerService, arguments: &Value) -> Value {
     let filter = match parse_event_history_filter(arguments) {
         Ok(filter) => filter,
-        Err(err) => {
-            return json!({
-                "content": [{
-                    "type": "json",
-                    "json": map_tool_error(&err)
-                }],
-                "isError": true
-            });
-        }
+        Err(err) => return error_envelope(&err),
     };
 
     match service.event_history(filter.clone()) {
@@ -1072,28 +961,14 @@ pub fn event_history_tool_result(service: &TurboLedgerService, arguments: &Value
                 "isError": true
             })
         }
-        Err(err) => json!({
-            "content": [{
-                "type": "json",
-                "json": map_tool_error(&err)
-            }],
-            "isError": true
-        }),
+        Err(err) => error_envelope(&err),
     }
 }
 
-pub fn event_replay_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+pub fn handle_event_replay(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_replay_lifecycle_request(arguments) {
         Ok(request) => request,
-        Err(err) => {
-            return json!({
-                "content": [{
-                    "type": "json",
-                    "json": map_tool_error(&err)
-                }],
-                "isError": true
-            });
-        }
+        Err(err) => return error_envelope(&err),
     };
 
     match service.replay_lifecycle(request) {
@@ -1114,28 +989,14 @@ pub fn event_replay_tool_result(service: &TurboLedgerService, arguments: &Value)
             }],
             "isError": false
         }),
-        Err(err) => json!({
-            "content": [{
-                "type": "json",
-                "json": map_tool_error(&err)
-            }],
-            "isError": true
-        }),
+        Err(err) => error_envelope(&err),
     }
 }
 
-pub fn tax_assist_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+pub fn handle_tax_assist(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_tax_assist_request(arguments) {
         Ok(request) => request,
-        Err(err) => {
-            return json!({
-                "content": [{
-                    "type": "json",
-                    "json": map_tool_error(&err)
-                }],
-                "isError": true
-            });
-        }
+        Err(err) => return error_envelope(&err),
     };
 
     match service.tax_assist_tool(request) {
@@ -1173,28 +1034,14 @@ pub fn tax_assist_tool_result(service: &TurboLedgerService, arguments: &Value) -
                 "isError": blocked
             })
         }
-        Err(err) => json!({
-            "content": [{
-                "type": "json",
-                "json": map_tool_error(&err)
-            }],
-            "isError": true
-        }),
+        Err(err) => error_envelope(&err),
     }
 }
 
-pub fn tax_evidence_chain_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+pub fn handle_tax_evidence_chain(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_tax_evidence_chain_request(arguments) {
         Ok(request) => request,
-        Err(err) => {
-            return json!({
-                "content": [{
-                    "type": "json",
-                    "json": map_tool_error(&err)
-                }],
-                "isError": true
-            });
-        }
+        Err(err) => return error_envelope(&err),
     };
 
     match service.tax_evidence_chain_tool(request) {
@@ -1210,28 +1057,14 @@ pub fn tax_evidence_chain_tool_result(service: &TurboLedgerService, arguments: &
             }],
             "isError": false
         }),
-        Err(err) => json!({
-            "content": [{
-                "type": "json",
-                "json": map_tool_error(&err)
-            }],
-            "isError": true
-        }),
+        Err(err) => error_envelope(&err),
     }
 }
 
-pub fn tax_ambiguity_review_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+pub fn handle_tax_ambiguity_review(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_tax_ambiguity_review_request(arguments) {
         Ok(request) => request,
-        Err(err) => {
-            return json!({
-                "content": [{
-                    "type": "json",
-                    "json": map_tool_error(&err)
-                }],
-                "isError": true
-            });
-        }
+        Err(err) => return error_envelope(&err),
     };
 
     match service.tax_ambiguity_review_tool(request) {
@@ -1263,28 +1096,14 @@ pub fn tax_ambiguity_review_tool_result(service: &TurboLedgerService, arguments:
                 "isError": blocked
             })
         }
-        Err(err) => json!({
-            "content": [{
-                "type": "json",
-                "json": map_tool_error(&err)
-            }],
-            "isError": true
-        }),
+        Err(err) => error_envelope(&err),
     }
 }
 
-pub fn classify_ingested_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+pub fn handle_classify_ingested(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_classify_ingested_request(arguments) {
         Ok(request) => request,
-        Err(err) => {
-            return json!({
-                "content": [{
-                    "type": "json",
-                    "json": map_tool_error(&err)
-                }],
-                "isError": true
-            });
-        }
+        Err(err) => return error_envelope(&err),
     };
 
     match service.classify_ingested(request) {
@@ -1310,28 +1129,14 @@ pub fn classify_ingested_tool_result(service: &TurboLedgerService, arguments: &V
                 "isError": false
             })
         }
-        Err(err) => json!({
-            "content": [{
-                "type": "json",
-                "json": map_tool_error(&err)
-            }],
-            "isError": true
-        }),
+        Err(err) => error_envelope(&err),
     }
 }
 
-pub fn query_flags_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+pub fn handle_query_flags(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_query_flags_request(arguments) {
         Ok(request) => request,
-        Err(err) => {
-            return json!({
-                "content": [{
-                    "type": "json",
-                    "json": map_tool_error(&err)
-                }],
-                "isError": true
-            });
-        }
+        Err(err) => return error_envelope(&err),
     };
 
     match service.query_flags(request) {
@@ -1361,28 +1166,14 @@ pub fn query_flags_tool_result(service: &TurboLedgerService, arguments: &Value) 
                 "isError": false
             })
         }
-        Err(err) => json!({
-            "content": [{
-                "type": "json",
-                "json": map_tool_error(&err)
-            }],
-            "isError": true
-        }),
+        Err(err) => error_envelope(&err),
     }
 }
 
-pub fn query_audit_log_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+pub fn handle_query_audit_log(service: &TurboLedgerService, arguments: &Value) -> Value {
     let _request = match parse_query_audit_log_request(arguments) {
         Ok(request) => request,
-        Err(err) => {
-            return json!({
-                "content": [{
-                    "type": "json",
-                    "json": map_tool_error(&err)
-                }],
-                "isError": true
-            });
-        }
+        Err(err) => return error_envelope(&err),
     };
 
     match service.query_audit_log(QueryAuditLogRequest) {
@@ -1410,28 +1201,14 @@ pub fn query_audit_log_tool_result(service: &TurboLedgerService, arguments: &Val
                 "isError": false
             })
         }
-        Err(err) => json!({
-            "content": [{
-                "type": "json",
-                "json": map_tool_error(&err)
-            }],
-            "isError": true
-        }),
+        Err(err) => error_envelope(&err),
     }
 }
 
-pub fn classify_transaction_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+pub fn handle_classify_transaction(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_classify_transaction_request(arguments) {
         Ok(request) => request,
-        Err(err) => {
-            return json!({
-                "content": [{
-                    "type": "json",
-                    "json": map_tool_error(&err)
-                }],
-                "isError": true
-            });
-        }
+        Err(err) => return error_envelope(&err),
     };
 
     match service.classify_transaction(request) {
@@ -1464,31 +1241,17 @@ pub fn classify_transaction_tool_result(service: &TurboLedgerService, arguments:
                 "isError": false
             })
         }
-        Err(err) => json!({
-            "content": [{
-                "type": "json",
-                "json": map_tool_error(&err)
-            }],
-            "isError": true
-        }),
+        Err(err) => error_envelope(&err),
     }
 }
 
-pub fn reconcile_excel_classification_tool_result(
+pub fn handle_reconcile_excel_classification(
     service: &TurboLedgerService,
     arguments: &Value,
 ) -> Value {
     let request = match parse_reconcile_excel_classification_request(arguments) {
         Ok(request) => request,
-        Err(err) => {
-            return json!({
-                "content": [{
-                    "type": "json",
-                    "json": map_tool_error(&err)
-                }],
-                "isError": true
-            });
-        }
+        Err(err) => return error_envelope(&err),
     };
 
     match service.reconcile_excel_classification(request) {
@@ -1521,28 +1284,14 @@ pub fn reconcile_excel_classification_tool_result(
                 "isError": false
             })
         }
-        Err(err) => json!({
-            "content": [{
-                "type": "json",
-                "json": map_tool_error(&err)
-            }],
-            "isError": true
-        }),
+        Err(err) => error_envelope(&err),
     }
 }
 
-pub fn get_schedule_summary_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+pub fn handle_get_schedule_summary(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_get_schedule_summary_request(arguments) {
         Ok(request) => request,
-        Err(err) => {
-            return json!({
-                "content": [{
-                    "type": "json",
-                    "json": map_tool_error(&err)
-                }],
-                "isError": true
-            });
-        }
+        Err(err) => return error_envelope(&err),
     };
 
     match service.get_schedule_summary(request) {
@@ -1576,28 +1325,14 @@ pub fn get_schedule_summary_tool_result(service: &TurboLedgerService, arguments:
                 "isError": false
             })
         }
-        Err(err) => json!({
-            "content": [{
-                "type": "json",
-                "json": map_tool_error(&err)
-            }],
-            "isError": true
-        }),
+        Err(err) => error_envelope(&err),
     }
 }
 
-pub fn export_cpa_workbook_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+pub fn handle_export_cpa_workbook(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_export_cpa_workbook_request(arguments) {
         Ok(request) => request,
-        Err(err) => {
-            return json!({
-                "content": [{
-                    "type": "json",
-                    "json": map_tool_error(&err)
-                }],
-                "isError": true
-            });
-        }
+        Err(err) => return error_envelope(&err),
     };
 
     match service.export_cpa_workbook(request) {
@@ -1608,31 +1343,17 @@ pub fn export_cpa_workbook_tool_result(service: &TurboLedgerService, arguments: 
             }],
             "isError": false
         }),
-        Err(err) => json!({
-            "content": [{
-                "type": "json",
-                "json": map_tool_error(&err)
-            }],
-            "isError": true
-        }),
+        Err(err) => error_envelope(&err),
     }
 }
 
-pub fn ontology_upsert_entities_tool_result(
+pub fn handle_ontology_upsert_entities(
     service: &TurboLedgerService,
     arguments: &Value,
 ) -> Value {
     let request = match parse_ontology_upsert_entities_request(arguments) {
         Ok(request) => request,
-        Err(err) => {
-            return json!({
-                "content": [{
-                    "type": "json",
-                    "json": map_tool_error(&err)
-                }],
-                "isError": true
-            });
-        }
+        Err(err) => return error_envelope(&err),
     };
 
     match service.ontology_upsert_entities_tool(request) {
@@ -1643,28 +1364,14 @@ pub fn ontology_upsert_entities_tool_result(
             }],
             "isError": false
         }),
-        Err(err) => json!({
-            "content": [{
-                "type": "json",
-                "json": map_tool_error(&err)
-            }],
-            "isError": true
-        }),
+        Err(err) => error_envelope(&err),
     }
 }
 
-pub fn ontology_upsert_edges_tool_result(service: &TurboLedgerService, arguments: &Value) -> Value {
+pub fn handle_ontology_upsert_edges(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_ontology_upsert_edges_request(arguments) {
         Ok(request) => request,
-        Err(err) => {
-            return json!({
-                "content": [{
-                    "type": "json",
-                    "json": map_tool_error(&err)
-                }],
-                "isError": true
-            });
-        }
+        Err(err) => return error_envelope(&err),
     };
 
     match service.ontology_upsert_edges_tool(request) {
@@ -1675,34 +1382,7 @@ pub fn ontology_upsert_edges_tool_result(service: &TurboLedgerService, arguments
             }],
             "isError": false
         }),
-        Err(err) => json!({
-            "content": [{
-                "type": "json",
-                "json": map_tool_error(&err)
-            }],
-            "isError": true
-        }),
-    }
-}
-
-pub struct McpAdapter<'a, T: TurboLedgerTools> {
-    service: &'a T,
-}
-
-impl<'a, T: TurboLedgerTools> McpAdapter<'a, T> {
-    pub fn new(service: &'a T) -> Self {
-        Self { service }
-    }
-
-    pub fn provider_passthrough_ping(&self) -> Value {
-        let _ = &self.service;
-        json!({
-            "provider": "rustledger",
-            "backend_tool": "list_accounts",
-            "backend_version": serde_json::Value::Null,
-            "backend_call_id": serde_json::Value::Null,
-            "status": "ok",
-        })
+        Err(err) => error_envelope(&err),
     }
 }
 

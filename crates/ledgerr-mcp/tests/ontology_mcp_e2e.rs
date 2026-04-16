@@ -2,7 +2,10 @@ use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
-use ledgerr_mcp::{OntologyEdgeInput, OntologyEntityInput, OntologyEntityKind, OntologyStore};
+use ledgerr_mcp::{
+    mcp_adapter, OntologyEdgeInput, OntologyEntityInput, OntologyEntityKind,
+    OntologyExportSnapshotRequest, OntologyStore, TurboLedgerService,
+};
 use serde_json::{json, Value};
 
 const ONTOLOGY_QUERY_TOOL: &str = "l3dg3rr_ontology_query_path";
@@ -301,4 +304,45 @@ fn onto_03_export_snapshot_stable_json_serialization_over_transport() {
         .expect("serialize second payload");
 
     assert_eq!(first_payload, second_payload);
+}
+
+// ONTO-03 (D-03): ontology_export_snapshot routes through TurboLedgerService, not OntologyStore directly.
+#[test]
+fn onto_03_export_snapshot_routes_through_service() {
+    const TEST_MANIFEST: &str = "[session]\nworkbook_path=\"tax-ledger.xlsx\"\nactive_year=2023\n\n[accounts]\nWF-BH-CHK = { institution = \"Wells Fargo\", type = \"checking\", currency = \"USD\" }\n";
+
+    let service =
+        TurboLedgerService::from_manifest_str(TEST_MANIFEST).expect("manifest must parse");
+
+    let tempdir = tempfile::tempdir().expect("tempdir");
+    let ontology_path = tempdir.path().join("ontology.json");
+    let _ = seed_ontology(&ontology_path);
+
+    // Call via service method directly and verify response struct fields.
+    let response = service
+        .ontology_export_snapshot(OntologyExportSnapshotRequest {
+            ontology_path: ontology_path.clone(),
+        })
+        .expect("ontology_export_snapshot must succeed");
+
+    assert_eq!(response.entity_count, response.entities.len());
+    assert_eq!(response.edge_count, response.edges.len());
+    assert_eq!(response.entity_count, 4, "seed produces 4 entities");
+    assert_eq!(response.edge_count, 3, "seed produces 3 edges");
+    assert!(!response.entities.is_empty());
+    assert!(!response.edges.is_empty());
+
+    // Call via JSON handler and check the isError: false shape.
+    let args = json!({ "ontology_path": ontology_path.display().to_string() });
+    let result = mcp_adapter::handle_ontology_export_snapshot(&service, &args);
+
+    assert_eq!(result["isError"], Value::Bool(false));
+    let json_payload = &result["content"][0]["json"];
+    assert!(json_payload["entities"].is_array());
+    assert!(json_payload["edges"].is_array());
+    assert_eq!(
+        json_payload["snapshot"]["entity_count"].as_u64().unwrap(),
+        4
+    );
+    assert_eq!(json_payload["snapshot"]["edge_count"].as_u64().unwrap(), 3);
 }
