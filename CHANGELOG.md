@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.2.1 - 2026-04-16
+#### Bug Fixes
+- (**mcpb**) store binary under entry_point name, not filename - (777271d) - Claude Sonnet (coordinator)
+
+- - -
+
 ## v1.2.0 - 2026-04-16
 #### Features
 - (**ci**) add Windows binary to mcpb-publish matrix + claude mcp add install docs - (0417ab5) - Claude Sonnet (coordinator)
