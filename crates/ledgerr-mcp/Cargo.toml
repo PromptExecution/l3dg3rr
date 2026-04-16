@@ -17,7 +17,7 @@ thiserror = "2"
 sysinfo = { version = "0.33", default-features = false, features = ["system"] }
 
 # self-update feature deps — only compiled when the feature is active
-reqwest = { version = "0.12", features = ["blocking", "rustls-tls"], default-features = false, optional = true }
+reqwest = { version = "0.12", features = ["blocking", "json", "rustls-tls"], default-features = false, optional = true }
 semver = { version = "1", optional = true }
 
 # winreg — Windows-only, safe registry wrapper; gated at the cfg level in code

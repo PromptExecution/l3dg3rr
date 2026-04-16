@@ -1,16 +1,16 @@
-/// plugin_info — version check, host metadata, decision log, and (Windows-only) self-update.
-///
-/// The `plugin_info` MCP tool is always available and returns:
-///   - current embedded version
-///   - latest GitHub release version (when reachable)
-///   - whether an update is available
-///   - host system metadata
-///   - path to the decision/update log
-///
-/// Subcommands (passed as the optional `subcommand` argument):
-///   - `"check"` (default) — version info + host metadata
-///   - `"upgrade"` — Windows-only; downloads and applies the latest release
-///   - `"cleanup"` — removes `*.old.exe` and `*.new.exe` backup files
+//! plugin_info — version check, host metadata, decision log, and (Windows-only) self-update.
+//!
+//! The `plugin_info` MCP tool is always available and returns:
+//!   - current embedded version
+//!   - latest GitHub release version (when reachable)
+//!   - whether an update is available
+//!   - host system metadata
+//!   - path to the decision/update log
+//!
+//! Subcommands (passed as the optional `subcommand` argument):
+//!   - `"check"` (default) — version info + host metadata
+//!   - `"upgrade"` — Windows-only; downloads and applies the latest release
+//!   - `"cleanup"` — removes `*.old.exe` and `*.new.exe` backup files
 
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -108,6 +108,7 @@ pub fn host_metadata() -> Value {
         .map(|n| n.get())
         .unwrap_or(0);
 
+    #[cfg_attr(not(target_os = "windows"), allow(unused_mut))]
     let mut meta = json!({
         "os": std::env::consts::OS,
         "arch": std::env::consts::ARCH,
@@ -386,6 +387,7 @@ fn strip_zone_identifier(path: &std::path::Path) {
 }
 
 /// BLAKE3 hex digest of a file's contents; returns `""` on any I/O error.
+#[cfg(all(target_os = "windows", feature = "self-update"))]
 fn blake3_file(path: &std::path::Path) -> String {
     std::fs::read(path)
         .map(|bytes| blake3::hash(&bytes).to_hex().to_string())
@@ -557,6 +559,7 @@ mod tests {
         assert!(schema["properties"]["subcommand"]["enum"].is_array());
     }
 
+    #[cfg(all(target_os = "windows", feature = "self-update"))]
     #[test]
     fn blake3_file_empty_for_missing_path() {
         assert_eq!(blake3_file(std::path::Path::new("/no/such/file.bin")), "");

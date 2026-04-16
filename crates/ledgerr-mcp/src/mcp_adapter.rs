@@ -79,6 +79,7 @@ pub const TOOL_GROUP_AUDIT: &[&str] = &[QUERY_AUDIT_LOG_TOOL];
 pub const TOOL_GROUP_ONTOLOGY_WRITE: &[&str] =
     &[ONTOLOGY_UPSERT_ENTITIES_TOOL, ONTOLOGY_UPSERT_EDGES_TOOL];
 
+#[allow(clippy::vec_init_then_push)]
 pub fn tool_names() -> Vec<String> {
     let mut features = Vec::new();
 
@@ -109,31 +110,31 @@ pub fn tool_names() -> Vec<String> {
 pub fn tool_names_for(features: &[&str]) -> Vec<String> {
     let mut tools = Vec::new();
 
-    if features.iter().any(|f| *f == "core") {
+    if features.contains(&"core") {
         tools.extend(TOOL_GROUP_CORE.iter().map(|s| s.to_string()));
     }
-    if features.iter().any(|f| *f == "ontology") || features.iter().any(|f| *f == "tax") {
+    if features.contains(&"ontology") || features.contains(&"tax") {
         tools.extend(TOOL_GROUP_ONTOLOGY.iter().map(|s| s.to_string()));
     }
-    if features.iter().any(|f| *f == "reconciliation") || features.iter().any(|f| *f == "tax") {
+    if features.contains(&"reconciliation") || features.contains(&"tax") {
         tools.extend(TOOL_GROUP_RECONCILIATION.iter().map(|s| s.to_string()));
     }
-    if features.iter().any(|f| *f == "hsm") || features.iter().any(|f| *f == "tax") {
+    if features.contains(&"hsm") || features.contains(&"tax") {
         tools.extend(TOOL_GROUP_HSM.iter().map(|s| s.to_string()));
     }
-    if features.iter().any(|f| *f == "events") || features.iter().any(|f| *f == "tax") {
+    if features.contains(&"events") || features.contains(&"tax") {
         tools.extend(TOOL_GROUP_EVENTS.iter().map(|s| s.to_string()));
     }
-    if features.iter().any(|f| *f == "classification") {
+    if features.contains(&"classification") {
         tools.extend(TOOL_GROUP_CLASSIFICATION.iter().map(|s| s.to_string()));
     }
-    if features.iter().any(|f| *f == "tax") {
+    if features.contains(&"tax") {
         tools.extend(TOOL_GROUP_TAX.iter().map(|s| s.to_string()));
     }
-    if features.iter().any(|f| *f == "audit") {
+    if features.contains(&"audit") {
         tools.extend(TOOL_GROUP_AUDIT.iter().map(|s| s.to_string()));
     }
-    if features.iter().any(|f| *f == "ontology") {
+    if features.contains(&"ontology") {
         tools.extend(TOOL_GROUP_ONTOLOGY_WRITE.iter().map(|s| s.to_string()));
     }
 
@@ -653,7 +654,7 @@ pub fn handle_ingest_pdf<T: TurboLedgerTools>(
                 request
                     .extracted_rows
                     .iter()
-                    .map(|row| deterministic_tx_id(row))
+                    .map(deterministic_tx_id)
                     .collect::<Vec<_>>()
             } else {
                 response.tx_ids

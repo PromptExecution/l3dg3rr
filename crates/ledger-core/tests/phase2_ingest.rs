@@ -26,7 +26,7 @@ fn reingest_is_idempotent() {
     };
 
     let mut ledger = IngestedLedger::default();
-    let first = ledger.ingest(&[tx.clone()]);
+    let first = ledger.ingest(std::slice::from_ref(&tx));
     let second = ledger.ingest(&[tx]);
 
     assert_eq!(first.len(), 1);

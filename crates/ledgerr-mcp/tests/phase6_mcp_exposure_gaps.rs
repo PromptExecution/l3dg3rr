@@ -1,5 +1,5 @@
-#![cfg(phase6_gap_tests)]
 #![allow(unexpected_cfgs)]
+#![cfg(phase6_gap_tests)]
 
 /// Phase 6: MCP Exposure Gaps — Failing Test Suite
 ///

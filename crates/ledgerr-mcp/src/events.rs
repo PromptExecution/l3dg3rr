@@ -283,13 +283,13 @@ pub fn reconstruct_lifecycle(events: &[LifecycleEvent]) -> ReplayProjection {
 }
 
 fn transition_allowed(previous: Option<&str>, next: &str) -> bool {
-    match (previous, next) {
-        (None, "ingest") => true,
-        (Some("ingest"), "classification") => true,
-        (Some("classification"), "reconciliation") => true,
-        (Some("classification"), "adjustment") => true,
-        (Some("reconciliation"), "adjustment") => true,
-        (Some("adjustment"), "adjustment") => true,
-        _ => false,
-    }
+    matches!(
+        (previous, next),
+        (None, "ingest")
+            | (Some("ingest"), "classification")
+            | (Some("classification"), "reconciliation")
+            | (Some("classification"), "adjustment")
+            | (Some("reconciliation"), "adjustment")
+            | (Some("adjustment"), "adjustment")
+    )
 }

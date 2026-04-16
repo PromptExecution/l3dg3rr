@@ -42,7 +42,7 @@ fn ing_02_reingest_has_no_duplicate_journal_or_tx_rows() {
 
     let mut ledger = IngestedLedger::default();
     let first = ledger
-        .ingest_to_journal_and_workbook(&[row.clone()], &journal, &workbook)
+        .ingest_to_journal_and_workbook(std::slice::from_ref(&row), &journal, &workbook)
         .unwrap();
     let second = ledger
         .ingest_to_journal_and_workbook(&[row], &journal, &workbook)
