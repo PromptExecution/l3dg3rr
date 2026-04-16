@@ -29,17 +29,34 @@ jobs:
           git-user: 'github-actions[bot]'
           git-user-email: 'github-actions[bot]@users.noreply.github.com'
 
-      - name: Generate changelog
-        run: |
-          TAG="$(git describe --tags --abbrev=0)"
-          cog changelog --at "$TAG" > RELEASE_NOTES.md
+      - name: Resolve new tag
+        id: tag
+        run: echo "tag=$(git describe --tags --abbrev=0)" >> "$GITHUB_OUTPUT"
 
-      - name: Push changes
-        run: git push --follow-tags
-
-      - name: Create GitHub Release
+      - name: Check if release already exists
+        id: release_check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="$(git describe --tags --abbrev=0)"
-          gh release create "$TAG" --title "$TAG" --notes-file RELEASE_NOTES.md
+          if gh release view "${{ steps.tag.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate changelog
+        if: steps.release_check.outputs.exists == 'false'
+        run: cog changelog --at "${{ steps.tag.outputs.tag }}" > RELEASE_NOTES.md
+
+      - name: Push changes
+        if: steps.release_check.outputs.exists == 'false'
+        run: git push --follow-tags
+
+      - name: Create GitHub Release
+        if: steps.release_check.outputs.exists == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.tag.outputs.tag }}" \
+            --title "${{ steps.tag.outputs.tag }}" \
+            --notes-file RELEASE_NOTES.md
