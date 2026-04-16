@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.3.2 - 2026-04-16
+#### Bug Fixes
+- (**ci**) chain mcpb-publish via workflow_run instead of workflow_dispatch - (346a822) - Claude Sonnet (coordinator)
+
+- - -
+
 ## v1.3.1 - 2026-04-16
 #### Bug Fixes
 - (**mcpb**) remove configuration field from manifest (not in Claude Code spec) - (e914af4) - Claude Sonnet (coordinator)
