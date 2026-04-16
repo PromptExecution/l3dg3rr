@@ -131,7 +131,7 @@ publish-mcpb tag="":
     #!/bin/bash
     set -euo pipefail
     TAG="{{tag}}"
-    if [ -z "$TAG" ]; then TAG=$(just v); fi
+    if [ -z "$TAG" ]; then TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName'); fi
     shopt -s nullglob
     bundles=(dist/*.mcpb)
     if [ ${#bundles[@]} -eq 0 ]; then
