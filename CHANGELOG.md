@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.3.4 - 2026-04-16
+#### Bug Fixes
+- (**mcpb**) derive entry_point and command from binary filename - (3ce9e03) - Claude Sonnet (coordinator)
+
+- - -
+
 ## v1.3.3 - 2026-04-16
 #### Bug Fixes
 - (**justfile**) use gh release list for tag fallback in publish-mcpb (not cog) - (3531fe0) - Claude Sonnet (coordinator)
