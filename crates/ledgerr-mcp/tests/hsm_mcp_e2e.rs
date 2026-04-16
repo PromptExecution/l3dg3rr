@@ -100,7 +100,7 @@ fn parse_response_payload(response: &serde_json::Value) -> serde_json::Value {
 }
 
 #[test]
-fn hsm_03_tools_list_includes_transition_status_and_resume_tools() {
+fn hsm_03_tools_list_includes_workflow_tool() {
     let mut client = McpStdioClient::spawn();
     initialize_client(&mut client);
 
@@ -112,9 +112,7 @@ fn hsm_03_tools_list_includes_transition_status_and_resume_tools() {
         .filter_map(|entry| entry.get("name").and_then(Value::as_str))
         .collect::<Vec<_>>();
 
-    assert!(tool_names.contains(&HSM_TRANSITION_TOOL));
-    assert!(tool_names.contains(&HSM_STATUS_TOOL));
-    assert!(tool_names.contains(&HSM_RESUME_TOOL));
+    assert!(tool_names.contains(&"ledgerr_workflow"));
 }
 
 #[test]

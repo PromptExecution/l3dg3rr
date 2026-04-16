@@ -8,7 +8,7 @@ fn parse_response_payload(response: &Value) -> Value {
     serde_json::from_str(text).unwrap_or(Value::Null)
 }
 
-const PLUGIN_INFO_TOOL: &str = "l3dg3rr_plugin_info";
+const WORKFLOW_TOOL: &str = "ledgerr_workflow";
 
 struct McpStdioClient {
     child: Child,
@@ -78,7 +78,7 @@ fn initialize_client(client: &mut McpStdioClient) {
 // ── tools/list ────────────────────────────────────────────────────────────────
 
 #[test]
-fn pi_01_tools_list_advertises_plugin_info() {
+fn pi_01_tools_list_advertises_workflow_not_plugin_info() {
     let mut client = McpStdioClient::spawn();
     initialize_client(&mut client);
 
@@ -91,13 +91,14 @@ fn pi_01_tools_list_advertises_plugin_info() {
         .collect::<Vec<_>>();
 
     assert!(
-        names.contains(&PLUGIN_INFO_TOOL),
-        "tools/list must include {PLUGIN_INFO_TOOL}; got: {names:?}"
+        names.contains(&WORKFLOW_TOOL),
+        "tools/list must include {WORKFLOW_TOOL}; got: {names:?}"
     );
+    assert!(!names.contains(&"l3dg3rr_plugin_info"));
 }
 
 #[test]
-fn pi_01_plugin_info_schema_has_subcommand_enum() {
+fn pi_01_workflow_schema_has_plugin_info_subcommand_enum() {
     let mut client = McpStdioClient::spawn();
     initialize_client(&mut client);
 
@@ -106,9 +107,15 @@ fn pi_01_plugin_info_schema_has_subcommand_enum() {
         .as_array()
         .expect("tools array")
         .iter()
-        .find(|t| t["name"] == PLUGIN_INFO_TOOL)
-        .expect("plugin_info in tools/list")["inputSchema"]
+        .find(|t| t["name"] == WORKFLOW_TOOL)
+        .expect("workflow in tools/list")["inputSchema"]
         .clone();
+
+    let action_values = schema["properties"]["action"]["enum"]
+        .as_array()
+        .expect("action enum");
+    let actions: Vec<&str> = action_values.iter().filter_map(Value::as_str).collect();
+    assert!(actions.contains(&"plugin_info"));
 
     let enum_values = schema["properties"]["subcommand"]["enum"]
         .as_array()
@@ -128,7 +135,7 @@ fn pi_02_check_returns_version_and_host_metadata() {
 
     let resp = client.request(
         "tools/call",
-        json!({ "name": PLUGIN_INFO_TOOL, "arguments": {} }),
+        json!({ "name": WORKFLOW_TOOL, "arguments": { "action": "plugin_info" } }),
     );
     assert_eq!(resp["result"]["isError"], Value::Bool(false));
 
@@ -150,11 +157,11 @@ fn pi_02_explicit_check_subcommand_is_identical_to_default() {
 
     let default_resp = client.request(
         "tools/call",
-        json!({ "name": PLUGIN_INFO_TOOL, "arguments": {} }),
+        json!({ "name": WORKFLOW_TOOL, "arguments": { "action": "plugin_info" } }),
     );
     let explicit_resp = client.request(
         "tools/call",
-        json!({ "name": PLUGIN_INFO_TOOL, "arguments": { "subcommand": "check" } }),
+        json!({ "name": WORKFLOW_TOOL, "arguments": { "action": "plugin_info", "subcommand": "check" } }),
     );
 
     let default_p = parse_response_payload(&default_resp["result"]);
@@ -172,7 +179,7 @@ fn pi_02_current_version_is_non_empty_semver_like() {
 
     let resp = client.request(
         "tools/call",
-        json!({ "name": PLUGIN_INFO_TOOL, "arguments": {} }),
+        json!({ "name": WORKFLOW_TOOL, "arguments": { "action": "plugin_info" } }),
     );
     let p = parse_response_payload(&resp["result"]);
     let version = p["current_version"].as_str().expect("current_version string");
@@ -190,7 +197,7 @@ fn pi_03_cleanup_returns_removed_array_and_count() {
 
     let resp = client.request(
         "tools/call",
-        json!({ "name": PLUGIN_INFO_TOOL, "arguments": { "subcommand": "cleanup" } }),
+        json!({ "name": WORKFLOW_TOOL, "arguments": { "action": "plugin_info", "subcommand": "cleanup" } }),
     );
     assert_eq!(resp["result"]["isError"], Value::Bool(false));
 
@@ -211,7 +218,7 @@ fn pi_04_upgrade_returns_not_supported_on_non_windows_without_feature() {
 
     let resp = client.request(
         "tools/call",
-        json!({ "name": PLUGIN_INFO_TOOL, "arguments": { "subcommand": "upgrade" } }),
+        json!({ "name": WORKFLOW_TOOL, "arguments": { "action": "plugin_info", "subcommand": "upgrade" } }),
     );
     assert_eq!(resp["result"]["isError"], Value::Bool(false));
 
@@ -239,7 +246,7 @@ fn pi_05_all_subcommands_return_text_content_type() {
     for subcommand in ["check", "cleanup", "upgrade"] {
         let resp = client.request(
             "tools/call",
-            json!({ "name": PLUGIN_INFO_TOOL, "arguments": { "subcommand": subcommand } }),
+            json!({ "name": WORKFLOW_TOOL, "arguments": { "action": "plugin_info", "subcommand": subcommand } }),
         );
         let content_type = resp["result"]["content"][0]["type"].as_str().unwrap_or("");
         assert_eq!(
@@ -256,7 +263,7 @@ fn pi_05_unknown_subcommand_falls_through_to_check() {
 
     let resp = client.request(
         "tools/call",
-        json!({ "name": PLUGIN_INFO_TOOL, "arguments": { "subcommand": "nonsense" } }),
+        json!({ "name": WORKFLOW_TOOL, "arguments": { "action": "plugin_info", "subcommand": "nonsense" } }),
     );
     assert_eq!(resp["result"]["isError"], Value::Bool(false));
 
