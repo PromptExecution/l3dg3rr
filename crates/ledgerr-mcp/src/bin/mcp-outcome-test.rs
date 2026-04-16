@@ -7,6 +7,11 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde_json::{json, Value};
 
+fn parse_response_payload(response: &Value) -> Value {
+    let text = response["content"][0]["text"].as_str().unwrap_or("null");
+    serde_json::from_str(text).unwrap_or(Value::Null)
+}
+
 struct McpClient {
     child: Child,
     stdin: ChildStdin,
@@ -182,8 +187,9 @@ fn step_pipeline_status(ctx: &mut FlowContext) -> Result<(), String> {
             "arguments": {}
         }),
     )?;
-    let status = &response["result"]["content"][0]["json"]["status"];
-    if status != "ready" {
+    let p = parse_response_payload(&response["result"]);
+    let status = &p["status"];
+    if *status != "ready" {
         return Err(format!("pipeline status not ready: {response}"));
     }
     Ok(())
@@ -197,7 +203,8 @@ fn step_list_accounts(ctx: &mut FlowContext) -> Result<(), String> {
             "arguments": {}
         }),
     )?;
-    let accounts = response["result"]["content"][0]["json"]["accounts"]
+    let accounts_p = parse_response_payload(&response["result"]);
+    let accounts = accounts_p["accounts"]
         .as_array()
         .ok_or_else(|| format!("accounts not returned: {response}"))?;
     if accounts.is_empty() {
@@ -229,7 +236,7 @@ fn step_ingest_sample(ctx: &mut FlowContext) -> Result<(), String> {
     if response["result"]["isError"] != Value::Bool(false) {
         return Err(format!("ingest should succeed: {response}"));
     }
-    if response["result"]["content"][0]["json"]["inserted_count"] != json!(1) {
+    if parse_response_payload(&response["result"])["inserted_count"] != json!(1) {
         return Err(format!("expected inserted_count=1: {response}"));
     }
     Ok(())
@@ -248,7 +255,7 @@ fn step_get_raw_context(ctx: &mut FlowContext) -> Result<(), String> {
     if response["result"]["isError"] != Value::Bool(false) {
         return Err(format!("get_raw_context should succeed: {response}"));
     }
-    if response["result"]["content"][0]["json"]["bytes"] != json!([99, 116, 120]) {
+    if parse_response_payload(&response["result"])["bytes"] != json!([99, 116, 120]) {
         return Err(format!("raw context bytes mismatch: {response}"));
     }
     Ok(())
@@ -267,8 +274,9 @@ fn step_hsm_resume_blocked(ctx: &mut FlowContext) -> Result<(), String> {
     if response["result"]["isError"] != Value::Bool(true) {
         return Err(format!("expected blocked hsm resume: {response}"));
     }
-    let error_type = &response["result"]["content"][0]["json"]["error_type"];
-    if error_type != "HsmResumeBlocked" {
+    let ep = parse_response_payload(&response["result"]);
+    let error_type = &ep["error_type"];
+    if *error_type != "HsmResumeBlocked" {
         return Err(format!("expected HsmResumeBlocked error type: {response}"));
     }
     Ok(())
@@ -291,8 +299,9 @@ fn step_reconciliation_blocked(ctx: &mut FlowContext) -> Result<(), String> {
             "expected blocked reconciliation commit: {response}"
         ));
     }
-    let error_type = &response["result"]["content"][0]["json"]["error_type"];
-    if error_type != "ReconciliationBlocked" {
+    let ep2 = parse_response_payload(&response["result"]);
+    let error_type = &ep2["error_type"];
+    if *error_type != "ReconciliationBlocked" {
         return Err(format!(
             "expected ReconciliationBlocked error type: {response}"
         ));
@@ -316,8 +325,9 @@ fn step_event_history_blocked(ctx: &mut FlowContext) -> Result<(), String> {
             "expected blocked event_history request: {response}"
         ));
     }
-    let reason = &response["result"]["content"][0]["json"]["reason"];
-    if reason != "time_range_invalid" {
+    let rp = parse_response_payload(&response["result"]);
+    let reason = &rp["reason"];
+    if *reason != "time_range_invalid" {
         return Err(format!("expected time_range_invalid reason: {response}"));
     }
     Ok(())

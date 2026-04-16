@@ -129,6 +129,12 @@ fn build_rustledger_rows_arguments(base_dir: &std::path::Path) -> Value {
 }
 
 // DOC-01: ingest path must be executable through MCP tools/call only.
+
+fn parse_response_payload(response: &serde_json::Value) -> serde_json::Value {
+    let text = response["content"][0]["text"].as_str().unwrap_or("null");
+    serde_json::from_str(text).unwrap_or(serde_json::Value::Null)
+}
+
 #[test]
 fn doc_01_mcp_only_ingest_via_tools_call() {
     let mut client = McpStdioClient::spawn();
@@ -154,11 +160,11 @@ fn doc_01_mcp_only_ingest_via_tools_call() {
 
     assert_eq!(call["result"]["isError"], Value::Bool(false));
     assert_eq!(
-        call["result"]["content"][0]["json"]["inserted_count"],
+        parse_response_payload(&call["result"])["inserted_count"],
         json!(1)
     );
     assert!(
-        call["result"]["content"][0]["json"]["tx_ids"]
+        parse_response_payload(&call["result"])["tx_ids"]
             .as_array()
             .expect("tx_ids array")
             .len()
@@ -181,7 +187,8 @@ fn doc_02_canonical_mapping_and_provenance_fields_over_transport() {
         }),
     );
 
-    let canonical = &call["result"]["content"][0]["json"]["canonical_rows"][0];
+    let p = parse_response_payload(&call["result"]);
+    let canonical = &p["canonical_rows"][0];
     assert!(canonical.get("account").is_some());
     assert!(canonical.get("date").is_some());
     assert!(canonical.get("amount").is_some());
@@ -217,20 +224,18 @@ fn doc_03_replay_idempotent_with_stable_tx_ids_over_mcp() {
     );
 
     assert_eq!(
-        first["result"]["content"][0]["json"]["inserted_count"],
+        parse_response_payload(&first["result"])["inserted_count"],
         json!(1)
     );
     assert_eq!(
-        second["result"]["content"][0]["json"]["inserted_count"],
+        parse_response_payload(&second["result"])["inserted_count"],
         json!(0)
     );
 
-    let first_ids = first["result"]["content"][0]["json"]["tx_ids"]
-        .as_array()
-        .expect("first tx ids");
-    let second_ids = second["result"]["content"][0]["json"]["tx_ids"]
-        .as_array()
-        .expect("second tx ids");
+    let fp = parse_response_payload(&first["result"]);
+    let first_ids = fp["tx_ids"].as_array().expect("first tx ids");
+    let sp = parse_response_payload(&second["result"]);
+    let second_ids = sp["tx_ids"].as_array().expect("second tx ids");
     assert_eq!(first_ids, second_ids);
 }
 
@@ -267,23 +272,21 @@ fn rustledger_proxy_ingest_statement_rows_over_transport() {
 
     assert_eq!(first["result"]["isError"], Value::Bool(false));
     assert_eq!(
-        first["result"]["content"][0]["json"]["inserted_count"],
+        parse_response_payload(&first["result"])["inserted_count"],
         json!(1)
     );
     assert_eq!(
-        second["result"]["content"][0]["json"]["inserted_count"],
+        parse_response_payload(&second["result"])["inserted_count"],
         json!(0)
     );
 
-    let first_ids = first["result"]["content"][0]["json"]["tx_ids"]
-        .as_array()
-        .expect("first tx ids");
-    let second_ids = second["result"]["content"][0]["json"]["tx_ids"]
-        .as_array()
-        .expect("second tx ids");
+    let fp2 = parse_response_payload(&first["result"]);
+    let first_ids = fp2["tx_ids"].as_array().expect("first tx ids");
+    let sp2 = parse_response_payload(&second["result"]);
+    let second_ids = sp2["tx_ids"].as_array().expect("second tx ids");
     assert_eq!(first_ids, second_ids);
 
-    let canonical = &first["result"]["content"][0]["json"]["canonical_rows"][0];
+    let canonical = &fp2["canonical_rows"][0];
     assert_eq!(canonical["provider"], json!("rustledger"));
     assert_eq!(canonical["backend_tool"], json!("ingest_statement_rows"));
     assert!(canonical.get("account").is_some());
@@ -319,9 +322,8 @@ fn mcp_lists_and_calls_accounts_and_raw_context_tools() {
         }),
     );
     assert_eq!(list_accounts["result"]["isError"], Value::Bool(false));
-    let accounts = list_accounts["result"]["content"][0]["json"]["accounts"]
-        .as_array()
-        .expect("accounts array");
+    let accounts_p = parse_response_payload(&list_accounts["result"]);
+    let accounts = accounts_p["accounts"].as_array().expect("accounts array");
     assert!(!accounts.is_empty());
     assert!(accounts
         .iter()
@@ -351,7 +353,7 @@ fn mcp_lists_and_calls_accounts_and_raw_context_tools() {
     );
     assert_eq!(raw_context["result"]["isError"], Value::Bool(false));
     assert_eq!(
-        raw_context["result"]["content"][0]["json"]["bytes"],
+        parse_response_payload(&raw_context["result"])["bytes"],
         json!([99, 116, 120])
     );
 }

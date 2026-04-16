@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.3.8 - 2026-04-17
+#### Bug Fixes
+- (**mcp**) fix BUG-003 (P0): all 27 tool handlers returned `"type": "json"` content blocks, which is not a valid MCP 2025-11-25 content type and causes Zod validation failures in spec-compliant clients; converted every content block to `"type": "text"` with payload serialized as a JSON string; added `text_content()` private helper to centralise the pattern; added `handle_pipeline_status()` handler to eliminate the one remaining hand-rolled response in the server binary - (cbde62d) - Claude Sonnet (coordinator)
+
+- - -
+
 ## v1.3.7 - 2026-04-16
 #### Bug Fixes
 - (**mcp**) fix `proxy_docling_ingest_pdf` schema: required fields were `source_ref` in schema vs `pdf_path`/`journal_path`/`workbook_path` in impl; schema updated to match; `extracted_rows` made truly optional (BUG-001) - (cbde62d) - Claude Sonnet (coordinator)

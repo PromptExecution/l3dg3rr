@@ -3,6 +3,11 @@ use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
 use serde_json::{json, Value};
 
+fn parse_response_payload(response: &Value) -> Value {
+    let text = response["content"][0]["text"].as_str().unwrap_or("null");
+    serde_json::from_str(text).unwrap_or(Value::Null)
+}
+
 const EVENT_REPLAY_TOOL: &str = "l3dg3rr_event_replay";
 const EVENT_HISTORY_TOOL: &str = "l3dg3rr_event_history";
 
@@ -116,10 +121,8 @@ fn ingest_one_row(
         }),
     );
     assert_eq!(ingest["result"]["isError"], Value::Bool(false));
-    ingest["result"]["content"][0]["json"]["tx_ids"][0]
-        .as_str()
-        .unwrap_or_default()
-        .to_string()
+    let p = parse_response_payload(&ingest["result"]);
+    p["tx_ids"][0].as_str().unwrap_or_default().to_string()
 }
 
 #[test]
@@ -161,7 +164,7 @@ fn evt_03_event_history_filtering_by_tx_document_and_time_is_deterministic() {
     );
     assert_eq!(history["result"]["isError"], Value::Bool(false));
 
-    let payload = &history["result"]["content"][0]["json"];
+    let payload = parse_response_payload(&history["result"]);
     assert_eq!(payload["filter"]["document_ref"], json!("source/a.rkyv"));
     let events = payload["events"].as_array().expect("events");
     assert!(!events.is_empty());
@@ -192,7 +195,7 @@ fn evt_03_invalid_filter_range_returns_deterministic_blocked_envelope() {
         }),
     );
     assert_eq!(response["result"]["isError"], Value::Bool(true));
-    let payload = &response["result"]["content"][0]["json"];
+    let payload = parse_response_payload(&response["result"]);
     assert_eq!(payload["error_type"], json!("EventHistoryBlocked"));
     assert_eq!(payload["reason"], json!("time_range_invalid"));
 }

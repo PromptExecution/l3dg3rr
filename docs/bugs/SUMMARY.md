@@ -12,6 +12,7 @@
 |----|----------|------|-------|--------|
 | BUG-001 | P1 | `proxy_docling_ingest_pdf` | Schema required `source_ref`; impl required `pdf_path`+`journal_path`+`workbook_path` | ✅ Fixed — schema updated to match impl; `extracted_rows` made truly optional |
 | BUG-002 | P1 | `l3dg3rr_ontology_export_snapshot` | Schema advertised no params; impl required `ontology_path` | ✅ Fixed — schema updated; handler routed through `TurboLedgerService` |
+| BUG-003 | P0 | ALL tools (27) | All tools returned `"type": "json"` content blocks — not a valid MCP 2025-11-25 content type; rejected by spec-compliant clients | ✅ Fixed — all content blocks converted to `"type": "text"` with JSON serialized as string; `text_content()` helper centralises the pattern |
 
 ## Pass Results by Tool Group
 
@@ -26,6 +27,7 @@
 | Ontology (read) | `ontology_query_path`, `ontology_upsert_entities`, `ontology_upsert_edges` | ✅ Pass |
 | Ontology (export) | `ontology_export_snapshot` | ✅ Pass (BUG-002 fixed) |
 | Docling proxy | `proxy_docling_ingest_pdf` | ✅ Pass (BUG-001 fixed) |
+| All tools (content type) | all 27 tools | ✅ Pass (BUG-003 fixed) |
 
 ## Protocol Compliance
 

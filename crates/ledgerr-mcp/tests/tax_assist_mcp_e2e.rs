@@ -193,6 +193,12 @@ fn ingest_one_row(client: &mut McpStdioClient) {
     assert_eq!(ingest["result"]["isError"], Value::Bool(false));
 }
 
+
+fn parse_response_payload(response: &serde_json::Value) -> serde_json::Value {
+    let text = response["content"][0]["text"].as_str().unwrap_or("null");
+    serde_json::from_str(text).unwrap_or(serde_json::Value::Null)
+}
+
 #[test]
 fn taxa_mcp_tools_list_advertises_tax_tools() {
     let mut client = McpStdioClient::spawn();
@@ -237,7 +243,7 @@ fn taxa_mcp_tools_call_return_deterministic_tax_assist_and_evidence_chain_sectio
         }),
     );
     assert_eq!(assist["result"]["isError"], Value::Bool(false));
-    let assist_payload = &assist["result"]["content"][0]["json"];
+    let assist_payload = parse_response_payload(&assist["result"]);
     assert!(assist_payload.get("summary").is_some());
     assert!(assist_payload.get("schedule_rows").is_some());
     assert!(assist_payload.get("fbar_rows").is_some());
@@ -255,7 +261,7 @@ fn taxa_mcp_tools_call_return_deterministic_tax_assist_and_evidence_chain_sectio
         }),
     );
     assert_eq!(chain["result"]["isError"], Value::Bool(false));
-    let chain_payload = &chain["result"]["content"][0]["json"];
+    let chain_payload = parse_response_payload(&chain["result"]);
     assert!(chain_payload.get("source").is_some());
     assert!(chain_payload.get("events").is_some());
     assert!(chain_payload.get("current_state").is_some());
@@ -286,7 +292,7 @@ fn taxa_mcp_ambiguity_review_payload_includes_provenance_and_review_state() {
         }),
     );
     assert_eq!(response["result"]["isError"], Value::Bool(false));
-    let payload = &response["result"]["content"][0]["json"];
+    let payload = parse_response_payload(&response["result"]);
     assert_eq!(payload["status"], json!("review_ready"));
     assert_eq!(
         payload["ambiguity"][0]["review_state"],
