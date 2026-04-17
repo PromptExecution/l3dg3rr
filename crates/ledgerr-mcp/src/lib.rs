@@ -10,6 +10,7 @@ use ledger_core::manifest::Manifest;
 use rust_decimal::Decimal;
 use rust_xlsxwriter::Workbook;
 
+pub mod contract;
 pub mod mcp_adapter;
 pub mod plugin_info;
 pub mod events;

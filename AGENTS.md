@@ -241,6 +241,10 @@ Treat this as a standing operational gate, not a one-time migration task.
 - 2026-04-17: reduced the default MCP catalog to 7 top-level `ledgerr_*` tools and relocated plugin info under `ledgerr_workflow`.
   - Keep docs/examples aligned to the reduced surface; `tools/list` is now intended to be a trustworthy small catalog for agents.
   - Legacy `l3dg3rr_*` and proxy tool names remain compatibility aliases only and should not be reintroduced into the advertised catalog.
+- 2026-04-17: issue `#22` established a code-first MCP contract path.
+  - The published MCP surface now lives in `crates/ledgerr-mcp/src/contract.rs`; treat it as the only source of truth for parser shapes, generated JSON Schema, and checked-in operator docs/examples.
+  - Regenerate `docs/mcp-capability-contract.md`, `docs/agent-mcp-runbook.md`, and `scripts/mcp_cli_demo.sh` via `cargo run -p xtask-mcpb -- generate-mcp-artifacts` after changing the published MCP surface.
+  - Drift between `contract.rs` and those generated artifacts is a test failure, not a documentation chore.
 
 
 

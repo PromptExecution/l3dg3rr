@@ -1,0 +1,690 @@
+//! Canonical MCP transport contract for the published `ledgerr_*` surface.
+//!
+//! Design decision, captured here intentionally because it affects how future
+//! agents extend the MCP boundary:
+//! - Rust code is the only source of truth for the published MCP surface.
+//! - `tools/list` schemas, operator docs, and runnable examples are generated
+//!   from this module.
+//! - Drift between parser, schema, and docs is a bug and should fail tests.
+//!
+//! Hidden compatibility aliases may continue to parse legacy shapes elsewhere,
+//! but the advertised 7-tool catalog must stay defined here.
+
+use std::collections::BTreeMap;
+use std::path::PathBuf;
+
+use schemars::{
+    schema::{InstanceType, Metadata, RootSchema, Schema, SchemaObject, SingleOrVec},
+    schema_for, JsonSchema,
+};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+
+use crate::ToolError;
+
+pub const DOCUMENTS_TOOL: &str = "ledgerr_documents";
+pub const REVIEW_TOOL: &str = "ledgerr_review";
+pub const RECONCILIATION_TOOL: &str = "ledgerr_reconciliation";
+pub const WORKFLOW_TOOL: &str = "ledgerr_workflow";
+pub const AUDIT_TOOL: &str = "ledgerr_audit";
+pub const TAX_TOOL: &str = "ledgerr_tax";
+pub const ONTOLOGY_TOOL: &str = "ledgerr_ontology";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ToolContractSpec {
+    pub name: &'static str,
+    pub purpose: &'static str,
+    pub actions: &'static [&'static str],
+}
+
+pub const PUBLISHED_TOOLS: [ToolContractSpec; 7] = [
+    ToolContractSpec {
+        name: DOCUMENTS_TOOL,
+        purpose: "document intake, routing, manifest/account discovery, raw context retrieval",
+        actions: &[
+            "list_accounts",
+            "pipeline_status",
+            "validate_filename",
+            "ingest_pdf",
+            "ingest_rows",
+            "get_raw_context",
+        ],
+    },
+    ToolContractSpec {
+        name: REVIEW_TOOL,
+        purpose: "classification and human-review workflows",
+        actions: &[
+            "run_rule",
+            "classify_ingested",
+            "query_flags",
+            "classify_transaction",
+            "reconcile_excel_classification",
+        ],
+    },
+    ToolContractSpec {
+        name: RECONCILIATION_TOOL,
+        purpose: "staged totals/postings guardrails",
+        actions: &["validate", "reconcile", "commit"],
+    },
+    ToolContractSpec {
+        name: WORKFLOW_TOOL,
+        purpose: "lifecycle/HSM orchestration plus relocated plugin ops",
+        actions: &["status", "transition", "resume", "plugin_info"],
+    },
+    ToolContractSpec {
+        name: AUDIT_TOOL,
+        purpose: "append-only event and audit-log views",
+        actions: &["event_history", "event_replay", "query_audit_log"],
+    },
+    ToolContractSpec {
+        name: TAX_TOOL,
+        purpose: "tax summaries, evidence, ambiguity review, workbook export",
+        actions: &[
+            "assist",
+            "evidence_chain",
+            "ambiguity_review",
+            "schedule_summary",
+            "export_workbook",
+        ],
+    },
+    ToolContractSpec {
+        name: ONTOLOGY_TOOL,
+        purpose: "ontology query/export/write operations",
+        actions: &[
+            "query_path",
+            "export_snapshot",
+            "upsert_entities",
+            "upsert_edges",
+        ],
+    },
+];
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TransportRow {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account: Option<String>,
+    pub date: String,
+    pub amount: String,
+    pub description: String,
+    pub source_ref: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SampleTxInput {
+    pub tx_id: String,
+    pub account_id: String,
+    pub date: String,
+    pub amount: String,
+    pub description: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ReconciliationInput {
+    pub source_total: String,
+    pub extracted_total: String,
+    pub posting_amounts: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+pub enum FlexibleF64 {
+    Number(f64),
+    String(String),
+}
+
+impl FlexibleF64 {
+    pub fn as_json(&self) -> Value {
+        match self {
+            Self::Number(value) => json!(value),
+            Self::String(value) => json!(value),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PluginInfoSubcommand(pub String);
+
+impl JsonSchema for PluginInfoSubcommand {
+    fn schema_name() -> String {
+        "PluginInfoSubcommand".to_string()
+    }
+
+    fn json_schema(_gen: &mut schemars::gen::SchemaGenerator) -> Schema {
+        Schema::Object(SchemaObject {
+            instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::String))),
+            enum_values: Some(vec![json!("check"), json!("upgrade"), json!("cleanup")]),
+            metadata: Some(Box::new(Metadata {
+                description: Some("Recognized values are check, upgrade, and cleanup. Unknown strings intentionally fall through to the default check behavior.".to_string()),
+                ..Metadata::default()
+            })),
+            ..SchemaObject::default()
+        })
+    }
+
+    fn is_referenceable() -> bool {
+        false
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct WorkflowPluginInfoInput {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subcommand: Option<PluginInfoSubcommand>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum ReviewStatusInput {
+    #[serde(rename = "open")]
+    Open,
+    #[serde(rename = "resolved")]
+    Resolved,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum ScheduleInput {
+    #[serde(rename = "ScheduleC")]
+    ScheduleC,
+    #[serde(rename = "ScheduleD")]
+    ScheduleD,
+    #[serde(rename = "ScheduleE")]
+    ScheduleE,
+    #[serde(rename = "Fbar")]
+    Fbar,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum OntologyEntityKindInput {
+    Document,
+    Account,
+    Institution,
+    Transaction,
+    TaxCategory,
+    EvidenceReference,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct OntologyEntityInput {
+    pub kind: OntologyEntityKindInput,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub properties: Option<BTreeMap<String, Value>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct OntologyEdgeInput {
+    pub from_id: String,
+    pub to_id: String,
+    pub relation: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<BTreeMap<String, Value>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
+pub enum DocumentsArgs {
+    ListAccounts,
+    PipelineStatus,
+    ValidateFilename {
+        file_name: String,
+    },
+    GetRawContext {
+        rkyv_ref: PathBuf,
+    },
+    IngestPdf {
+        pdf_path: String,
+        journal_path: PathBuf,
+        workbook_path: PathBuf,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        raw_context_bytes: Option<Vec<u8>>,
+        #[serde(default)]
+        extracted_rows: Vec<TransportRow>,
+    },
+    IngestRows {
+        journal_path: PathBuf,
+        workbook_path: PathBuf,
+        rows: Vec<TransportRow>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ReviewArgs {
+    RunRule {
+        rule_file: PathBuf,
+        sample_tx: SampleTxInput,
+    },
+    ClassifyIngested {
+        rule_file: PathBuf,
+        review_threshold: FlexibleF64,
+    },
+    QueryFlags {
+        year: i32,
+        status: ReviewStatusInput,
+    },
+    ClassifyTransaction {
+        tx_id: String,
+        category: String,
+        confidence: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        note: Option<String>,
+        actor: String,
+    },
+    ReconcileExcelClassification {
+        tx_id: String,
+        category: String,
+        confidence: String,
+        actor: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        note: Option<String>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ReconciliationArgs {
+    Validate {
+        source_total: String,
+        extracted_total: String,
+        posting_amounts: Vec<String>,
+    },
+    Reconcile {
+        source_total: String,
+        extracted_total: String,
+        posting_amounts: Vec<String>,
+    },
+    Commit {
+        source_total: String,
+        extracted_total: String,
+        posting_amounts: Vec<String>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
+pub enum WorkflowArgs {
+    Status,
+    Transition {
+        target_state: String,
+        target_substate: String,
+    },
+    Resume {
+        state_marker: String,
+    },
+    PluginInfo {
+        #[serde(flatten)]
+        payload: WorkflowPluginInfoInput,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
+pub enum AuditArgs {
+    EventHistory {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tx_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        document_ref: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        time_start: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        time_end: Option<String>,
+    },
+    EventReplay {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tx_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        document_ref: Option<String>,
+    },
+    QueryAuditLog,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
+pub enum TaxArgs {
+    Assist {
+        ontology_path: PathBuf,
+        from_entity_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        max_depth: Option<usize>,
+        reconciliation: ReconciliationInput,
+    },
+    EvidenceChain {
+        ontology_path: PathBuf,
+        from_entity_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tx_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        document_ref: Option<String>,
+    },
+    AmbiguityReview {
+        ontology_path: PathBuf,
+        from_entity_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        max_depth: Option<usize>,
+        reconciliation: ReconciliationInput,
+    },
+    ScheduleSummary {
+        year: i32,
+        schedule: ScheduleInput,
+    },
+    ExportWorkbook {
+        workbook_path: PathBuf,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
+pub enum OntologyArgs {
+    QueryPath {
+        ontology_path: PathBuf,
+        from_entity_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        max_depth: Option<usize>,
+    },
+    ExportSnapshot {
+        ontology_path: PathBuf,
+    },
+    UpsertEntities {
+        ontology_path: PathBuf,
+        entities: Vec<OntologyEntityInput>,
+    },
+    UpsertEdges {
+        ontology_path: PathBuf,
+        edges: Vec<OntologyEdgeInput>,
+    },
+}
+
+pub fn parse_documents(arguments: &Value) -> Result<DocumentsArgs, ToolError> {
+    parse_args(arguments)
+}
+
+pub fn parse_review(arguments: &Value) -> Result<ReviewArgs, ToolError> {
+    parse_args(arguments)
+}
+
+pub fn parse_reconciliation(arguments: &Value) -> Result<ReconciliationArgs, ToolError> {
+    parse_args(arguments)
+}
+
+pub fn parse_workflow(arguments: &Value) -> Result<WorkflowArgs, ToolError> {
+    parse_args(arguments)
+}
+
+pub fn parse_audit(arguments: &Value) -> Result<AuditArgs, ToolError> {
+    parse_args(arguments)
+}
+
+pub fn parse_tax(arguments: &Value) -> Result<TaxArgs, ToolError> {
+    parse_args(arguments)
+}
+
+pub fn parse_ontology(arguments: &Value) -> Result<OntologyArgs, ToolError> {
+    parse_args(arguments)
+}
+
+fn parse_args<T>(arguments: &Value) -> Result<T, ToolError>
+where
+    T: for<'de> Deserialize<'de>,
+{
+    serde_json::from_value(arguments.clone())
+        .map_err(|err| ToolError::InvalidInput(format!("invalid tool arguments: {err}")))
+}
+
+pub fn tool_input_schema(name: &str) -> Value {
+    match name {
+        DOCUMENTS_TOOL => root_schema_to_value(schema_for!(DocumentsArgs)),
+        REVIEW_TOOL => root_schema_to_value(schema_for!(ReviewArgs)),
+        RECONCILIATION_TOOL => root_schema_to_value(schema_for!(ReconciliationArgs)),
+        WORKFLOW_TOOL => root_schema_to_value(schema_for!(WorkflowArgs)),
+        AUDIT_TOOL => root_schema_to_value(schema_for!(AuditArgs)),
+        TAX_TOOL => root_schema_to_value(schema_for!(TaxArgs)),
+        ONTOLOGY_TOOL => root_schema_to_value(schema_for!(OntologyArgs)),
+        _ => json!({ "type": "object" }),
+    }
+}
+
+fn root_schema_to_value(schema: RootSchema) -> Value {
+    serde_json::to_value(schema).expect("schema serializes")
+}
+
+pub fn generated_capability_contract_markdown() -> String {
+    let mut doc = String::new();
+    doc.push_str("# MCP Capability Contract (Generated)\n\n");
+    doc.push_str(
+        "This file is generated from `crates/ledgerr-mcp/src/contract.rs`.\n\n\
+Rust code is the only source of truth for the published MCP surface. If this file drifts from the contract module, tests should fail.\n\n",
+    );
+    doc.push_str(
+        "The default catalog is intentionally small: 7 top-level `ledgerr_*` tools. Each tool uses a required `action` field so the major capability families stay visible while related operations are grouped under one top-level command.\n\n",
+    );
+    doc.push_str("## Published MCP Tools\n\n");
+    doc.push_str("| Tool | Purpose | Common actions |\n|---|---|---|\n");
+    for spec in PUBLISHED_TOOLS {
+        doc.push_str(&format!(
+            "| `{}` | {} | {} |\n",
+            spec.name,
+            spec.purpose,
+            spec.actions
+                .iter()
+                .map(|action| format!("`{action}`"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    doc.push_str(
+        "\nThe concrete parser, action enums, field aliases, and JSON Schemas all live in [crates/ledgerr-mcp/src/contract.rs](../crates/ledgerr-mcp/src/contract.rs).\n\n\
+The transport adapter in [crates/ledgerr-mcp/src/mcp_adapter.rs](../crates/ledgerr-mcp/src/mcp_adapter.rs) consumes that contract rather than re-describing it by hand.\n\n",
+    );
+    doc.push_str(
+        "## Compatibility\n\n\
+The server still accepts older `l3dg3rr_*` and proxy-style call names as hidden compatibility aliases, but they are no longer advertised in `tools/list`. Agents should use the `ledgerr_*` tools above by default.\n\n",
+    );
+    doc.push_str(
+        "## Internal Service API\n\n\
+Canonical trait:\n[TurboLedgerTools in crates/ledgerr-mcp/src/lib.rs](../crates/ledgerr-mcp/src/lib.rs#L289)\n\n\
+Important distinction:\n- The MCP surface is the reduced 7-tool catalog defined in Rust.\n- The internal service trait remains more granular and implementation-oriented.\n\n\
+API layering:\n1. `ledgerr-mcp-server` (stdio transport)\n2. `contract` (published tool families, action enums, generated schema/doc artifacts)\n3. `mcp_adapter` (dispatch + envelope shaping)\n4. `TurboLedgerService` (domain logic, guardrails, state/event/HSM ops)\n5. `ledger-core` (ingest, filename validation, classification primitives)\n\n",
+    );
+    doc.push_str("## Example Flow\n\n");
+    doc.push_str("### Step A: initialize and list tools\n\n");
+    doc.push_str("```json\n");
+    doc.push_str("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"clientInfo\":{\"name\":\"demo\",\"version\":\"0.1.0\"}}}\n");
+    doc.push_str("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{}}\n");
+    doc.push_str("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}\n");
+    doc.push_str("```\n\n");
+    doc.push_str("### Step B: ingest a PDF through `ledgerr_documents`\n\n```json\n");
+    doc.push_str(&pretty_json(&documents_ingest_pdf_example()));
+    doc.push_str("\n```\n\n");
+    doc.push_str("### Step C: run reconciliation commit gate\n\n```json\n");
+    doc.push_str(&pretty_json(&reconciliation_commit_example()));
+    doc.push_str("\n```\n\n");
+    doc.push_str("### Step D: inspect workflow status and audit replay\n\n```json\n");
+    doc.push_str("{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/call\",\"params\":{\"name\":\"ledgerr_workflow\",\"arguments\":{\"action\":\"status\"}}}\n");
+    doc.push_str("{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\",\"params\":{\"name\":\"ledgerr_audit\",\"arguments\":{\"action\":\"event_replay\",\"document_ref\":\"wf-2023-01.rkyv\"}}}\n");
+    doc.push_str("```\n\n");
+    doc.push_str("### Step E: ask for tax evidence\n\n```json\n");
+    doc.push_str(&pretty_json(&tax_evidence_chain_example()));
+    doc.push_str("\n```\n\n");
+    doc.push_str(
+        "## Current Gaps\n\n\
+Open design/roadmap gaps are tracked in:\n\
+- `#20` persistent state across restart\n\
+- `#21` workbook export completeness\n\
+- `#22` schema/doc drift elimination\n\
+- `#23` document inventory/queue\n\
+- `#24` unified work queue\n\
+- `#25` batch review actions\n\
+- `#26` transaction query + preflight/rule preview\n",
+    );
+    doc
+}
+
+pub fn generated_agent_runbook_markdown() -> String {
+    format!(
+        "# Agent MCP Runbook (Generated)\n\n\
+This file is generated from `crates/ledgerr-mcp/src/contract.rs`.\n\n\
+Agent workflows must use `initialize`, `notifications/initialized`, `tools/list`, and `tools/call` over stdio.\n\n\
+## Runtime Model\n\n\
+The default published surface is the reduced 7-tool catalog:\n\n{}\n\
+Each tool requires an `action` argument.\n\n\
+## Bootstrap\n\n\
+From repo root:\n\n```bash\ncargo build -p ledgerr-mcp --bin ledgerr-mcp-server\n```\n\n\
+## Lifecycle\n\n\
+Required order:\n\n\
+1. `initialize`\n\
+2. `notifications/initialized`\n\
+3. `tools/list`\n\
+4. `tools/call`\n\n\
+## Basic Happy Path\n\n```json\n{}\n{}\n{}\n{}\n```\n\n\
+## Troubleshooting / Spinning Wheels\n\n```json\n{}\n{}\n{}\n```\n\n\
+Expected blocked outcomes:\n\n\
+- invalid workflow resume returns `HsmResumeBlocked`\n\
+- imbalanced reconciliation commit returns `ReconciliationBlocked`\n\
+- invalid audit time range returns `EventHistoryBlocked`\n\n\
+## Suggested Test Commands\n\n```bash\ncargo test -p ledgerr-mcp --test mcp_stdio_e2e -- --nocapture\ncargo test -p ledgerr-mcp --test plugin_info_mcp_e2e -- --nocapture\nbash scripts/mcp_cli_demo.sh\nbash scripts/mcp_e2e.sh\n```\n\n\
+## Notes\n\n\
+- Hidden compatibility aliases still exist for older `l3dg3rr_*` and proxy-style calls, but agents should not depend on them.\n\
+- Use `docs/mcp-capability-contract.md` as the concise surface map.\n",
+        PUBLISHED_TOOLS
+            .iter()
+            .map(|spec| format!("- `{}`\n", spec.name))
+            .collect::<String>(),
+        compact_tool_call(DOCUMENTS_TOOL, json!({"action":"pipeline_status"})),
+        compact_tool_call(DOCUMENTS_TOOL, json!({"action":"list_accounts"})),
+        compact_tool_call(
+            DOCUMENTS_TOOL,
+            json!({
+                "action":"ingest_pdf",
+                "pdf_path":"WF--BH-CHK--2023-01--statement.pdf",
+                "journal_path":"/tmp/demo.beancount",
+                "workbook_path":"/tmp/demo.xlsx",
+                "raw_context_bytes":[99,116,120],
+                "extracted_rows":[{
+                    "account_id":"WF-BH-CHK",
+                    "date":"2023-01-15",
+                    "amount":"-42.11",
+                    "description":"Coffee Shop",
+                    "source_ref":"wf-2023-01.rkyv"
+                }]
+            })
+        ),
+        compact_tool_call(
+            DOCUMENTS_TOOL,
+            json!({"action":"get_raw_context","rkyv_ref":"wf-2023-01.rkyv"})
+        ),
+        compact_tool_call(
+            WORKFLOW_TOOL,
+            json!({"action":"resume","state_marker":"invalid-checkpoint"})
+        ),
+        compact_tool_call(
+            RECONCILIATION_TOOL,
+            json!({"action":"commit","source_total":"100.00","extracted_total":"95.00","posting_amounts":["-95.00","95.00"]})
+        ),
+        compact_tool_call(
+            AUDIT_TOOL,
+            json!({"action":"event_history","time_start":"2026-12-31","time_end":"2026-01-01"})
+        ),
+    )
+}
+
+pub fn generated_mcp_cli_demo_script() -> String {
+    format!(
+        "#!/usr/bin/env bash\nset -euo pipefail\n\n\
+JOURNAL_PATH=\"${{JOURNAL_PATH:-/tmp/demo.beancount}}\"\n\
+WORKBOOK_PATH=\"${{WORKBOOK_PATH:-/tmp/demo.xlsx}}\"\n\
+SOURCE_REF=\"${{SOURCE_REF:-wf-2023-01.rkyv}}\"\n\n\
+cargo run -q -p ledgerr-mcp --bin ledgerr-mcp-server <<EOF\n\
+{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"clientInfo\":{{\"name\":\"demo\",\"version\":\"0.1.0\"}}}}}}\n\
+{{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{{}}}}\n\
+{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{{}}}}\n\
+{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{{\"name\":\"ledgerr_documents\",\"arguments\":{{\"action\":\"pipeline_status\"}}}}}}\n\
+{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{{\"name\":\"ledgerr_documents\",\"arguments\":{{\"action\":\"list_accounts\"}}}}}}\n\
+{{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/call\",\"params\":{{\"name\":\"ledgerr_documents\",\"arguments\":{{\"action\":\"ingest_pdf\",\"pdf_path\":\"WF--BH-CHK--2023-01--statement.pdf\",\"journal_path\":\"$JOURNAL_PATH\",\"workbook_path\":\"$WORKBOOK_PATH\",\"raw_context_bytes\":[99,116,120],\"extracted_rows\":[{{\"account_id\":\"WF-BH-CHK\",\"date\":\"2023-01-15\",\"amount\":\"-42.11\",\"description\":\"Coffee Shop\",\"source_ref\":\"$SOURCE_REF\"}}]}}}}}}\n\
+{{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\",\"params\":{{\"name\":\"ledgerr_documents\",\"arguments\":{{\"action\":\"get_raw_context\",\"rkyv_ref\":\"$SOURCE_REF\"}}}}}}\n\
+EOF\n\n\
+# Troubleshooting path\n\
+cat <<'EOF'\n\
+{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{{\"name\":\"ledgerr_workflow\",\"arguments\":{{\"action\":\"resume\",\"state_marker\":\"invalid-checkpoint\"}}}}}}\n\
+{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{{\"name\":\"ledgerr_reconciliation\",\"arguments\":{{\"action\":\"commit\",\"source_total\":\"100.00\",\"extracted_total\":\"95.00\",\"posting_amounts\":[\"-95.00\",\"95.00\"]}}}}}}\n\
+{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{{\"name\":\"ledgerr_audit\",\"arguments\":{{\"action\":\"event_history\",\"time_start\":\"2026-12-31\",\"time_end\":\"2026-01-01\"}}}}}}\n\
+EOF\n"
+    )
+}
+
+fn documents_ingest_pdf_example() -> Value {
+    json!({
+      "jsonrpc":"2.0",
+      "id":3,
+      "method":"tools/call",
+      "params":{
+        "name":"ledgerr_documents",
+        "arguments":{
+          "action":"ingest_pdf",
+          "pdf_path":"WF--BH-CHK--2023-01--statement.pdf",
+          "journal_path":"/tmp/demo.beancount",
+          "workbook_path":"/tmp/demo.xlsx",
+          "raw_context_bytes":[99,116,120],
+          "extracted_rows":[{
+            "account_id":"WF-BH-CHK",
+            "date":"2023-01-05",
+            "amount":"-42.50",
+            "description":"Coffee Beans",
+            "source_ref":"wf-2023-01.rkyv"
+          }]
+        }
+      }
+    })
+}
+
+fn reconciliation_commit_example() -> Value {
+    json!({
+      "jsonrpc":"2.0",
+      "id":4,
+      "method":"tools/call",
+      "params":{
+        "name":"ledgerr_reconciliation",
+        "arguments":{
+          "action":"commit",
+          "source_total":"42.50",
+          "extracted_total":"42.50",
+          "posting_amounts":["-42.50","42.50"]
+        }
+      }
+    })
+}
+
+fn tax_evidence_chain_example() -> Value {
+    json!({
+      "jsonrpc":"2.0",
+      "id":7,
+      "method":"tools/call",
+      "params":{
+        "name":"ledgerr_tax",
+        "arguments":{
+          "action":"evidence_chain",
+          "ontology_path":"/tmp/ontology.json",
+          "from_entity_id":"WF-BH-CHK",
+          "document_ref":"wf-2023-01.rkyv"
+        }
+      }
+    })
+}
+
+fn pretty_json(value: &Value) -> String {
+    serde_json::to_string_pretty(value).expect("json example")
+}
+
+fn compact_tool_call(name: &str, arguments: Value) -> String {
+    serde_json::to_string(&json!({ "name": name, "arguments": arguments })).expect("json line")
+}
