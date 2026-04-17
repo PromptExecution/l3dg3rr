@@ -1,5 +1,6 @@
 use calamine::Reader;
 use ledger_core::ingest::TransactionInput;
+use ledger_core::workbook::REQUIRED_SHEETS;
 use ledgerr_mcp::{
     ClassifyTransactionRequest, ExportCpaWorkbookRequest, GetScheduleSummaryRequest,
     IngestPdfRequest, ScheduleKindRequest, TurboLedgerService, TurboLedgerTools,
@@ -7,7 +8,7 @@ use ledgerr_mcp::{
 
 fn service() -> TurboLedgerService {
     TurboLedgerService::from_manifest_str(
-        "[session]\nworkbook_path=\"tax-ledger.xlsx\"\nactive_year=2023\n",
+        "[session]\nworkbook_path=\"tax-ledger.xlsx\"\nactive_year=2023\n\n[accounts.WF-BH-CHK]\ninstitution=\"Wise\"\ntype=\"checking\"\ncurrency=\"USD\"\n",
     )
     .expect("manifest")
 }
@@ -33,8 +34,15 @@ fn ingest(svc: &TurboLedgerService, description: &str, amount: &str, date: &str)
     ingest.tx_ids[0].clone()
 }
 
+fn cell_text<T>(range: &calamine::Range<T>, row: usize, col: usize) -> Option<String>
+where
+    T: calamine::CellType + ToString,
+{
+    range.get((row, col)).map(ToString::to_string)
+}
+
 #[test]
-fn wb_01_02_03_export_cpa_workbook_materializes_tx_and_flag_sheets() {
+fn wb_01_02_03_export_cpa_workbook_honors_canonical_contract_and_materializes_contents() {
     let svc = service();
     let tx_id = ingest(&svc, "Office Depot", "-120.00", "2023-04-10");
     svc.classify_transaction(ClassifyTransactionRequest {
@@ -48,7 +56,7 @@ fn wb_01_02_03_export_cpa_workbook_materializes_tx_and_flag_sheets() {
 
     let low_conf_tx = ingest(&svc, "Unknown Vendor", "-44.00", "2023-04-11");
     svc.classify_transaction(ClassifyTransactionRequest {
-        tx_id: low_conf_tx,
+        tx_id: low_conf_tx.clone(),
         category: "Uncategorized".to_string(),
         confidence: "0.40".to_string(),
         note: None,
@@ -63,11 +71,53 @@ fn wb_01_02_03_export_cpa_workbook_materializes_tx_and_flag_sheets() {
     })
     .expect("export workbook");
 
-    let wb = calamine::open_workbook_auto(workbook_path).expect("workbook");
+    let mut wb = calamine::open_workbook_auto(workbook_path).expect("workbook");
+    for required in REQUIRED_SHEETS {
+        assert!(
+            wb.sheet_names().iter().any(|sheet| sheet == required),
+            "missing required sheet `{required}`"
+        );
+    }
     assert!(wb.sheet_names().iter().any(|s| s == "TX.WF-BH-CHK"));
-    assert!(wb.sheet_names().iter().any(|s| s == "CAT.taxonomy"));
-    assert!(wb.sheet_names().iter().any(|s| s == "FLAGS.open"));
-    assert!(wb.sheet_names().iter().any(|s| s == "FLAGS.resolved"));
+
+    let meta = wb.worksheet_range("META.config").expect("META.config");
+    assert_eq!(cell_text(&meta, 1, 0), Some("tax-ledger.xlsx".to_string()));
+    assert_eq!(cell_text(&meta, 1, 1), Some("2023".to_string()));
+
+    let registry = wb.worksheet_range("ACCT.registry").expect("ACCT.registry");
+    assert_eq!(cell_text(&registry, 1, 0), Some("WF-BH-CHK".to_string()));
+    assert_eq!(cell_text(&registry, 1, 1), Some("Wise".to_string()));
+    assert_eq!(cell_text(&registry, 1, 2), Some("checking".to_string()));
+    assert_eq!(cell_text(&registry, 1, 3), Some("USD".to_string()));
+
+    let tx_sheet = wb.worksheet_range("TX.WF-BH-CHK").expect("TX sheet");
+    assert_eq!(cell_text(&tx_sheet, 1, 3), Some("Office Depot".to_string()));
+    assert_eq!(
+        cell_text(&tx_sheet, 1, 4),
+        Some("OfficeSupplies".to_string())
+    );
+
+    let flags_open = wb.worksheet_range("FLAGS.open").expect("FLAGS.open");
+    assert_eq!(cell_text(&flags_open, 1, 0), Some(low_conf_tx.clone()));
+
+    let sched_c = wb.worksheet_range("SCHED.C").expect("SCHED.C");
+    assert_eq!(
+        cell_text(&sched_c, 1, 0),
+        Some("OfficeSupplies".to_string())
+    );
+
+    let fbar = wb.worksheet_range("FBAR.accounts").expect("FBAR.accounts");
+    assert_eq!(cell_text(&fbar, 1, 0), Some("WF-BH-CHK".to_string()));
+
+    let audit = wb.worksheet_range("AUDIT.log").expect("AUDIT.log");
+    assert_eq!(cell_text(&audit, 1, 1), Some("agent".to_string()));
+    assert_eq!(cell_text(&audit, 1, 3), Some("category".to_string()));
+    assert_eq!(cell_text(&audit, 1, 5), Some("OfficeSupplies".to_string()));
+    assert!(
+        audit.height() >= 4,
+        "expected multiple audit log entries for two classifications, got {} rows",
+        audit.height()
+    );
 }
 
 #[test]
