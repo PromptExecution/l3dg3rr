@@ -7,15 +7,16 @@ use ledger_core::classify::{ClassificationEngine, FlagStatus, SampleTransaction}
 use ledger_core::filename::{FilenameError, StatementFilename};
 use ledger_core::ingest::{deterministic_tx_id, IngestedLedger, TransactionInput};
 use ledger_core::manifest::Manifest;
+use ledger_core::workbook::REQUIRED_SHEETS;
 use rust_decimal::Decimal;
 use rust_xlsxwriter::Workbook;
 
 pub mod contract;
-pub mod mcp_adapter;
-pub mod plugin_info;
 pub mod events;
 pub mod hsm;
+pub mod mcp_adapter;
 pub mod ontology;
+pub mod plugin_info;
 pub mod reconciliation;
 pub mod tax_assist;
 pub use events::{
@@ -28,9 +29,8 @@ pub use hsm::{
 };
 pub use ontology::{
     OntologyEdge, OntologyEdgeInput, OntologyEntity, OntologyEntityInput, OntologyEntityKind,
-    OntologyQueryPathRequest, OntologyQueryPathResponse, OntologyStore,
-    OntologyUpsertEdgesRequest, OntologyUpsertEdgesResponse, OntologyUpsertEntitiesRequest,
-    OntologyUpsertEntitiesResponse,
+    OntologyQueryPathRequest, OntologyQueryPathResponse, OntologyStore, OntologyUpsertEdgesRequest,
+    OntologyUpsertEdgesResponse, OntologyUpsertEntitiesRequest, OntologyUpsertEntitiesResponse,
 };
 pub use reconciliation::{
     commit_stage, reconcile_stage, validate_stage, ReconciliationDiagnostic,
@@ -295,8 +295,10 @@ pub trait TurboLedgerTools {
         request: IngestStatementRowsRequest,
     ) -> Result<IngestStatementRowsResponse, ToolError>;
     fn ingest_pdf(&self, request: IngestPdfRequest) -> Result<IngestPdfResponse, ToolError>;
-    fn get_raw_context(&self, request: GetRawContextRequest)
-        -> Result<GetRawContextResponse, ToolError>;
+    fn get_raw_context(
+        &self,
+        request: GetRawContextRequest,
+    ) -> Result<GetRawContextResponse, ToolError>;
     fn run_rhai_rule(&self, request: RunRhaiRuleRequest) -> Result<RunRhaiRuleResponse, ToolError>;
     fn classify_ingested(
         &self,
@@ -311,7 +313,10 @@ pub trait TurboLedgerTools {
         &self,
         request: ReconcileExcelClassificationRequest,
     ) -> Result<ClassifyTransactionResponse, ToolError>;
-    fn query_audit_log(&self, request: QueryAuditLogRequest) -> Result<QueryAuditLogResponse, ToolError>;
+    fn query_audit_log(
+        &self,
+        request: QueryAuditLogRequest,
+    ) -> Result<QueryAuditLogResponse, ToolError>;
     fn export_cpa_workbook(
         &self,
         request: ExportCpaWorkbookRequest,
@@ -595,7 +600,7 @@ impl TurboLedgerService {
             for edge in store
                 .edges
                 .into_iter()
-                    .filter(|edge| edge.from == request.from_entity_id)
+                .filter(|edge| edge.from == request.from_entity_id)
             {
                 if existing_edge_ids.insert(edge.id.clone()) {
                     if !existing_node_ids.contains(&edge.to) {
@@ -689,9 +694,17 @@ impl TurboLedgerService {
             .collect::<Vec<_>>();
         provenance_refs.sort();
         provenance_refs.dedup();
-        let mut node_ids = path.nodes.into_iter().map(|node| node.id).collect::<Vec<_>>();
+        let mut node_ids = path
+            .nodes
+            .into_iter()
+            .map(|node| node.id)
+            .collect::<Vec<_>>();
         node_ids.sort();
-        let mut edge_ids = path.edges.into_iter().map(|edge| edge.id).collect::<Vec<_>>();
+        let mut edge_ids = path
+            .edges
+            .into_iter()
+            .map(|edge| edge.id)
+            .collect::<Vec<_>>();
         edge_ids.sort();
         let source = TaxEvidenceSource {
             from_entity_id: request.from_entity_id,
@@ -700,10 +713,7 @@ impl TurboLedgerService {
             provenance_refs,
         };
         Ok(tax_assist::build_tax_evidence_chain_response(
-            source,
-            events,
-            replay,
-            ambiguity,
+            source, events, replay, ambiguity,
         ))
     }
 
@@ -911,7 +921,10 @@ impl TurboLedgerTools for TurboLedgerService {
             )?;
         }
 
-        let tx_ids = inserted.iter().map(|row| row.tx_id.clone()).collect::<Vec<_>>();
+        let tx_ids = inserted
+            .iter()
+            .map(|row| row.tx_id.clone())
+            .collect::<Vec<_>>();
         Ok(IngestStatementRowsResponse {
             inserted_count: tx_ids.len(),
             tx_ids,
@@ -922,14 +935,18 @@ impl TurboLedgerTools for TurboLedgerService {
         let file_name = std::path::Path::new(&request.pdf_path)
             .file_name()
             .and_then(|name| name.to_str())
-            .ok_or_else(|| ToolError::InvalidInput("pdf_path must have a valid filename".to_string()))?;
+            .ok_or_else(|| {
+                ToolError::InvalidInput("pdf_path must have a valid filename".to_string())
+            })?;
         let _parsed = self.validate_source_filename(file_name)?;
 
         // Derive the allowed base directory from the workbook path to prevent path traversal.
         let allowed_base = request
             .workbook_path
             .parent()
-            .ok_or_else(|| ToolError::InvalidInput("workbook_path must have a parent directory".to_string()))?
+            .ok_or_else(|| {
+                ToolError::InvalidInput("workbook_path must have a parent directory".to_string())
+            })?
             .to_path_buf();
 
         for row in &request.extracted_rows {
@@ -937,7 +954,10 @@ impl TurboLedgerTools for TurboLedgerService {
             let resolved = if source_path.is_absolute() {
                 // Absolute paths are allowed only if they reside within the allowed base directory.
                 // Reject any `..` components that could escape the base via lexical traversal.
-                if source_path.components().any(|c| c == std::path::Component::ParentDir) {
+                if source_path
+                    .components()
+                    .any(|c| c == std::path::Component::ParentDir)
+                {
                     return Err(ToolError::InvalidInput(format!(
                         "source_ref '{}' contains path traversal components",
                         row.source_ref
@@ -952,7 +972,10 @@ impl TurboLedgerTools for TurboLedgerService {
                 source_path.to_path_buf()
             } else {
                 // Relative paths must not contain `..` components.
-                if source_path.components().any(|c| c == std::path::Component::ParentDir) {
+                if source_path
+                    .components()
+                    .any(|c| c == std::path::Component::ParentDir)
+                {
                     return Err(ToolError::InvalidInput(format!(
                         "source_ref '{}' contains path traversal components",
                         row.source_ref
@@ -966,10 +989,11 @@ impl TurboLedgerTools for TurboLedgerService {
             if let Some(parent) = resolved.parent() {
                 std::fs::create_dir_all(parent).map_err(|e| ToolError::Internal(e.to_string()))?;
             }
-            let bytes = request
-                .raw_context_bytes
-                .as_deref()
-                .ok_or_else(|| ToolError::InvalidInput("raw_context_bytes required when source_ref file does not exist".to_string()))?;
+            let bytes = request.raw_context_bytes.as_deref().ok_or_else(|| {
+                ToolError::InvalidInput(
+                    "raw_context_bytes required when source_ref file does not exist".to_string(),
+                )
+            })?;
             std::fs::write(&resolved, bytes).map_err(|e| ToolError::Internal(e.to_string()))?;
         }
 
@@ -988,13 +1012,19 @@ impl TurboLedgerTools for TurboLedgerService {
         &self,
         request: GetRawContextRequest,
     ) -> Result<GetRawContextResponse, ToolError> {
-        let allowed_base = self.workbook_path()
+        let allowed_base = self
+            .workbook_path()
             .parent()
-            .ok_or_else(|| ToolError::InvalidInput("workbook_path must have a parent directory".to_string()))?
+            .ok_or_else(|| {
+                ToolError::InvalidInput("workbook_path must have a parent directory".to_string())
+            })?
             .to_path_buf();
 
         let rkyv_path = &request.rkyv_ref;
-        if rkyv_path.components().any(|c| c == std::path::Component::ParentDir) {
+        if rkyv_path
+            .components()
+            .any(|c| c == std::path::Component::ParentDir)
+        {
             return Err(ToolError::InvalidInput(format!(
                 "rkyv_ref '{}' contains path traversal components",
                 rkyv_path.display()
@@ -1058,8 +1088,7 @@ impl TurboLedgerTools for TurboLedgerService {
         let timestamp = now_timestamp();
         let mut results = Vec::with_capacity(batch.classifications.len());
         for c in batch.classifications {
-            let confidence = Decimal::try_from(c.confidence)
-                .unwrap_or(Decimal::ZERO);
+            let confidence = Decimal::try_from(c.confidence).unwrap_or(Decimal::ZERO);
             let old = classification.classifications.get(&c.tx_id).cloned();
             // Emit audit entries for every change, including first classifications (old_value: None).
             if old.as_ref().map(|e| e.category.as_str()) != Some(c.category.as_str()) {
@@ -1158,7 +1187,10 @@ impl TurboLedgerTools for TurboLedgerService {
         )
     }
 
-    fn query_audit_log(&self, _request: QueryAuditLogRequest) -> Result<QueryAuditLogResponse, ToolError> {
+    fn query_audit_log(
+        &self,
+        _request: QueryAuditLogRequest,
+    ) -> Result<QueryAuditLogResponse, ToolError> {
         let entries = self
             .classification_state
             .lock()
@@ -1174,35 +1206,100 @@ impl TurboLedgerTools for TurboLedgerService {
         &self,
         request: ExportCpaWorkbookRequest,
     ) -> Result<ExportCpaWorkbookResponse, ToolError> {
-        let classification = self
-            .classification_state
-            .lock()
-            .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?;
-
         let active_year = self.manifest.session.active_year;
 
+        // Clone the data needed for export while holding the lock, then release
+        // it before the (potentially slow) workbook build and disk write.
+        let (tx_rows, classifications, audit_log, open_flags, resolved_flags) = {
+            let classification = self
+                .classification_state
+                .lock()
+                .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?;
+            let tx_rows = classification.tx_rows.clone();
+            let classifications = classification.classifications.clone();
+            let audit_log = classification.audit_log.clone();
+            let open_flags = classification
+                .engine
+                .query_flags(active_year as i32, FlagStatus::Open);
+            let resolved_flags = classification
+                .engine
+                .query_flags(active_year as i32, FlagStatus::Resolved);
+            (tx_rows, classifications, audit_log, open_flags, resolved_flags)
+        };
+
+        // Workbook export is an artifact projection, not a mutable source of truth.
+        // Rebuild the full accountant-facing workbook from canonical service state on
+        // every export so the handoff file stays consistent with the declared contract.
         let mut workbook = Workbook::new();
-        workbook.add_worksheet().set_name("CAT.taxonomy").map_err(map_xlsx)?;
-        workbook.add_worksheet().set_name("FLAGS.open").map_err(map_xlsx)?;
-        workbook.add_worksheet().set_name("FLAGS.resolved").map_err(map_xlsx)?;
-        workbook.add_worksheet().set_name("SCHED.C").map_err(map_xlsx)?;
-        workbook.add_worksheet().set_name("SCHED.D").map_err(map_xlsx)?;
-        workbook.add_worksheet().set_name("SCHED.E").map_err(map_xlsx)?;
-        workbook
-            .add_worksheet()
-            .set_name("FBAR.accounts")
-            .map_err(map_xlsx)?;
-        // 7 fixed base sheets written so far; TX.* sheets are added per account below.
-        let mut sheets_written: usize = 7;
+        for sheet_name in REQUIRED_SHEETS {
+            workbook
+                .add_worksheet()
+                .set_name(*sheet_name)
+                .map_err(map_xlsx)?;
+        }
+        let mut sheets_written: usize = REQUIRED_SHEETS.len();
 
         let mut categories = BTreeSet::new();
         categories.insert("Uncategorized".to_string());
-        for entry in classification.classifications.values() {
+        for entry in classifications.values() {
             categories.insert(entry.category.clone());
         }
 
         {
-            let cat_sheet = workbook.worksheet_from_name("CAT.taxonomy").map_err(map_xlsx)?;
+            let meta_sheet = workbook
+                .worksheet_from_name("META.config")
+                .map_err(map_xlsx)?;
+            meta_sheet
+                .write_string(0, 0, "workbook_path")
+                .map_err(map_xlsx)?;
+            meta_sheet
+                .write_string(0, 1, "active_year")
+                .map_err(map_xlsx)?;
+            meta_sheet
+                .write_string(1, 0, &self.manifest.session.workbook_path)
+                .map_err(map_xlsx)?;
+            meta_sheet
+                .write_number(1, 1, f64::from(active_year))
+                .map_err(map_xlsx)?;
+        }
+
+        {
+            let account_sheet = workbook
+                .worksheet_from_name("ACCT.registry")
+                .map_err(map_xlsx)?;
+            account_sheet
+                .write_string(0, 0, "account_id")
+                .map_err(map_xlsx)?;
+            account_sheet
+                .write_string(0, 1, "institution")
+                .map_err(map_xlsx)?;
+            account_sheet
+                .write_string(0, 2, "account_type")
+                .map_err(map_xlsx)?;
+            account_sheet
+                .write_string(0, 3, "currency")
+                .map_err(map_xlsx)?;
+            for (idx, (account_id, account)) in self.manifest.accounts.iter().enumerate() {
+                let row = (idx + 1) as u32;
+                account_sheet
+                    .write_string(row, 0, account_id)
+                    .map_err(map_xlsx)?;
+                account_sheet
+                    .write_string(row, 1, &account.institution)
+                    .map_err(map_xlsx)?;
+                account_sheet
+                    .write_string(row, 2, &account.account_type)
+                    .map_err(map_xlsx)?;
+                account_sheet
+                    .write_string(row, 3, &account.currency)
+                    .map_err(map_xlsx)?;
+            }
+        }
+
+        {
+            let cat_sheet = workbook
+                .worksheet_from_name("CAT.taxonomy")
+                .map_err(map_xlsx)?;
             cat_sheet.write_string(0, 0, "category").map_err(map_xlsx)?;
             for (idx, category) in categories.iter().enumerate() {
                 cat_sheet
@@ -1212,7 +1309,7 @@ impl TurboLedgerTools for TurboLedgerService {
         }
 
         let mut by_account = BTreeMap::<String, Vec<(String, TransactionInput)>>::new();
-        for (tx_id, row) in &classification.tx_rows {
+        for (tx_id, row) in &tx_rows {
             by_account
                 .entry(row.account_id.clone())
                 .or_default()
@@ -1221,7 +1318,10 @@ impl TurboLedgerTools for TurboLedgerService {
 
         for (account, rows) in by_account {
             let sheet_name = format!("TX.{account}");
-            let ws = workbook.add_worksheet().set_name(sheet_name).map_err(map_xlsx)?;
+            let ws = workbook
+                .add_worksheet()
+                .set_name(sheet_name)
+                .map_err(map_xlsx)?;
             sheets_written += 1;
             ws.write_string(0, 0, "tx_id").map_err(map_xlsx)?;
             ws.write_string(0, 1, "date").map_err(map_xlsx)?;
@@ -1233,15 +1333,18 @@ impl TurboLedgerTools for TurboLedgerService {
 
             for (idx, (tx_id, row)) in rows.into_iter().enumerate() {
                 let line = (idx + 1) as u32;
-                let classified = classification.classifications.get(&tx_id);
+                let classified = classifications.get(&tx_id);
                 ws.write_string(line, 0, tx_id).map_err(map_xlsx)?;
                 ws.write_string(line, 1, &row.date).map_err(map_xlsx)?;
                 ws.write_string(line, 2, &row.amount).map_err(map_xlsx)?;
-                ws.write_string(line, 3, &row.description).map_err(map_xlsx)?;
+                ws.write_string(line, 3, &row.description)
+                    .map_err(map_xlsx)?;
                 ws.write_string(
                     line,
                     4,
-                    classified.map(|c| c.category.as_str()).unwrap_or("Uncategorized"),
+                    classified
+                        .map(|c| c.category.as_str())
+                        .unwrap_or("Uncategorized"),
                 )
                 .map_err(map_xlsx)?;
                 ws.write_string(
@@ -1252,28 +1355,120 @@ impl TurboLedgerTools for TurboLedgerService {
                         .unwrap_or_else(|| "0.0".to_string()),
                 )
                 .map_err(map_xlsx)?;
-                ws.write_string(line, 6, &row.source_ref).map_err(map_xlsx)?;
+                ws.write_string(line, 6, &row.source_ref)
+                    .map_err(map_xlsx)?;
             }
         }
 
-        let open_flags = classification.engine.query_flags(active_year as i32, FlagStatus::Open);
-        let resolved_flags = classification.engine.query_flags(active_year as i32, FlagStatus::Resolved);
         {
-            let ws = workbook.worksheet_from_name("FLAGS.open").map_err(map_xlsx)?;
+            let ws = workbook
+                .worksheet_from_name("FLAGS.open")
+                .map_err(map_xlsx)?;
             ws.write_string(0, 0, "tx_id").map_err(map_xlsx)?;
             ws.write_string(0, 1, "reason").map_err(map_xlsx)?;
             for (idx, flag) in open_flags.iter().enumerate() {
-                ws.write_string((idx + 1) as u32, 0, &flag.tx_id).map_err(map_xlsx)?;
-                ws.write_string((idx + 1) as u32, 1, &flag.reason).map_err(map_xlsx)?;
+                ws.write_string((idx + 1) as u32, 0, &flag.tx_id)
+                    .map_err(map_xlsx)?;
+                ws.write_string((idx + 1) as u32, 1, &flag.reason)
+                    .map_err(map_xlsx)?;
             }
         }
         {
-            let ws = workbook.worksheet_from_name("FLAGS.resolved").map_err(map_xlsx)?;
+            let ws = workbook
+                .worksheet_from_name("FLAGS.resolved")
+                .map_err(map_xlsx)?;
             ws.write_string(0, 0, "tx_id").map_err(map_xlsx)?;
             ws.write_string(0, 1, "reason").map_err(map_xlsx)?;
             for (idx, flag) in resolved_flags.iter().enumerate() {
-                ws.write_string((idx + 1) as u32, 0, &flag.tx_id).map_err(map_xlsx)?;
-                ws.write_string((idx + 1) as u32, 1, &flag.reason).map_err(map_xlsx)?;
+                ws.write_string((idx + 1) as u32, 0, &flag.tx_id)
+                    .map_err(map_xlsx)?;
+                ws.write_string((idx + 1) as u32, 1, &flag.reason)
+                    .map_err(map_xlsx)?;
+            }
+        }
+
+        write_schedule_sheet(
+            &mut workbook,
+            "SCHED.C",
+            &build_schedule_summary_from_classification(
+                &tx_rows,
+                &classifications,
+                active_year as i32,
+                ScheduleKindRequest::ScheduleC,
+            ),
+        )?;
+        write_schedule_sheet(
+            &mut workbook,
+            "SCHED.D",
+            &build_schedule_summary_from_classification(
+                &tx_rows,
+                &classifications,
+                active_year as i32,
+                ScheduleKindRequest::ScheduleD,
+            ),
+        )?;
+        write_schedule_sheet(
+            &mut workbook,
+            "SCHED.E",
+            &build_schedule_summary_from_classification(
+                &tx_rows,
+                &classifications,
+                active_year as i32,
+                ScheduleKindRequest::ScheduleE,
+            ),
+        )?;
+        write_schedule_sheet(
+            &mut workbook,
+            "FBAR.accounts",
+            &build_schedule_summary_from_classification(
+                &tx_rows,
+                &classifications,
+                active_year as i32,
+                ScheduleKindRequest::Fbar,
+            ),
+        )?;
+
+        {
+            let audit_sheet = workbook
+                .worksheet_from_name("AUDIT.log")
+                .map_err(map_xlsx)?;
+            audit_sheet
+                .write_string(0, 0, "timestamp")
+                .map_err(map_xlsx)?;
+            audit_sheet.write_string(0, 1, "actor").map_err(map_xlsx)?;
+            audit_sheet.write_string(0, 2, "tx_id").map_err(map_xlsx)?;
+            audit_sheet.write_string(0, 3, "field").map_err(map_xlsx)?;
+            audit_sheet
+                .write_string(0, 4, "old_value")
+                .map_err(map_xlsx)?;
+            audit_sheet
+                .write_string(0, 5, "new_value")
+                .map_err(map_xlsx)?;
+            audit_sheet.write_string(0, 6, "note").map_err(map_xlsx)?;
+
+            for (idx, entry) in audit_log.iter().enumerate() {
+                let row = (idx + 1) as u32;
+                audit_sheet
+                    .write_string(row, 0, &entry.timestamp)
+                    .map_err(map_xlsx)?;
+                audit_sheet
+                    .write_string(row, 1, &entry.actor)
+                    .map_err(map_xlsx)?;
+                audit_sheet
+                    .write_string(row, 2, &entry.tx_id)
+                    .map_err(map_xlsx)?;
+                audit_sheet
+                    .write_string(row, 3, &entry.field)
+                    .map_err(map_xlsx)?;
+                audit_sheet
+                    .write_string(row, 4, entry.old_value.as_deref().unwrap_or(""))
+                    .map_err(map_xlsx)?;
+                audit_sheet
+                    .write_string(row, 5, &entry.new_value)
+                    .map_err(map_xlsx)?;
+                audit_sheet
+                    .write_string(row, 6, entry.note.as_deref().unwrap_or(""))
+                    .map_err(map_xlsx)?;
             }
         }
 
@@ -1289,57 +1484,12 @@ impl TurboLedgerTools for TurboLedgerService {
             .classification_state
             .lock()
             .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?;
-
-        let mut grouped = BTreeMap::<String, Decimal>::new();
-        for (tx_id, row) in &classification.tx_rows {
-            if derive_year(&row.date) != request.year {
-                continue;
-            }
-            let amount = match Decimal::from_str(row.amount.trim()) {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
-            let key = match request.schedule {
-                ScheduleKindRequest::Fbar => row.account_id.clone(),
-                _ => {
-                    let category = classification
-                        .classifications
-                        .get(tx_id)
-                        .map(|c| c.category.clone())
-                        .unwrap_or_else(|| "Uncategorized".to_string());
-                    if schedule_for_category(&category) != Some(request.schedule) {
-                        continue;
-                    }
-                    category
-                }
-            };
-
-            if request.schedule == ScheduleKindRequest::Fbar {
-                let abs_amount = amount.abs();
-                let current = grouped.entry(key).or_insert(Decimal::ZERO);
-                if abs_amount > *current {
-                    *current = abs_amount;
-                }
-            } else {
-                *grouped.entry(key).or_insert(Decimal::ZERO) += amount;
-            }
-        }
-
-        let lines = grouped
-            .into_iter()
-            .map(|(key, total)| ScheduleLineResponse {
-                key,
-                total: decimal_to_f64(total),
-            })
-            .collect::<Vec<_>>();
-        let total = lines.iter().map(|line| line.total).sum::<f64>();
-
-        Ok(GetScheduleSummaryResponse {
-            year: request.year,
-            schedule: request.schedule,
-            total,
-            lines,
-        })
+        Ok(build_schedule_summary_from_classification(
+            &classification.tx_rows,
+            &classification.classifications,
+            request.year,
+            request.schedule,
+        ))
     }
 }
 
@@ -1354,9 +1504,15 @@ fn parse_confidence(input: &str) -> Result<Decimal, ToolError> {
     Ok(confidence)
 }
 
-fn validate_invariants(row: &TransactionInput, tx_id: &str, category: &str) -> Result<(), ToolError> {
+fn validate_invariants(
+    row: &TransactionInput,
+    tx_id: &str,
+    category: &str,
+) -> Result<(), ToolError> {
     if category.trim().is_empty() {
-        return Err(ToolError::InvalidInput("category must not be empty".to_string()));
+        return Err(ToolError::InvalidInput(
+            "category must not be empty".to_string(),
+        ));
     }
     Decimal::from_str(row.amount.trim())
         .map_err(|_| ToolError::InvalidInput("invalid amount decimal".to_string()))?;
@@ -1422,6 +1578,78 @@ fn schedule_for_category(category: &str) -> Option<ScheduleKindRequest> {
         return Some(ScheduleKindRequest::ScheduleC);
     }
     None
+}
+
+fn write_schedule_sheet(
+    workbook: &mut Workbook,
+    sheet_name: &str,
+    summary: &GetScheduleSummaryResponse,
+) -> Result<(), ToolError> {
+    let sheet = workbook.worksheet_from_name(sheet_name).map_err(map_xlsx)?;
+    sheet.write_string(0, 0, "key").map_err(map_xlsx)?;
+    sheet.write_string(0, 1, "total").map_err(map_xlsx)?;
+    for (idx, line) in summary.lines.iter().enumerate() {
+        let row = (idx + 1) as u32;
+        sheet.write_string(row, 0, &line.key).map_err(map_xlsx)?;
+        sheet.write_number(row, 1, line.total).map_err(map_xlsx)?;
+    }
+    Ok(())
+}
+
+fn build_schedule_summary_from_classification(
+    tx_rows: &BTreeMap<String, TransactionInput>,
+    classifications: &BTreeMap<String, StoredClassification>,
+    year: i32,
+    schedule: ScheduleKindRequest,
+) -> GetScheduleSummaryResponse {
+    let mut grouped = BTreeMap::<String, Decimal>::new();
+    for (tx_id, row) in tx_rows {
+        if derive_year(&row.date) != year {
+            continue;
+        }
+        let amount = match Decimal::from_str(row.amount.trim()) {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+        let key = match schedule {
+            ScheduleKindRequest::Fbar => row.account_id.clone(),
+            _ => {
+                let category = classifications
+                    .get(tx_id)
+                    .map(|c| c.category.clone())
+                    .unwrap_or_else(|| "Uncategorized".to_string());
+                if schedule_for_category(&category) != Some(schedule) {
+                    continue;
+                }
+                category
+            }
+        };
+
+        if schedule == ScheduleKindRequest::Fbar {
+            let abs_amount = amount.abs();
+            let current = grouped.entry(key).or_insert(Decimal::ZERO);
+            if abs_amount > *current {
+                *current = abs_amount;
+            }
+        } else {
+            *grouped.entry(key).or_insert(Decimal::ZERO) += amount;
+        }
+    }
+
+    let lines = grouped
+        .into_iter()
+        .map(|(key, total)| ScheduleLineResponse {
+            key,
+            total: decimal_to_f64(total),
+        })
+        .collect::<Vec<_>>();
+    let total = lines.iter().map(|line| line.total).sum::<f64>();
+    GetScheduleSummaryResponse {
+        year,
+        schedule,
+        total,
+        lines,
+    }
 }
 
 fn decimal_to_f64(value: Decimal) -> f64 {

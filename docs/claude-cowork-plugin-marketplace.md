@@ -12,7 +12,7 @@ This repo now includes a Claude plugin marketplace and a plugin entry intended f
 - Marketplace catalog: [marketplace.json](/home/brianh/promptexecution/mbse/l3dg3rr/.claude-plugin/marketplace.json)
 - Plugin manifest: [plugin.json](/home/brianh/promptexecution/mbse/l3dg3rr/plugins/l3dg3rr-plugin-create/.claude-plugin/plugin.json)
 - Plugin skill: [SKILL.md](/home/brianh/promptexecution/mbse/l3dg3rr/plugins/l3dg3rr-plugin-create/skills/plugin-create-for-l3dg3rr/SKILL.md)
-- MCP server entrypoint: [ledgerr-mcp-server.rs](/mnt/c/users/wendy/l3dg3rr/crates/ledgerr-mcp/src/bin/ledgerr-mcp-server.rs)
+- MCP server entrypoint: [ledgerr-mcp-server.rs](crates/ledgerr-mcp/src/bin/ledgerr-mcp-server.rs)
 - Runtime helper commands: [Justfile](/home/brianh/promptexecution/mbse/l3dg3rr/Justfile)
 - MCP regression script: [mcp_e2e.sh](/home/brianh/promptexecution/mbse/l3dg3rr/scripts/mcp_e2e.sh)
 - Container build: [Dockerfile](/home/brianh/promptexecution/mbse/l3dg3rr/Dockerfile)

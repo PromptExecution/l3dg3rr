@@ -245,6 +245,10 @@ Treat this as a standing operational gate, not a one-time migration task.
   - The published MCP surface now lives in `crates/ledgerr-mcp/src/contract.rs`; treat it as the only source of truth for parser shapes, generated JSON Schema, and checked-in operator docs/examples.
   - Regenerate `docs/mcp-capability-contract.md`, `docs/agent-mcp-runbook.md`, and `scripts/mcp_cli_demo.sh` via `cargo run -p xtask-mcpb -- generate-mcp-artifacts` after changing the published MCP surface.
   - Drift between `contract.rs` and those generated artifacts is a test failure, not a documentation chore.
+- 2026-04-17: CPA workbook export is now explicitly projection-only.
+  - Treat `ledger_core::workbook::REQUIRED_SHEETS` as the canonical base workbook contract for export paths.
+  - `export_cpa_workbook` should rebuild the full workbook from canonical service state on each export, including `META.config`, `ACCT.registry`, schedule sheets, flag sheets, transaction sheets, and `AUDIT.log`.
+  - Tests should assert representative workbook contents, not just that a file was written.
 
 
 

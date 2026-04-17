@@ -118,10 +118,13 @@ fn pi_01_workflow_schema_has_plugin_info_subcommand_enum() {
         .clone();
 
     let schema_text = schema.to_string();
+    // The schema advertises the plugin_info action and documents the known subcommand
+    // values in the description instead of a closed enum, so schema-driven clients
+    // can still discover them while accepting unknown strings (Postel boundary).
     assert!(schema_text.contains("\"plugin_info\""));
-    assert!(schema_text.contains("\"check\""));
-    assert!(schema_text.contains("\"upgrade\""));
-    assert!(schema_text.contains("\"cleanup\""));
+    assert!(schema_text.contains("check"));
+    assert!(schema_text.contains("upgrade"));
+    assert!(schema_text.contains("cleanup"));
 }
 
 // ── subcommand: check (default) ───────────────────────────────────────────────
