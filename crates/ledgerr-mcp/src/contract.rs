@@ -157,9 +157,8 @@ impl JsonSchema for PluginInfoSubcommand {
     fn json_schema(_gen: &mut schemars::gen::SchemaGenerator) -> Schema {
         Schema::Object(SchemaObject {
             instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::String))),
-            enum_values: Some(vec![json!("check"), json!("upgrade"), json!("cleanup")]),
             metadata: Some(Box::new(Metadata {
-                description: Some("Recognized values are check, upgrade, and cleanup. Unknown strings intentionally fall through to the default check behavior.".to_string()),
+                description: Some("Subcommand string. Known values: check, upgrade, cleanup. Unknown strings fall through to the default check behavior.".to_string()),
                 ..Metadata::default()
             })),
             ..SchemaObject::default()

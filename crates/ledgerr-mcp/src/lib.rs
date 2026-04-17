@@ -1206,12 +1206,26 @@ impl TurboLedgerTools for TurboLedgerService {
         &self,
         request: ExportCpaWorkbookRequest,
     ) -> Result<ExportCpaWorkbookResponse, ToolError> {
-        let classification = self
-            .classification_state
-            .lock()
-            .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?;
-
         let active_year = self.manifest.session.active_year;
+
+        // Clone the data needed for export while holding the lock, then release
+        // it before the (potentially slow) workbook build and disk write.
+        let (tx_rows, classifications, audit_log, open_flags, resolved_flags) = {
+            let classification = self
+                .classification_state
+                .lock()
+                .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?;
+            let tx_rows = classification.tx_rows.clone();
+            let classifications = classification.classifications.clone();
+            let audit_log = classification.audit_log.clone();
+            let open_flags = classification
+                .engine
+                .query_flags(active_year as i32, FlagStatus::Open);
+            let resolved_flags = classification
+                .engine
+                .query_flags(active_year as i32, FlagStatus::Resolved);
+            (tx_rows, classifications, audit_log, open_flags, resolved_flags)
+        };
 
         // Workbook export is an artifact projection, not a mutable source of truth.
         // Rebuild the full accountant-facing workbook from canonical service state on
@@ -1227,7 +1241,7 @@ impl TurboLedgerTools for TurboLedgerService {
 
         let mut categories = BTreeSet::new();
         categories.insert("Uncategorized".to_string());
-        for entry in classification.classifications.values() {
+        for entry in classifications.values() {
             categories.insert(entry.category.clone());
         }
 
@@ -1295,7 +1309,7 @@ impl TurboLedgerTools for TurboLedgerService {
         }
 
         let mut by_account = BTreeMap::<String, Vec<(String, TransactionInput)>>::new();
-        for (tx_id, row) in &classification.tx_rows {
+        for (tx_id, row) in &tx_rows {
             by_account
                 .entry(row.account_id.clone())
                 .or_default()
@@ -1319,7 +1333,7 @@ impl TurboLedgerTools for TurboLedgerService {
 
             for (idx, (tx_id, row)) in rows.into_iter().enumerate() {
                 let line = (idx + 1) as u32;
-                let classified = classification.classifications.get(&tx_id);
+                let classified = classifications.get(&tx_id);
                 ws.write_string(line, 0, tx_id).map_err(map_xlsx)?;
                 ws.write_string(line, 1, &row.date).map_err(map_xlsx)?;
                 ws.write_string(line, 2, &row.amount).map_err(map_xlsx)?;
@@ -1346,12 +1360,6 @@ impl TurboLedgerTools for TurboLedgerService {
             }
         }
 
-        let open_flags = classification
-            .engine
-            .query_flags(active_year as i32, FlagStatus::Open);
-        let resolved_flags = classification
-            .engine
-            .query_flags(active_year as i32, FlagStatus::Resolved);
         {
             let ws = workbook
                 .worksheet_from_name("FLAGS.open")
@@ -1383,7 +1391,8 @@ impl TurboLedgerTools for TurboLedgerService {
             &mut workbook,
             "SCHED.C",
             &build_schedule_summary_from_classification(
-                &classification,
+                &tx_rows,
+                &classifications,
                 active_year as i32,
                 ScheduleKindRequest::ScheduleC,
             ),
@@ -1392,7 +1401,8 @@ impl TurboLedgerTools for TurboLedgerService {
             &mut workbook,
             "SCHED.D",
             &build_schedule_summary_from_classification(
-                &classification,
+                &tx_rows,
+                &classifications,
                 active_year as i32,
                 ScheduleKindRequest::ScheduleD,
             ),
@@ -1401,7 +1411,8 @@ impl TurboLedgerTools for TurboLedgerService {
             &mut workbook,
             "SCHED.E",
             &build_schedule_summary_from_classification(
-                &classification,
+                &tx_rows,
+                &classifications,
                 active_year as i32,
                 ScheduleKindRequest::ScheduleE,
             ),
@@ -1410,7 +1421,8 @@ impl TurboLedgerTools for TurboLedgerService {
             &mut workbook,
             "FBAR.accounts",
             &build_schedule_summary_from_classification(
-                &classification,
+                &tx_rows,
+                &classifications,
                 active_year as i32,
                 ScheduleKindRequest::Fbar,
             ),
@@ -1434,7 +1446,7 @@ impl TurboLedgerTools for TurboLedgerService {
                 .map_err(map_xlsx)?;
             audit_sheet.write_string(0, 6, "note").map_err(map_xlsx)?;
 
-            for (idx, entry) in classification.audit_log.iter().enumerate() {
+            for (idx, entry) in audit_log.iter().enumerate() {
                 let row = (idx + 1) as u32;
                 audit_sheet
                     .write_string(row, 0, &entry.timestamp)
@@ -1473,7 +1485,8 @@ impl TurboLedgerTools for TurboLedgerService {
             .lock()
             .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?;
         Ok(build_schedule_summary_from_classification(
-            &classification,
+            &classification.tx_rows,
+            &classification.classifications,
             request.year,
             request.schedule,
         ))
@@ -1584,12 +1597,13 @@ fn write_schedule_sheet(
 }
 
 fn build_schedule_summary_from_classification(
-    classification: &ClassificationState,
+    tx_rows: &BTreeMap<String, TransactionInput>,
+    classifications: &BTreeMap<String, StoredClassification>,
     year: i32,
     schedule: ScheduleKindRequest,
 ) -> GetScheduleSummaryResponse {
     let mut grouped = BTreeMap::<String, Decimal>::new();
-    for (tx_id, row) in &classification.tx_rows {
+    for (tx_id, row) in tx_rows {
         if derive_year(&row.date) != year {
             continue;
         }
@@ -1600,8 +1614,7 @@ fn build_schedule_summary_from_classification(
         let key = match schedule {
             ScheduleKindRequest::Fbar => row.account_id.clone(),
             _ => {
-                let category = classification
-                    .classifications
+                let category = classifications
                     .get(tx_id)
                     .map(|c| c.category.clone())
                     .unwrap_or_else(|| "Uncategorized".to_string());
