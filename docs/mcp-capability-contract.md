@@ -1,6 +1,8 @@
-# MCP Capability Contract (Operator View)
+# MCP Capability Contract (Generated)
 
-This document describes the published MCP surface for `ledgerr-mcp-server`.
+This file is generated from `crates/ledgerr-mcp/src/contract.rs`.
+
+Rust code is the only source of truth for the published MCP surface. If this file drifts from the contract module, tests should fail.
 
 The default catalog is intentionally small: 7 top-level `ledgerr_*` tools. Each tool uses a required `action` field so the major capability families stay visible while related operations are grouped under one top-level command.
 
@@ -16,7 +18,9 @@ The default catalog is intentionally small: 7 top-level `ledgerr_*` tools. Each 
 | `ledgerr_tax` | tax summaries, evidence, ambiguity review, workbook export | `assist`, `evidence_chain`, `ambiguity_review`, `schedule_summary`, `export_workbook` |
 | `ledgerr_ontology` | ontology query/export/write operations | `query_path`, `export_snapshot`, `upsert_entities`, `upsert_edges` |
 
-Input parsing and validation live in [crates/ledgerr-mcp/src/mcp_adapter.rs](crates/ledgerr-mcp/src/mcp_adapter.rs).
+The concrete parser, action enums, field aliases, and JSON Schemas all live in [crates/ledgerr-mcp/src/contract.rs](../crates/ledgerr-mcp/src/contract.rs).
+
+The transport adapter in [crates/ledgerr-mcp/src/mcp_adapter.rs](../crates/ledgerr-mcp/src/mcp_adapter.rs) consumes that contract rather than re-describing it by hand.
 
 ## Compatibility
 
@@ -25,17 +29,18 @@ The server still accepts older `l3dg3rr_*` and proxy-style call names as hidden 
 ## Internal Service API
 
 Canonical trait:
-[TurboLedgerTools in crates/ledgerr-mcp/src/lib.rs](crates/ledgerr-mcp/src/lib.rs#L289)
+[TurboLedgerTools in crates/ledgerr-mcp/src/lib.rs](../crates/ledgerr-mcp/src/lib.rs#L289)
 
 Important distinction:
-- The MCP surface is now the reduced 7-tool catalog.
+- The MCP surface is the reduced 7-tool catalog defined in Rust.
 - The internal service trait remains more granular and implementation-oriented.
 
 API layering:
 1. `ledgerr-mcp-server` (stdio transport)
-2. `mcp_adapter` (tool grouping, argument parsing, envelope shaping)
-3. `TurboLedgerService` (domain logic, guardrails, state/event/HSM ops)
-4. `ledger-core` (ingest, filename validation, classification primitives)
+2. `contract` (published tool families, action enums, generated schema/doc artifacts)
+3. `mcp_adapter` (dispatch + envelope shaping)
+4. `TurboLedgerService` (domain logic, guardrails, state/event/HSM ops)
+5. `ledger-core` (ingest, filename validation, classification primitives)
 
 ## Example Flow
 
@@ -51,27 +56,31 @@ API layering:
 
 ```json
 {
-  "jsonrpc":"2.0",
-  "id":3,
-  "method":"tools/call",
-  "params":{
-    "name":"ledgerr_documents",
-    "arguments":{
-      "action":"ingest_pdf",
-      "pdf_path":"WF--BH-CHK--2023-01--statement.pdf",
-      "journal_path":"/tmp/demo.beancount",
-      "workbook_path":"/tmp/demo.xlsx",
-      "raw_context_bytes":[99,116,120],
-      "extracted_rows":[
+  "id": 3,
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "arguments": {
+      "action": "ingest_pdf",
+      "extracted_rows": [
         {
-          "account_id":"WF-BH-CHK",
-          "date":"2023-01-05",
-          "amount":"-42.50",
-          "description":"Coffee Beans",
-          "source_ref":"wf-2023-01.rkyv"
+          "account_id": "WF-BH-CHK",
+          "amount": "-42.50",
+          "date": "2023-01-05",
+          "description": "Coffee Beans",
+          "source_ref": "wf-2023-01.rkyv"
         }
-      ]
-    }
+      ],
+      "journal_path": "/tmp/demo.beancount",
+      "pdf_path": "WF--BH-CHK--2023-01--statement.pdf",
+      "raw_context_bytes": [
+        99,
+        116,
+        120
+      ],
+      "workbook_path": "/tmp/demo.xlsx"
+    },
+    "name": "ledgerr_documents"
   }
 }
 ```
@@ -80,17 +89,20 @@ API layering:
 
 ```json
 {
-  "jsonrpc":"2.0",
-  "id":4,
-  "method":"tools/call",
-  "params":{
-    "name":"ledgerr_reconciliation",
-    "arguments":{
-      "action":"commit",
-      "source_total":"42.50",
-      "extracted_total":"42.50",
-      "posting_amounts":["-42.50","42.50"]
-    }
+  "id": 4,
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "arguments": {
+      "action": "commit",
+      "extracted_total": "42.50",
+      "posting_amounts": [
+        "-42.50",
+        "42.50"
+      ],
+      "source_total": "42.50"
+    },
+    "name": "ledgerr_reconciliation"
   }
 }
 ```
@@ -106,17 +118,17 @@ API layering:
 
 ```json
 {
-  "jsonrpc":"2.0",
-  "id":7,
-  "method":"tools/call",
-  "params":{
-    "name":"ledgerr_tax",
-    "arguments":{
-      "action":"evidence_chain",
-      "ontology_path":"/tmp/ontology.json",
-      "from_entity_id":"WF-BH-CHK",
-      "document_ref":"wf-2023-01.rkyv"
-    }
+  "id": 7,
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "arguments": {
+      "action": "evidence_chain",
+      "document_ref": "wf-2023-01.rkyv",
+      "from_entity_id": "WF-BH-CHK",
+      "ontology_path": "/tmp/ontology.json"
+    },
+    "name": "ledgerr_tax"
   }
 }
 ```

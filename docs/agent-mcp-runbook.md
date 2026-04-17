@@ -1,6 +1,8 @@
-# Agent MCP Runbook
+# Agent MCP Runbook (Generated)
 
-This runbook is MCP-only. Agent workflows must use `initialize`, `notifications/initialized`, `tools/list`, and `tools/call` over stdio.
+This file is generated from `crates/ledgerr-mcp/src/contract.rs`.
+
+Agent workflows must use `initialize`, `notifications/initialized`, `tools/list`, and `tools/call` over stdio.
 
 ## Runtime Model
 
@@ -36,18 +38,18 @@ Required order:
 ## Basic Happy Path
 
 ```json
-{"name":"ledgerr_documents","arguments":{"action":"pipeline_status"}}
-{"name":"ledgerr_documents","arguments":{"action":"list_accounts"}}
-{"name":"ledgerr_documents","arguments":{"action":"ingest_pdf","pdf_path":"WF--BH-CHK--2023-01--statement.pdf","journal_path":"/tmp/demo.beancount","workbook_path":"/tmp/demo.xlsx","raw_context_bytes":[99,116,120],"extracted_rows":[{"account_id":"WF-BH-CHK","date":"2023-01-15","amount":"-42.11","description":"Coffee Shop","source_ref":"wf-2023-01.rkyv"}]}}
-{"name":"ledgerr_documents","arguments":{"action":"get_raw_context","rkyv_ref":"wf-2023-01.rkyv"}}
+{"arguments":{"action":"pipeline_status"},"name":"ledgerr_documents"}
+{"arguments":{"action":"list_accounts"},"name":"ledgerr_documents"}
+{"arguments":{"action":"ingest_pdf","extracted_rows":[{"account_id":"WF-BH-CHK","amount":"-42.11","date":"2023-01-15","description":"Coffee Shop","source_ref":"wf-2023-01.rkyv"}],"journal_path":"/tmp/demo.beancount","pdf_path":"WF--BH-CHK--2023-01--statement.pdf","raw_context_bytes":[99,116,120],"workbook_path":"/tmp/demo.xlsx"},"name":"ledgerr_documents"}
+{"arguments":{"action":"get_raw_context","rkyv_ref":"wf-2023-01.rkyv"},"name":"ledgerr_documents"}
 ```
 
 ## Troubleshooting / Spinning Wheels
 
 ```json
-{"name":"ledgerr_workflow","arguments":{"action":"resume","state_marker":"invalid-checkpoint"}}
-{"name":"ledgerr_reconciliation","arguments":{"action":"commit","source_total":"100.00","extracted_total":"95.00","posting_amounts":["-95.00","95.00"]}}
-{"name":"ledgerr_audit","arguments":{"action":"event_history","time_start":"2026-12-31","time_end":"2026-01-01"}}
+{"arguments":{"action":"resume","state_marker":"invalid-checkpoint"},"name":"ledgerr_workflow"}
+{"arguments":{"action":"commit","extracted_total":"95.00","posting_amounts":["-95.00","95.00"],"source_total":"100.00"},"name":"ledgerr_reconciliation"}
+{"arguments":{"action":"event_history","time_end":"2026-01-01","time_start":"2026-12-31"},"name":"ledgerr_audit"}
 ```
 
 Expected blocked outcomes:
@@ -61,6 +63,7 @@ Expected blocked outcomes:
 ```bash
 cargo test -p ledgerr-mcp --test mcp_stdio_e2e -- --nocapture
 cargo test -p ledgerr-mcp --test plugin_info_mcp_e2e -- --nocapture
+bash scripts/mcp_cli_demo.sh
 bash scripts/mcp_e2e.sh
 ```
 

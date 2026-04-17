@@ -1,13 +1,11 @@
+use std::fs;
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
 use xtask_mcpb::{
     bundler::McpbBundler,
-    manifest::{
-        ManifestAuthor, ManifestServer, McpConfig, McpbManifest,
-        ServerType,
-    },
+    manifest::{ManifestAuthor, ManifestServer, McpConfig, McpbManifest, ServerType},
     publisher::{GitHubPublisher, McpRegistryPublisher},
     server_json::ServerJson,
     verify::verify_bundle,
@@ -63,9 +61,7 @@ enum Commands {
         server_name: String,
     },
     /// Validate a .mcpb bundle: ZIP structure, manifest, and entry_point presence
-    Verify {
-        path: PathBuf,
-    },
+    Verify { path: PathBuf },
     /// Update server.json version, mcpb identifier URL, and fileSha256 for a release.
     /// Run this before `mcp-publisher publish`.
     UpdateServerJson {
@@ -82,6 +78,8 @@ enum Commands {
         #[arg(long, default_value = "server.json")]
         path: PathBuf,
     },
+    /// Regenerate MCP contract docs and runnable examples from Rust.
+    GenerateMcpArtifacts,
 }
 
 fn main() {
@@ -94,7 +92,11 @@ fn main() {
 
 fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
-        Commands::Bundle { binary, output, version } => {
+        Commands::Bundle {
+            binary,
+            output,
+            version,
+        } => {
             let binary_name = binary
                 .file_name()
                 .and_then(|n| n.to_str())
@@ -113,7 +115,11 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             println!("{}", serde_json::to_string_pretty(&manifest)?);
         }
 
-        Commands::PublishGithub { release_tag, artifact, repo } => {
+        Commands::PublishGithub {
+            release_tag,
+            artifact,
+            repo,
+        } => {
             let mut publisher = GitHubPublisher::new(&release_tag);
             if let Some(r) = repo {
                 publisher = publisher.with_repo(r);
@@ -122,7 +128,12 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             println!("uploaded {} → release {}", artifact.display(), release_tag);
         }
 
-        Commands::PublishRegistry { release_tag, artifact_url, sha256, server_name } => {
+        Commands::PublishRegistry {
+            release_tag,
+            artifact_url,
+            sha256,
+            server_name,
+        } => {
             let manifest = ledgerr_manifest(&release_tag, "ledgerr-mcp-server");
             let publisher =
                 McpRegistryPublisher::new(&release_tag, &server_name, &manifest.description);
@@ -132,10 +143,20 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
 
         Commands::Verify { path } => {
             let manifest = verify_bundle(&path)?;
-            println!("ok: {} ({} {})", path.display(), manifest.name, manifest.version);
+            println!(
+                "ok: {} ({} {})",
+                path.display(),
+                manifest.name,
+                manifest.version
+            );
         }
 
-        Commands::UpdateServerJson { version, artifact_url, sha256, path } => {
+        Commands::UpdateServerJson {
+            version,
+            artifact_url,
+            sha256,
+            path,
+        } => {
             let mut server_json = ServerJson::load(&path)?;
             server_json.update_mcpb(&version, &artifact_url, &sha256)?;
             server_json.save(&path)?;
@@ -143,6 +164,24 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                 "updated {}: version={version} sha256={sha256}",
                 path.display()
             );
+        }
+        Commands::GenerateMcpArtifacts => {
+            let capability_doc = ledgerr_mcp::contract::generated_capability_contract_markdown();
+            let runbook_doc = ledgerr_mcp::contract::generated_agent_runbook_markdown();
+            let demo_script = ledgerr_mcp::contract::generated_mcp_cli_demo_script();
+
+            fs::write("docs/mcp-capability-contract.md", capability_doc)?;
+            fs::write("docs/agent-mcp-runbook.md", runbook_doc)?;
+            fs::write("scripts/mcp_cli_demo.sh", demo_script)?;
+
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let perms = fs::Permissions::from_mode(0o755);
+                fs::set_permissions("scripts/mcp_cli_demo.sh", perms)?;
+            }
+
+            println!("generated MCP contract artifacts");
         }
     }
     Ok(())
