@@ -1659,9 +1659,23 @@ fn persist_state_to_path(
     }
     let bytes = serde_json::to_vec_pretty(state)
         .map_err(|e| ToolError::Internal(format!("failed to serialize persisted state: {e}")))?;
-    std::fs::write(sidecar_path, bytes).map_err(|e| {
+    // Write to a sibling temp file first, then rename atomically so a mid-write
+    // crash never leaves a truncated/corrupt sidecar that causes startup to fail closed.
+    let tmp_path: std::path::PathBuf = {
+        let mut tmp_os_string = sidecar_path.as_os_str().to_os_string();
+        tmp_os_string.push(".tmp");
+        tmp_os_string.into()
+    };
+    std::fs::write(&tmp_path, &bytes).map_err(|e| {
         ToolError::Internal(format!(
-            "failed to write persisted state '{}': {e}",
+            "failed to write persisted state temp file '{}': {e}",
+            tmp_path.display()
+        ))
+    })?;
+    std::fs::rename(&tmp_path, sidecar_path).map_err(|e| {
+        ToolError::Internal(format!(
+            "failed to rename persisted state '{}' to '{}': {e}",
+            tmp_path.display(),
             sidecar_path.display()
         ))
     })
