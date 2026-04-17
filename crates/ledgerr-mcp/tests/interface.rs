@@ -1,3 +1,5 @@
+mod common;
+
 use ledger_core::ingest::TransactionInput;
 use ledgerr_mcp::{
     GetRawContextRequest, IngestPdfRequest, IngestStatementRowsRequest, ListAccountsRequest,
@@ -6,17 +8,12 @@ use ledgerr_mcp::{
 
 #[test]
 fn list_accounts_is_stable_and_obvious() {
-    let manifest = r#"
-[session]
-workbook_path = "tax-ledger.xlsx"
-active_year = 2023
+    let manifest = format!(
+        "{}\n[accounts]\nWF-BH-CHK = {{ institution = \"Wells Fargo\", type = \"checking\", currency = \"USD\" }}\nCB-BTC = {{ institution = \"Coinbase\", type = \"exchange\", currency = \"USD\" }}\n",
+        common::manifest_for_workbook(&common::unique_workbook_path("interface-accounts"), 2023)
+    );
 
-[accounts]
-WF-BH-CHK = { institution = "Wells Fargo", type = "checking", currency = "USD" }
-CB-BTC = { institution = "Coinbase", type = "exchange", currency = "USD" }
-"#;
-
-    let service = TurboLedgerService::from_manifest_str(manifest).unwrap();
+    let service = TurboLedgerService::from_manifest_str(&manifest).unwrap();
     let mut accounts = service.list_accounts().unwrap();
     accounts.sort_by(|a, b| a.account_id.cmp(&b.account_id));
 
@@ -26,16 +23,15 @@ CB-BTC = { institution = "Coinbase", type = "exchange", currency = "USD" }
 
 #[test]
 fn list_accounts_tool_contract_is_explicit() {
-    let manifest = r#"
-[session]
-workbook_path = "tax-ledger.xlsx"
-active_year = 2023
+    let manifest = format!(
+        "{}\n[accounts]\nWF-BH-CHK = {{ institution = \"Wells Fargo\", type = \"checking\", currency = \"USD\" }}\n",
+        common::manifest_for_workbook(
+            &common::unique_workbook_path("interface-accounts-tool"),
+            2023
+        )
+    );
 
-[accounts]
-WF-BH-CHK = { institution = "Wells Fargo", type = "checking", currency = "USD" }
-"#;
-
-    let service = TurboLedgerService::from_manifest_str(manifest).unwrap();
+    let service = TurboLedgerService::from_manifest_str(&manifest).unwrap();
     let response = service.list_accounts_tool(ListAccountsRequest).unwrap();
 
     assert_eq!(response.accounts.len(), 1);
@@ -44,13 +40,10 @@ WF-BH-CHK = { institution = "Wells Fargo", type = "checking", currency = "USD" }
 
 #[test]
 fn preflight_rejects_non_contract_filename() {
-    let manifest = r#"
-[session]
-workbook_path = "tax-ledger.xlsx"
-active_year = 2023
-"#;
+    let manifest =
+        common::manifest_for_workbook(&common::unique_workbook_path("interface-preflight"), 2023);
 
-    let service = TurboLedgerService::from_manifest_str(manifest).unwrap();
+    let service = TurboLedgerService::from_manifest_str(&manifest).unwrap();
     let err = service
         .validate_source_filename("bad-name.pdf")
         .unwrap_err();
@@ -60,12 +53,9 @@ active_year = 2023
 
 #[test]
 fn ingest_statement_rows_writes_git_friendly_journal_once() {
-    let manifest = r#"
-[session]
-workbook_path = "tax-ledger.xlsx"
-active_year = 2023
-"#;
-    let service = TurboLedgerService::from_manifest_str(manifest).unwrap();
+    let manifest =
+        common::manifest_for_workbook(&common::unique_workbook_path("interface-ingest"), 2023);
+    let service = TurboLedgerService::from_manifest_str(&manifest).unwrap();
     let tmp = tempfile::tempdir().unwrap();
     let journal_path = tmp.path().join("ledger.beancount");
     let workbook_path = tmp.path().join("tax-ledger.xlsx");
@@ -102,12 +92,9 @@ active_year = 2023
 
 #[test]
 fn ingest_pdf_validates_filename_and_ingests_rows() {
-    let manifest = r#"
-[session]
-workbook_path = "tax-ledger.xlsx"
-active_year = 2023
-"#;
-    let service = TurboLedgerService::from_manifest_str(manifest).unwrap();
+    let manifest =
+        common::manifest_for_workbook(&common::unique_workbook_path("interface-ingest-pdf"), 2023);
+    let service = TurboLedgerService::from_manifest_str(&manifest).unwrap();
     let tmp = tempfile::tempdir().unwrap();
     let journal_path = tmp.path().join("ledger.beancount");
     let workbook_path = tmp.path().join("tax-ledger.xlsx");
@@ -134,12 +121,9 @@ active_year = 2023
 
 #[test]
 fn get_raw_context_reads_rkyv_reference_bytes() {
-    let manifest = r#"
-[session]
-workbook_path = "tax-ledger.xlsx"
-active_year = 2023
-"#;
-    let service = TurboLedgerService::from_manifest_str(manifest).unwrap();
+    let manifest =
+        common::manifest_for_workbook(&common::unique_workbook_path("interface-raw-context"), 2023);
+    let service = TurboLedgerService::from_manifest_str(&manifest).unwrap();
     let tmp = tempfile::tempdir().unwrap();
     let rkyv_ref = tmp.path().join("sample.rkyv");
     std::fs::write(&rkyv_ref, b"rkyv-bytes").unwrap();

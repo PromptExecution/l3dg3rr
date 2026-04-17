@@ -219,7 +219,12 @@ fn handle_request(request: Value) -> Option<Value> {
 fn global_service() -> &'static TurboLedgerService {
     static SERVICE: OnceLock<TurboLedgerService> = OnceLock::new();
     SERVICE.get_or_init(|| {
-        let manifest = "[session]\nworkbook_path=\"tax-ledger.xlsx\"\nactive_year=2023\n\n[accounts]\nWF-BH-CHK = { institution = \"Wells Fargo\", type = \"checking\", currency = \"USD\" }\n";
-        TurboLedgerService::from_manifest_str(manifest).expect("default manifest must parse")
+        // Allow test/process callers to inject an explicit manifest so the stdio
+        // transport can exercise restart persistence without sharing one global
+        // relative workbook path across unrelated test processes.
+        let manifest = std::env::var("LEDGERR_MCP_MANIFEST").unwrap_or_else(|_| {
+            "[session]\nworkbook_path=\"tax-ledger.xlsx\"\nactive_year=2023\n\n[accounts]\nWF-BH-CHK = { institution = \"Wells Fargo\", type = \"checking\", currency = \"USD\" }\n".to_string()
+        });
+        TurboLedgerService::from_manifest_str(&manifest).expect("default manifest must parse")
     })
 }

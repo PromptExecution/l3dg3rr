@@ -1,3 +1,5 @@
+mod common;
+
 use calamine::Reader;
 use ledger_core::ingest::TransactionInput;
 use ledger_core::workbook::REQUIRED_SHEETS;
@@ -7,9 +9,11 @@ use ledgerr_mcp::{
 };
 
 fn service() -> TurboLedgerService {
-    TurboLedgerService::from_manifest_str(
-        "[session]\nworkbook_path=\"tax-ledger.xlsx\"\nactive_year=2023\n\n[accounts.WF-BH-CHK]\ninstitution=\"Wise\"\ntype=\"checking\"\ncurrency=\"USD\"\n",
-    )
+    let workbook_path = common::unique_workbook_path("phase5-cpa");
+    TurboLedgerService::from_manifest_str(&format!(
+        "{}\n[accounts.WF-BH-CHK]\ninstitution=\"Wise\"\ntype=\"checking\"\ncurrency=\"USD\"\n",
+        common::manifest_for_workbook(&workbook_path, 2023)
+    ))
     .expect("manifest")
 }
 
@@ -81,7 +85,10 @@ fn wb_01_02_03_export_cpa_workbook_honors_canonical_contract_and_materializes_co
     assert!(wb.sheet_names().iter().any(|s| s == "TX.WF-BH-CHK"));
 
     let meta = wb.worksheet_range("META.config").expect("META.config");
-    assert_eq!(cell_text(&meta, 1, 0), Some("tax-ledger.xlsx".to_string()));
+    assert_eq!(
+        cell_text(&meta, 1, 0),
+        Some(svc.workbook_path().display().to_string())
+    );
     assert_eq!(cell_text(&meta, 1, 1), Some("2023".to_string()));
 
     let registry = wb.worksheet_range("ACCT.registry").expect("ACCT.registry");

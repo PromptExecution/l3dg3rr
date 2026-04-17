@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
 
 use crate::ToolError;
+use serde::{Deserialize, Serialize};
 
 const EVENT_TYPES: &[&str] = &["ingest", "classification", "reconciliation", "adjustment"];
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LifecycleEvent {
     pub event_id: String,
     pub sequence: u64,
@@ -22,7 +23,7 @@ pub struct AppendEventResult {
     pub sequence: u64,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EventHistoryFilter {
     pub tx_id: Option<String>,
     pub document_ref: Option<String>,
@@ -54,7 +55,7 @@ pub trait LifecycleEventStore {
     fn list_events(&self, filter: EventHistoryFilter) -> Result<EventHistoryResponse, ToolError>;
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct InMemoryLifecycleEventStore {
     events: Vec<LifecycleEvent>,
     next_sequence: u64,
@@ -233,10 +234,7 @@ pub fn reconstruct_lifecycle(events: &[LifecycleEvent]) -> ReplayProjection {
             expected_sequence = expected_sequence.saturating_add(1);
         }
 
-        let tx_id = event
-            .tx_id
-            .clone()
-            .unwrap_or_else(|| "_stream".to_string());
+        let tx_id = event.tx_id.clone().unwrap_or_else(|| "_stream".to_string());
         let current_stage = stage_by_tx.get(&tx_id).cloned();
         if current_stage.is_none() && event.event_type != "ingest" {
             diagnostics.push(format!(
