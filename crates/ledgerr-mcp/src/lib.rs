@@ -94,6 +94,59 @@ pub struct GetRawContextResponse {
     pub bytes: Vec<u8>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum DocumentQueueStatusRequest {
+    InvalidName,
+    Ready,
+    Ingested,
+}
+
+impl DocumentQueueStatusRequest {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::InvalidName => "invalid_name",
+            Self::Ready => "ready",
+            Self::Ingested => "ingested",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "invalid_name" => Some(Self::InvalidName),
+            "ready" => Some(Self::Ready),
+            "ingested" => Some(Self::Ingested),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DocumentInventoryRequest {
+    pub directory: PathBuf,
+    pub recursive: bool,
+    pub statuses: Vec<DocumentQueueStatusRequest>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DocumentRecordResponse {
+    pub file_name: String,
+    pub document_path: String,
+    pub raw_context_ref: String,
+    pub status: DocumentQueueStatusRequest,
+    pub blocked_reason: Option<String>,
+    pub next_hint: String,
+    pub vendor: Option<String>,
+    pub account_id: Option<String>,
+    pub year_month: Option<String>,
+    pub document_type: Option<String>,
+    pub ingested_tx_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DocumentInventoryResponse {
+    pub documents: Vec<DocumentRecordResponse>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SampleTxRequest {
     pub tx_id: String,
@@ -290,6 +343,10 @@ impl From<FilenameError> for ToolError {
 
 pub trait TurboLedgerTools {
     fn list_accounts(&self) -> Result<Vec<AccountSummary>, ToolError>;
+    fn document_inventory(
+        &self,
+        request: DocumentInventoryRequest,
+    ) -> Result<DocumentInventoryResponse, ToolError>;
     fn validate_source_filename(&self, file_name: &str) -> Result<StatementFilename, ToolError>;
     fn ingest_statement_rows(
         &self,
@@ -451,6 +508,13 @@ impl TurboLedgerService {
         Ok(ListAccountsResponse {
             accounts: self.list_accounts()?,
         })
+    }
+
+    pub fn document_inventory_tool(
+        &self,
+        request: DocumentInventoryRequest,
+    ) -> Result<DocumentInventoryResponse, ToolError> {
+        self.document_inventory(request)
     }
 
     pub fn ontology_upsert_entities(
@@ -938,6 +1002,39 @@ impl TurboLedgerTools for TurboLedgerService {
             .map(|account_id| AccountSummary { account_id })
             .collect();
         Ok(out)
+    }
+
+    fn document_inventory(
+        &self,
+        request: DocumentInventoryRequest,
+    ) -> Result<DocumentInventoryResponse, ToolError> {
+        // Queue discovery is intentionally derived on demand from the filesystem plus
+        // known ingested artifacts. That keeps the first cut deterministic and avoids
+        // introducing claim/prioritization state before the queue semantics settle.
+        let directory =
+            resolve_document_inventory_directory(self.workbook_path(), &request.directory)?;
+        let known_source_refs = self
+            .classification_state
+            .lock()
+            .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?
+            .tx_rows
+            .iter()
+            .map(|(tx_id, row)| (tx_id.clone(), PathBuf::from(&row.source_ref)))
+            .collect::<Vec<_>>();
+        let mut documents = collect_document_paths(&directory, request.recursive)?
+            .into_iter()
+            .map(|path| build_document_record(self, &known_source_refs, path))
+            .collect::<Result<Vec<_>, _>>()?;
+        documents.retain(|document| {
+            request.statuses.is_empty() || request.statuses.contains(&document.status)
+        });
+        documents.sort_by(|left, right| {
+            document_status_rank(left.status)
+                .cmp(&document_status_rank(right.status))
+                .then_with(|| left.file_name.cmp(&right.file_name))
+                .then_with(|| left.document_path.cmp(&right.document_path))
+        });
+        Ok(DocumentInventoryResponse { documents })
     }
 
     fn validate_source_filename(&self, file_name: &str) -> Result<StatementFilename, ToolError> {
@@ -1618,6 +1715,158 @@ fn now_timestamp() -> String {
     match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
         Ok(d) => format!("{}", d.as_secs()),
         Err(_) => "0".to_string(),
+    }
+}
+
+fn resolve_document_inventory_directory(
+    workbook_path: &std::path::Path,
+    directory: &std::path::Path,
+) -> Result<PathBuf, ToolError> {
+    if directory
+        .components()
+        .any(|component| component == std::path::Component::ParentDir)
+    {
+        return Err(ToolError::InvalidInput(
+            "directory must not contain parent traversal components".to_string(),
+        ));
+    }
+
+    let resolved = if directory.is_absolute() {
+        directory.to_path_buf()
+    } else {
+        let base = workbook_path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .map(std::path::Path::to_path_buf)
+            .unwrap_or(std::env::current_dir().map_err(|e| ToolError::Internal(e.to_string()))?);
+        base.join(directory)
+    };
+
+    if !resolved.is_dir() {
+        return Err(ToolError::InvalidInput(format!(
+            "directory '{}' does not exist or is not a directory",
+            resolved.display()
+        )));
+    }
+    Ok(resolved)
+}
+
+fn collect_document_paths(
+    directory: &std::path::Path,
+    recursive: bool,
+) -> Result<Vec<PathBuf>, ToolError> {
+    let mut documents = Vec::new();
+    collect_document_paths_into(directory, recursive, &mut documents)?;
+    documents.sort();
+    Ok(documents)
+}
+
+fn collect_document_paths_into(
+    directory: &std::path::Path,
+    recursive: bool,
+    documents: &mut Vec<PathBuf>,
+) -> Result<(), ToolError> {
+    let mut entries = std::fs::read_dir(directory)
+        .map_err(|e| ToolError::Internal(e.to_string()))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| ToolError::Internal(e.to_string()))?;
+    entries.sort_by_key(|entry| entry.path());
+
+    for entry in entries {
+        let path = entry.path();
+        if path.is_dir() {
+            if recursive {
+                collect_document_paths_into(&path, true, documents)?;
+            }
+            continue;
+        }
+        let is_pdf = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| ext.eq_ignore_ascii_case("pdf"))
+            .unwrap_or(false);
+        if is_pdf {
+            documents.push(path);
+        }
+    }
+
+    Ok(())
+}
+
+fn build_document_record(
+    service: &TurboLedgerService,
+    known_source_refs: &[(String, PathBuf)],
+    document_path: PathBuf,
+) -> Result<DocumentRecordResponse, ToolError> {
+    let file_name = document_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| {
+            ToolError::InvalidInput("document path must have a UTF-8 filename".to_string())
+        })?
+        .to_string();
+
+    match service.validate_source_filename(&file_name) {
+        Ok(parsed) => {
+            let raw_context_ref = document_path.with_extension("rkyv");
+            let ingested_tx_ids = known_source_refs
+                .iter()
+                .filter(|(_, source_ref)| source_ref_matches(source_ref, &raw_context_ref))
+                .map(|(tx_id, _)| tx_id.clone())
+                .collect::<Vec<_>>();
+            let status = if ingested_tx_ids.is_empty() {
+                DocumentQueueStatusRequest::Ready
+            } else {
+                DocumentQueueStatusRequest::Ingested
+            };
+
+            Ok(DocumentRecordResponse {
+                file_name,
+                document_path: document_path.display().to_string(),
+                raw_context_ref: raw_context_ref.display().to_string(),
+                status,
+                blocked_reason: None,
+                next_hint: if ingested_tx_ids.is_empty() {
+                    "call_proxy_ingest_pdf".to_string()
+                } else {
+                    "review_existing_rows".to_string()
+                },
+                vendor: Some(parsed.vendor),
+                account_id: Some(parsed.account),
+                year_month: Some(format!("{:04}-{:02}", parsed.year, parsed.month)),
+                document_type: Some(parsed.doc_type),
+                ingested_tx_ids,
+            })
+        }
+        Err(_) => Ok(DocumentRecordResponse {
+            file_name,
+            document_path: document_path.display().to_string(),
+            raw_context_ref: document_path.with_extension("rkyv").display().to_string(),
+            status: DocumentQueueStatusRequest::InvalidName,
+            blocked_reason: Some("invalid_contract_name".to_string()),
+            next_hint: "rename_then_retry".to_string(),
+            vendor: None,
+            account_id: None,
+            year_month: None,
+            document_type: None,
+            ingested_tx_ids: Vec::new(),
+        }),
+    }
+}
+
+fn source_ref_matches(source_ref: &std::path::Path, expected: &std::path::Path) -> bool {
+    let source_canonical = std::fs::canonicalize(source_ref).ok();
+    let expected_canonical = std::fs::canonicalize(expected).ok();
+    source_canonical.as_ref() == expected_canonical.as_ref()
+        || source_ref == expected
+        || source_ref.file_name() == expected.file_name()
+}
+
+fn document_status_rank(status: DocumentQueueStatusRequest) -> u8 {
+    match status {
+        DocumentQueueStatusRequest::Ingested => 0,
+        DocumentQueueStatusRequest::Ready => 1,
+        DocumentQueueStatusRequest::InvalidName => 2,
     }
 }
 

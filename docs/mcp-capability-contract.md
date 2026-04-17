@@ -10,7 +10,7 @@ The default catalog is intentionally small: 7 top-level `ledgerr_*` tools. Each 
 
 | Tool | Purpose | Common actions |
 |---|---|---|
-| `ledgerr_documents` | document intake, routing, manifest/account discovery, raw context retrieval | `list_accounts`, `pipeline_status`, `validate_filename`, `ingest_pdf`, `ingest_rows`, `get_raw_context` |
+| `ledgerr_documents` | document intake, routing, manifest/account discovery, raw context retrieval | `list_accounts`, `pipeline_status`, `validate_filename`, `ingest_pdf`, `ingest_rows`, `get_raw_context`, `document_inventory` |
 | `ledgerr_review` | classification and human-review workflows | `run_rule`, `classify_ingested`, `query_flags`, `classify_transaction`, `reconcile_excel_classification` |
 | `ledgerr_reconciliation` | staged totals/postings guardrails | `validate`, `reconcile`, `commit` |
 | `ledgerr_workflow` | lifecycle/HSM orchestration plus relocated plugin ops | `status`, `transition`, `resume`, `plugin_info` |

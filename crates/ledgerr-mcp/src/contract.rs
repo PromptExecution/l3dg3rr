@@ -48,6 +48,7 @@ pub const PUBLISHED_TOOLS: [ToolContractSpec; 7] = [
             "ingest_pdf",
             "ingest_rows",
             "get_raw_context",
+            "document_inventory",
         ],
     },
     ToolContractSpec {
@@ -253,6 +254,13 @@ pub enum DocumentsArgs {
         journal_path: PathBuf,
         workbook_path: PathBuf,
         rows: Vec<TransportRow>,
+    },
+    DocumentInventory {
+        directory: PathBuf,
+        #[serde(default)]
+        recursive: bool,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        statuses: Vec<String>,
     },
 }
 

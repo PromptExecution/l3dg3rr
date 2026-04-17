@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use ledger_core::ingest::{deterministic_tx_id, TransactionInput};
@@ -9,15 +10,15 @@ use crate::{
         self, AuditArgs, DocumentsArgs, OntologyArgs, ReconciliationArgs, ReviewArgs, TaxArgs,
         WorkflowArgs,
     },
-    ClassifyIngestedRequest, ClassifyTransactionRequest, EventHistoryFilter,
-    ExportCpaWorkbookRequest, FlagStatusRequest, GetRawContextRequest, GetScheduleSummaryRequest,
-    HsmResumeRequest, HsmStatusRequest, HsmTransitionRequest, IngestPdfRequest,
-    IngestStatementRowsRequest, ListAccountsRequest, OntologyExportSnapshotRequest,
-    OntologyQueryPathRequest, OntologyUpsertEdgesRequest, OntologyUpsertEntitiesRequest,
-    QueryAuditLogRequest, QueryFlagsRequest, ReconcileExcelClassificationRequest,
-    ReconciliationStageRequest, ReplayLifecycleRequest, RunRhaiRuleRequest, SampleTxRequest,
-    ScheduleKindRequest, TaxAmbiguityReviewRequest, TaxAssistRequest, TaxEvidenceChainRequest,
-    ToolError, TurboLedgerService, TurboLedgerTools,
+    ClassifyIngestedRequest, ClassifyTransactionRequest, DocumentInventoryRequest,
+    DocumentQueueStatusRequest, EventHistoryFilter, ExportCpaWorkbookRequest, FlagStatusRequest,
+    GetRawContextRequest, GetScheduleSummaryRequest, HsmResumeRequest, HsmStatusRequest,
+    HsmTransitionRequest, IngestPdfRequest, IngestStatementRowsRequest, ListAccountsRequest,
+    OntologyExportSnapshotRequest, OntologyQueryPathRequest, OntologyUpsertEdgesRequest,
+    OntologyUpsertEntitiesRequest, QueryAuditLogRequest, QueryFlagsRequest,
+    ReconcileExcelClassificationRequest, ReconciliationStageRequest, ReplayLifecycleRequest,
+    RunRhaiRuleRequest, SampleTxRequest, ScheduleKindRequest, TaxAmbiguityReviewRequest,
+    TaxAssistRequest, TaxEvidenceChainRequest, ToolError, TurboLedgerService, TurboLedgerTools,
 };
 
 pub use crate::contract::{
@@ -108,6 +109,49 @@ pub fn handle_list_accounts(service: &TurboLedgerService) -> Value {
                 .collect::<Vec<_>>();
             json!({
                 "content": [text_content(json!({ "accounts": accounts }))],
+                "isError": false
+            })
+        }
+        Err(err) => error_envelope(&err),
+    }
+}
+
+pub fn handle_document_inventory(service: &TurboLedgerService, arguments: &Value) -> Value {
+    let request = match parse_document_inventory_request(arguments) {
+        Ok(request) => request,
+        Err(err) => return error_envelope(&err),
+    };
+
+    match service.document_inventory_tool(request) {
+        Ok(response) => {
+            let documents = response
+                .documents
+                .into_iter()
+                .map(|document| {
+                    json!({
+                        "file_name": document.file_name,
+                        "document_path": document.document_path,
+                        "raw_context_ref": document.raw_context_ref,
+                        "status": document.status.as_str(),
+                        "blocked_reason": document.blocked_reason,
+                        "next_hint": document.next_hint,
+                        "vendor": document.vendor,
+                        "account_id": document.account_id,
+                        "year_month": document.year_month,
+                        "document_type": document.document_type,
+                        "ingested_tx_ids": document.ingested_tx_ids,
+                    })
+                })
+                .collect::<Vec<_>>();
+            let status_counts = document_status_counts(&documents);
+            json!({
+                "content": [text_content(json!({
+                    "documents": documents,
+                    "summary": {
+                        "total_documents": status_counts.values().copied().sum::<usize>(),
+                        "status_counts": status_counts,
+                    }
+                }))],
                 "isError": false
             })
         }
@@ -316,6 +360,24 @@ pub fn handle_documents_tool(service: &TurboLedgerService, arguments: &Value) ->
             }),
             None,
         ),
+        DocumentsArgs::DocumentInventory {
+            directory,
+            recursive,
+            statuses,
+        } => {
+            let status_filter: Vec<DocumentQueueStatusRequest> = statuses
+                .into_iter()
+                .filter_map(|s| DocumentQueueStatusRequest::parse(s.as_str()))
+                .collect();
+            handle_document_inventory(
+                service,
+                &json!({
+                    "directory": directory,
+                    "recursive": recursive,
+                    "statuses": status_filter.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+                }),
+            )
+        }
     }
 }
 
@@ -1433,6 +1495,54 @@ fn parse_get_raw_context_request(arguments: &Value) -> Result<GetRawContextReque
     Ok(GetRawContextRequest {
         rkyv_ref: PathBuf::from(required_str(arguments, "rkyv_ref")?),
     })
+}
+
+fn parse_document_inventory_request(
+    arguments: &Value,
+) -> Result<DocumentInventoryRequest, ToolError> {
+    let directory = PathBuf::from(required_str(arguments, "directory")?);
+    let recursive = arguments
+        .get("recursive")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let statuses = match arguments.get("statuses") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::Array(items)) => items
+            .iter()
+            .map(|item| {
+                let raw = item.as_str().ok_or_else(|| {
+                    ToolError::InvalidInput(
+                        "`statuses` must contain only string status names".to_string(),
+                    )
+                })?;
+                DocumentQueueStatusRequest::parse(raw).ok_or_else(|| {
+                    ToolError::InvalidInput(format!(
+                        "`statuses` contains unsupported value `{raw}`"
+                    ))
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+        _ => {
+            return Err(ToolError::InvalidInput(
+                "`statuses` must be an array of status names".to_string(),
+            ))
+        }
+    };
+    Ok(DocumentInventoryRequest {
+        directory,
+        recursive,
+        statuses,
+    })
+}
+
+fn document_status_counts(documents: &[Value]) -> BTreeMap<String, usize> {
+    let mut counts = BTreeMap::new();
+    for document in documents {
+        if let Some(status) = document.get("status").and_then(Value::as_str) {
+            *counts.entry(status.to_string()).or_insert(0) += 1;
+        }
+    }
+    counts
 }
 
 fn parse_ontology_query_path_request(
