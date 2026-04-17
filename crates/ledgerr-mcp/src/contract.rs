@@ -599,8 +599,7 @@ Expected blocked outcomes:\n\n\
 }
 
 pub fn generated_mcp_cli_demo_script() -> String {
-    format!(
-        "#!/usr/bin/env bash\nset -euo pipefail\n\n\
+    "#!/usr/bin/env bash\nset -euo pipefail\n\n\
 JOURNAL_PATH=\"${{JOURNAL_PATH:-/tmp/demo.beancount}}\"\n\
 WORKBOOK_PATH=\"${{WORKBOOK_PATH:-/tmp/demo.xlsx}}\"\n\
 SOURCE_REF=\"${{SOURCE_REF:-wf-2023-01.rkyv}}\"\n\n\
@@ -619,7 +618,7 @@ cat <<'EOF'\n\
 {{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{{\"name\":\"ledgerr_reconciliation\",\"arguments\":{{\"action\":\"commit\",\"source_total\":\"100.00\",\"extracted_total\":\"95.00\",\"posting_amounts\":[\"-95.00\",\"95.00\"]}}}}}}\n\
 {{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{{\"name\":\"ledgerr_audit\",\"arguments\":{{\"action\":\"event_history\",\"time_start\":\"2026-12-31\",\"time_end\":\"2026-01-01\"}}}}}}\n\
 EOF\n"
-    )
+        .to_string()
 }
 
 fn documents_ingest_pdf_example() -> Value {
