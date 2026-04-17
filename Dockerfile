@@ -19,6 +19,8 @@ RUN cargo chef cook --release --recipe-path recipe.json
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 COPY xtask ./xtask
+COPY docs ./docs
+COPY scripts ./scripts
 
 RUN cargo test --workspace --all-features
 RUN cargo build -p ledgerr-mcp --release --bin ledgerr-mcp-server
