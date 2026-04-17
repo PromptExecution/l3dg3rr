@@ -200,7 +200,7 @@ fn parse_response_payload(response: &serde_json::Value) -> serde_json::Value {
 }
 
 #[test]
-fn taxa_mcp_tools_list_advertises_tax_tools() {
+fn taxa_mcp_tools_list_advertises_tax_tool() {
     let mut client = McpStdioClient::spawn();
     initialize_client(&mut client);
 
@@ -212,9 +212,7 @@ fn taxa_mcp_tools_list_advertises_tax_tools() {
         .filter_map(|entry| entry.get("name").and_then(Value::as_str))
         .collect::<Vec<_>>();
 
-    assert!(tool_names.contains(&TAX_ASSIST_TOOL));
-    assert!(tool_names.contains(&TAX_EVIDENCE_CHAIN_TOOL));
-    assert!(tool_names.contains(&TAX_AMBIGUITY_REVIEW_TOOL));
+    assert!(tool_names.contains(&"ledgerr_tax"));
 }
 
 #[test]

@@ -165,10 +165,10 @@ fn step_tools_list(ctx: &mut FlowContext) -> Result<(), String> {
         .collect::<Vec<_>>();
 
     for required in [
-        "l3dg3rr_get_pipeline_status",
-        "l3dg3rr_list_accounts",
-        "proxy_docling_ingest_pdf",
-        "l3dg3rr_get_raw_context",
+        "ledgerr_documents",
+        "ledgerr_workflow",
+        "ledgerr_reconciliation",
+        "ledgerr_audit",
     ] {
         if !names.contains(&required) {
             return Err(format!(
@@ -183,8 +183,8 @@ fn step_pipeline_status(ctx: &mut FlowContext) -> Result<(), String> {
     let response = ctx.client.request(
         "tools/call",
         json!({
-            "name": "l3dg3rr_get_pipeline_status",
-            "arguments": {}
+            "name": "ledgerr_documents",
+            "arguments": { "action": "pipeline_status" }
         }),
     )?;
     let p = parse_response_payload(&response["result"]);
@@ -199,8 +199,8 @@ fn step_list_accounts(ctx: &mut FlowContext) -> Result<(), String> {
     let response = ctx.client.request(
         "tools/call",
         json!({
-            "name": "l3dg3rr_list_accounts",
-            "arguments": {}
+            "name": "ledgerr_documents",
+            "arguments": { "action": "list_accounts" }
         }),
     )?;
     let accounts_p = parse_response_payload(&response["result"]);
@@ -217,8 +217,9 @@ fn step_ingest_sample(ctx: &mut FlowContext) -> Result<(), String> {
     let response = ctx.client.request(
         "tools/call",
         json!({
-            "name": "proxy_docling_ingest_pdf",
+            "name": "ledgerr_documents",
             "arguments": {
+                "action": "ingest_pdf",
                 "pdf_path": "WF--BH-CHK--2023-01--statement.pdf",
                 "journal_path": path_json(&ctx.journal_path),
                 "workbook_path": path_json(&ctx.workbook_path),
@@ -246,8 +247,9 @@ fn step_get_raw_context(ctx: &mut FlowContext) -> Result<(), String> {
     let response = ctx.client.request(
         "tools/call",
         json!({
-            "name": "l3dg3rr_get_raw_context",
+            "name": "ledgerr_documents",
             "arguments": {
+                "action": "get_raw_context",
                 "rkyv_ref": path_json(&ctx.source_ref)
             }
         }),
@@ -265,8 +267,9 @@ fn step_hsm_resume_blocked(ctx: &mut FlowContext) -> Result<(), String> {
     let response = ctx.client.request(
         "tools/call",
         json!({
-            "name": "l3dg3rr_hsm_resume",
+            "name": "ledgerr_workflow",
             "arguments": {
+                "action": "resume",
                 "state_marker": "invalid-checkpoint"
             }
         }),
@@ -286,8 +289,9 @@ fn step_reconciliation_blocked(ctx: &mut FlowContext) -> Result<(), String> {
     let response = ctx.client.request(
         "tools/call",
         json!({
-            "name": "l3dg3rr_commit_guarded",
+            "name": "ledgerr_reconciliation",
             "arguments": {
+                "action": "commit",
                 "source_total": "100.00",
                 "extracted_total": "95.00",
                 "posting_amounts": ["-95.00", "95.00"]
@@ -313,8 +317,9 @@ fn step_event_history_blocked(ctx: &mut FlowContext) -> Result<(), String> {
     let response = ctx.client.request(
         "tools/call",
         json!({
-            "name": "l3dg3rr_event_history",
+            "name": "ledgerr_audit",
             "arguments": {
+                "action": "event_history",
                 "time_start": "2026-12-31",
                 "time_end": "2026-01-01"
             }

@@ -116,7 +116,7 @@ fn parse_response_payload(response: &serde_json::Value) -> serde_json::Value {
 }
 
 #[test]
-fn recon_03_tools_list_includes_reconciliation_stage_tools() {
+fn recon_03_tools_list_includes_reconciliation_tool() {
     let mut client = McpStdioClient::spawn();
     initialize_client(&mut client);
 
@@ -128,9 +128,7 @@ fn recon_03_tools_list_includes_reconciliation_stage_tools() {
         .filter_map(|entry| entry.get("name").and_then(Value::as_str))
         .collect::<Vec<_>>();
 
-    assert!(tool_names.contains(&RECON_VALIDATE_TOOL));
-    assert!(tool_names.contains(&RECON_RECONCILE_TOOL));
-    assert!(tool_names.contains(&RECON_COMMIT_TOOL));
+    assert!(tool_names.contains(&"ledgerr_reconciliation"));
 }
 
 #[test]

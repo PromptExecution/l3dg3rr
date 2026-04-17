@@ -90,6 +90,7 @@ fn initialize_client(client: &mut McpStdioClient) {
 
 fn build_ingest_arguments(base_dir: &std::path::Path) -> Value {
     json!({
+        "action": "ingest_pdf",
         "pdf_path": "WF--BH-CHK--2023-01--statement.pdf",
         "journal_path": base_dir.join("ledger.beancount").display().to_string(),
         "workbook_path": base_dir.join("tax-ledger.xlsx").display().to_string(),
@@ -111,6 +112,7 @@ fn build_ingest_arguments(base_dir: &std::path::Path) -> Value {
 
 fn build_rustledger_rows_arguments(base_dir: &std::path::Path) -> Value {
     json!({
+        "action": "ingest_rows",
         "journal_path": base_dir.join("ledger.beancount").display().to_string(),
         "workbook_path": base_dir.join("tax-ledger.xlsx").display().to_string(),
         "rows": [
@@ -147,13 +149,14 @@ fn doc_01_mcp_only_ingest_via_tools_call() {
         .iter()
         .filter_map(|entry| entry.get("name").and_then(Value::as_str))
         .collect::<Vec<_>>();
-    assert!(tool_names.contains(&"proxy_docling_ingest_pdf"));
+    assert_eq!(tool_names.len(), 7);
+    assert!(tool_names.contains(&"ledgerr_documents"));
 
     let tempdir = tempfile::tempdir().expect("tempdir");
     let call = client.request(
         "tools/call",
         json!({
-            "name": "proxy_docling_ingest_pdf",
+            "name": "ledgerr_documents",
             "arguments": build_ingest_arguments(tempdir.path())
         }),
     );
@@ -182,7 +185,7 @@ fn doc_02_canonical_mapping_and_provenance_fields_over_transport() {
     let call = client.request(
         "tools/call",
         json!({
-            "name": "proxy_docling_ingest_pdf",
+            "name": "ledgerr_documents",
             "arguments": build_ingest_arguments(tempdir.path())
         }),
     );
@@ -211,14 +214,14 @@ fn doc_03_replay_idempotent_with_stable_tx_ids_over_mcp() {
     let first = client.request(
         "tools/call",
         json!({
-            "name": "proxy_docling_ingest_pdf",
+            "name": "ledgerr_documents",
             "arguments": build_ingest_arguments(tempdir.path())
         }),
     );
     let second = client.request(
         "tools/call",
         json!({
-            "name": "proxy_docling_ingest_pdf",
+            "name": "ledgerr_documents",
             "arguments": build_ingest_arguments(tempdir.path())
         }),
     );
@@ -252,20 +255,20 @@ fn rustledger_proxy_ingest_statement_rows_over_transport() {
         .iter()
         .filter_map(|entry| entry.get("name").and_then(Value::as_str))
         .collect::<Vec<_>>();
-    assert!(tool_names.contains(&"proxy_rustledger_ingest_statement_rows"));
+    assert!(tool_names.contains(&"ledgerr_documents"));
 
     let tempdir = tempfile::tempdir().expect("tempdir");
     let first = client.request(
         "tools/call",
         json!({
-            "name": "proxy_rustledger_ingest_statement_rows",
+            "name": "ledgerr_documents",
             "arguments": build_rustledger_rows_arguments(tempdir.path())
         }),
     );
     let second = client.request(
         "tools/call",
         json!({
-            "name": "proxy_rustledger_ingest_statement_rows",
+            "name": "ledgerr_documents",
             "arguments": build_rustledger_rows_arguments(tempdir.path())
         }),
     );
@@ -311,14 +314,13 @@ fn mcp_lists_and_calls_accounts_and_raw_context_tools() {
         .iter()
         .filter_map(|entry| entry.get("name").and_then(Value::as_str))
         .collect::<Vec<_>>();
-    assert!(tool_names.contains(&"l3dg3rr_list_accounts"));
-    assert!(tool_names.contains(&"l3dg3rr_get_raw_context"));
+    assert!(tool_names.contains(&"ledgerr_documents"));
 
     let list_accounts = client.request(
         "tools/call",
         json!({
-            "name": "l3dg3rr_list_accounts",
-            "arguments": {}
+            "name": "ledgerr_documents",
+            "arguments": { "action": "list_accounts" }
         }),
     );
     assert_eq!(list_accounts["result"]["isError"], Value::Bool(false));
@@ -338,7 +340,7 @@ fn mcp_lists_and_calls_accounts_and_raw_context_tools() {
     let ingest = client.request(
         "tools/call",
         json!({
-            "name": "proxy_docling_ingest_pdf",
+            "name": "ledgerr_documents",
             "arguments": ingest_args
         }),
     );
@@ -347,8 +349,8 @@ fn mcp_lists_and_calls_accounts_and_raw_context_tools() {
     let raw_context = client.request(
         "tools/call",
         json!({
-            "name": "l3dg3rr_get_raw_context",
-            "arguments": { "rkyv_ref": source_ref }
+            "name": "ledgerr_documents",
+            "arguments": { "action": "get_raw_context", "rkyv_ref": source_ref }
         }),
     );
     assert_eq!(raw_context["result"]["isError"], Value::Bool(false));

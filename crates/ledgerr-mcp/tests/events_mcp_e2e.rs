@@ -126,7 +126,7 @@ fn ingest_one_row(
 }
 
 #[test]
-fn evt_03_tools_list_advertises_event_replay_and_history() {
+fn evt_03_tools_list_advertises_audit_tool() {
     let mut client = McpStdioClient::spawn();
     initialize_client(&mut client);
 
@@ -138,8 +138,7 @@ fn evt_03_tools_list_advertises_event_replay_and_history() {
         .filter_map(|entry| entry.get("name").and_then(Value::as_str))
         .collect::<Vec<_>>();
 
-    assert!(tool_names.contains(&EVENT_REPLAY_TOOL));
-    assert!(tool_names.contains(&EVENT_HISTORY_TOOL));
+    assert!(tool_names.contains(&"ledgerr_audit"));
 }
 
 #[test]

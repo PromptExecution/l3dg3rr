@@ -16,7 +16,7 @@ See [docs/mcp-capability-contract.md](docs/mcp-capability-contract.md) for the c
 - Session manifest parsing and account listing
 - Workbook initialization with required sheet names
 - Git-friendly plain-text ingest output via Beancount journal entries (rustledger-compatible)
-- Idiomatic turbo MCP interface surface for `list_accounts` and `ingest_statement_rows`
+- Reduced 7-tool MCP interface surface using top-level `ledgerr_*` capabilities with action-based subcommands
 
 ## Prerequisites
 
@@ -70,7 +70,7 @@ curl -fsSL "https://github.com/PromptExecution/l3dg3rr/releases/latest/download/
 claude mcp add ledgerr /tmp/ledgerr-mcp.mcpb
 ```
 
-After adding, restart Claude Code. The `l3dg3rr_*` tools will appear automatically.
+After adding, restart Claude Code. The 7 top-level `ledgerr_*` tools will appear automatically.
 
 ## Docker
 

@@ -178,7 +178,7 @@ fn parse_response_payload(response: &serde_json::Value) -> serde_json::Value {
 }
 
 #[test]
-fn onto_03_tools_list_advertises_ontology_query_and_export_tools() {
+fn onto_03_tools_list_advertises_ontology_tool() {
     let mut client = McpStdioClient::spawn();
     initialize_client(&mut client);
 
@@ -190,8 +190,7 @@ fn onto_03_tools_list_advertises_ontology_query_and_export_tools() {
         .filter_map(|entry| entry.get("name").and_then(Value::as_str))
         .collect::<Vec<_>>();
 
-    assert!(tool_names.contains(&ONTOLOGY_QUERY_TOOL));
-    assert!(tool_names.contains(&ONTOLOGY_EXPORT_TOOL));
+    assert!(tool_names.contains(&"ledgerr_ontology"));
 }
 
 // ONTO-03 (D-03): ontology query and export return deterministic concise payloads over transport.

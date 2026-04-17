@@ -9,8 +9,13 @@ For product scope and status, read `README.md` first, then use this file for exe
 
 ### MCP Capability Training (Concrete)
 
-Use `TurboLedgerService` in `crates/turbo-mcp/src/lib.rs` as the canonical contract.
+Use `TurboLedgerService` in `crates/ledgerr-mcp/src/lib.rs` as the canonical contract.
 Use `docs/mcp-capability-contract.md` as the canonical MCP surface map (tool names, arg contracts, service mapping, contrived usage flow).
+
+Published MCP surface rule:
+- Default `tools/list` should stay collapsed to the 7 top-level `ledgerr_*` capability families: `ledgerr_documents`, `ledgerr_review`, `ledgerr_reconciliation`, `ledgerr_workflow`, `ledgerr_audit`, `ledgerr_tax`, `ledgerr_ontology`.
+- Use required `action` parameters to expose sub-operations while keeping major capability families visible.
+- Keep any legacy `l3dg3rr_*` or proxy-style names hidden compatibility aliases only; do not advertise them in the default tool catalog.
 
 Core methods:
 - `list_accounts` / `list_accounts_tool`: enumerate account ids from manifest.
@@ -230,9 +235,12 @@ Treat this as a standing operational gate, not a one-time migration task.
 ### Validation Memo
 
 - 2026-04-02: executed post-commit plugin-doc validation against `https://code.claude.com/docs/en/plugins`.
-  - Updated stale tool examples from `l3dg3rr_context_summary` to live MCP tools (`l3dg3rr_get_pipeline_status`, `l3dg3rr_list_accounts`, `l3dg3rr_get_raw_context`).
+  - Updated stale tool examples from `l3dg3rr_context_summary` to then-live MCP tools (`l3dg3rr_get_pipeline_status`, `l3dg3rr_list_accounts`, `l3dg3rr_get_raw_context`).
   - Added plugin skill frontmatter `name` for plugin-doc compatibility.
   - Added runnable `just test` outcome flow (Rust executable) with both simple and blocked-diagnostics scenarios.
+- 2026-04-17: reduced the default MCP catalog to 7 top-level `ledgerr_*` tools and relocated plugin info under `ledgerr_workflow`.
+  - Keep docs/examples aligned to the reduced surface; `tools/list` is now intended to be a trustworthy small catalog for agents.
+  - Legacy `l3dg3rr_*` and proxy tool names remain compatibility aliases only and should not be reintroduced into the advertised catalog.
 
 
 
