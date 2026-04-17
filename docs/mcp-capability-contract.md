@@ -19,6 +19,7 @@ MCP boundary:
 | MCP tool name | Primary purpose | Required arguments | Backing service/API |
 |---|---|---|---|
 | `l3dg3rr_list_accounts` | enumerate manifest account ids for tool planning and routing | none | `TurboLedgerService::list_accounts_tool` |
+| `l3dg3rr_document_inventory` | derive a deterministic PDF document queue from a directory plus known ingested artifacts | `directory` | `TurboLedgerService::document_inventory_tool` |
 | `l3dg3rr_get_raw_context` | fetch stored raw context bytes by reference path | `rkyv_ref` | `TurboLedgerTools::get_raw_context` |
 | `l3dg3rr_get_pipeline_status` | readiness hint for workflow start | none | `get_pipeline_status` adapter helper |
 | `proxy_docling_ingest_pdf` | ingest rows extracted from PDF, persist raw bytes fallback, emit canonical rows + tx ids | `pdf_path`, `journal_path`, `workbook_path`, `extracted_rows` | `TurboLedgerTools::ingest_pdf` |
@@ -39,6 +40,12 @@ MCP boundary:
 
 Input parsing and validation live in:
 [crates/ledgerr-mcp/src/mcp_adapter.rs](crates/ledgerr-mcp/src/mcp_adapter.rs#L160)
+
+`l3dg3rr_document_inventory` returns deterministic document records with:
+- `status`: `invalid_name`, `ready`, or `ingested`
+- `blocked_reason`: present for blocked rows such as invalid names
+- `next_hint`: concise small-model orchestration hint
+- parsed filename metadata when available: `vendor`, `account_id`, `year_month`, `document_type`
 
 ## 2) Internal Rust Service API (Wider Than MCP)
 

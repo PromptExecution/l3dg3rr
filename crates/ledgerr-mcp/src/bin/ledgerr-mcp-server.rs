@@ -60,6 +60,10 @@ fn handle_request(request: Value) -> Option<Value> {
                 mcp_adapter::LIST_ACCOUNTS_TOOL => {
                     mcp_adapter::handle_list_accounts(global_service())
                 }
+                mcp_adapter::DOCUMENT_INVENTORY_TOOL => {
+                    let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+                    mcp_adapter::handle_document_inventory(global_service(), &arguments)
+                }
                 "l3dg3rr_get_pipeline_status" => {
                     mcp_adapter::handle_pipeline_status(true, true, true, Vec::new())
                 }
@@ -143,10 +147,7 @@ fn handle_request(request: Value) -> Option<Value> {
                 }
                 mcp_adapter::RECONCILE_EXCEL_CLASSIFICATION_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::handle_reconcile_excel_classification(
-                        global_service(),
-                        &arguments,
-                    )
+                    mcp_adapter::handle_reconcile_excel_classification(global_service(), &arguments)
                 }
                 mcp_adapter::GET_SCHEDULE_SUMMARY_TOOL => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);

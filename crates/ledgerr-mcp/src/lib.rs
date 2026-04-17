@@ -10,11 +10,11 @@ use ledger_core::manifest::Manifest;
 use rust_decimal::Decimal;
 use rust_xlsxwriter::Workbook;
 
-pub mod mcp_adapter;
-pub mod plugin_info;
 pub mod events;
 pub mod hsm;
+pub mod mcp_adapter;
 pub mod ontology;
+pub mod plugin_info;
 pub mod reconciliation;
 pub mod tax_assist;
 pub use events::{
@@ -27,9 +27,8 @@ pub use hsm::{
 };
 pub use ontology::{
     OntologyEdge, OntologyEdgeInput, OntologyEntity, OntologyEntityInput, OntologyEntityKind,
-    OntologyQueryPathRequest, OntologyQueryPathResponse, OntologyStore,
-    OntologyUpsertEdgesRequest, OntologyUpsertEdgesResponse, OntologyUpsertEntitiesRequest,
-    OntologyUpsertEntitiesResponse,
+    OntologyQueryPathRequest, OntologyQueryPathResponse, OntologyStore, OntologyUpsertEdgesRequest,
+    OntologyUpsertEdgesResponse, OntologyUpsertEntitiesRequest, OntologyUpsertEntitiesResponse,
 };
 pub use reconciliation::{
     commit_stage, reconcile_stage, validate_stage, ReconciliationDiagnostic,
@@ -90,6 +89,59 @@ pub struct GetRawContextRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GetRawContextResponse {
     pub bytes: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum DocumentQueueStatusRequest {
+    InvalidName,
+    Ready,
+    Ingested,
+}
+
+impl DocumentQueueStatusRequest {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::InvalidName => "invalid_name",
+            Self::Ready => "ready",
+            Self::Ingested => "ingested",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "invalid_name" => Some(Self::InvalidName),
+            "ready" => Some(Self::Ready),
+            "ingested" => Some(Self::Ingested),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DocumentInventoryRequest {
+    pub directory: PathBuf,
+    pub recursive: bool,
+    pub statuses: Vec<DocumentQueueStatusRequest>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DocumentRecordResponse {
+    pub file_name: String,
+    pub document_path: String,
+    pub raw_context_ref: String,
+    pub status: DocumentQueueStatusRequest,
+    pub blocked_reason: Option<String>,
+    pub next_hint: String,
+    pub vendor: Option<String>,
+    pub account_id: Option<String>,
+    pub year_month: Option<String>,
+    pub document_type: Option<String>,
+    pub ingested_tx_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DocumentInventoryResponse {
+    pub documents: Vec<DocumentRecordResponse>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -288,14 +340,20 @@ impl From<FilenameError> for ToolError {
 
 pub trait TurboLedgerTools {
     fn list_accounts(&self) -> Result<Vec<AccountSummary>, ToolError>;
+    fn document_inventory(
+        &self,
+        request: DocumentInventoryRequest,
+    ) -> Result<DocumentInventoryResponse, ToolError>;
     fn validate_source_filename(&self, file_name: &str) -> Result<StatementFilename, ToolError>;
     fn ingest_statement_rows(
         &self,
         request: IngestStatementRowsRequest,
     ) -> Result<IngestStatementRowsResponse, ToolError>;
     fn ingest_pdf(&self, request: IngestPdfRequest) -> Result<IngestPdfResponse, ToolError>;
-    fn get_raw_context(&self, request: GetRawContextRequest)
-        -> Result<GetRawContextResponse, ToolError>;
+    fn get_raw_context(
+        &self,
+        request: GetRawContextRequest,
+    ) -> Result<GetRawContextResponse, ToolError>;
     fn run_rhai_rule(&self, request: RunRhaiRuleRequest) -> Result<RunRhaiRuleResponse, ToolError>;
     fn classify_ingested(
         &self,
@@ -310,7 +368,10 @@ pub trait TurboLedgerTools {
         &self,
         request: ReconcileExcelClassificationRequest,
     ) -> Result<ClassifyTransactionResponse, ToolError>;
-    fn query_audit_log(&self, request: QueryAuditLogRequest) -> Result<QueryAuditLogResponse, ToolError>;
+    fn query_audit_log(
+        &self,
+        request: QueryAuditLogRequest,
+    ) -> Result<QueryAuditLogResponse, ToolError>;
     fn export_cpa_workbook(
         &self,
         request: ExportCpaWorkbookRequest,
@@ -377,6 +438,13 @@ impl TurboLedgerService {
         Ok(ListAccountsResponse {
             accounts: self.list_accounts()?,
         })
+    }
+
+    pub fn document_inventory_tool(
+        &self,
+        request: DocumentInventoryRequest,
+    ) -> Result<DocumentInventoryResponse, ToolError> {
+        self.document_inventory(request)
     }
 
     pub fn ontology_upsert_entities(
@@ -594,7 +662,7 @@ impl TurboLedgerService {
             for edge in store
                 .edges
                 .into_iter()
-                    .filter(|edge| edge.from == request.from_entity_id)
+                .filter(|edge| edge.from == request.from_entity_id)
             {
                 if existing_edge_ids.insert(edge.id.clone()) {
                     if !existing_node_ids.contains(&edge.to) {
@@ -688,9 +756,17 @@ impl TurboLedgerService {
             .collect::<Vec<_>>();
         provenance_refs.sort();
         provenance_refs.dedup();
-        let mut node_ids = path.nodes.into_iter().map(|node| node.id).collect::<Vec<_>>();
+        let mut node_ids = path
+            .nodes
+            .into_iter()
+            .map(|node| node.id)
+            .collect::<Vec<_>>();
         node_ids.sort();
-        let mut edge_ids = path.edges.into_iter().map(|edge| edge.id).collect::<Vec<_>>();
+        let mut edge_ids = path
+            .edges
+            .into_iter()
+            .map(|edge| edge.id)
+            .collect::<Vec<_>>();
         edge_ids.sort();
         let source = TaxEvidenceSource {
             from_entity_id: request.from_entity_id,
@@ -699,10 +775,7 @@ impl TurboLedgerService {
             provenance_refs,
         };
         Ok(tax_assist::build_tax_evidence_chain_response(
-            source,
-            events,
-            replay,
-            ambiguity,
+            source, events, replay, ambiguity,
         ))
     }
 
@@ -854,6 +927,39 @@ impl TurboLedgerTools for TurboLedgerService {
         Ok(out)
     }
 
+    fn document_inventory(
+        &self,
+        request: DocumentInventoryRequest,
+    ) -> Result<DocumentInventoryResponse, ToolError> {
+        // Queue discovery is intentionally derived on demand from the filesystem plus
+        // known ingested artifacts. That keeps the first cut deterministic and avoids
+        // introducing claim/prioritization state before the queue semantics settle.
+        let directory =
+            resolve_document_inventory_directory(self.workbook_path(), &request.directory)?;
+        let known_source_refs = self
+            .classification_state
+            .lock()
+            .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?
+            .tx_rows
+            .iter()
+            .map(|(tx_id, row)| (tx_id.clone(), PathBuf::from(&row.source_ref)))
+            .collect::<Vec<_>>();
+        let mut documents = collect_document_paths(&directory, request.recursive)?
+            .into_iter()
+            .map(|path| build_document_record(self, &known_source_refs, path))
+            .collect::<Result<Vec<_>, _>>()?;
+        documents.retain(|document| {
+            request.statuses.is_empty() || request.statuses.contains(&document.status)
+        });
+        documents.sort_by(|left, right| {
+            document_status_rank(left.status)
+                .cmp(&document_status_rank(right.status))
+                .then_with(|| left.file_name.cmp(&right.file_name))
+                .then_with(|| left.document_path.cmp(&right.document_path))
+        });
+        Ok(DocumentInventoryResponse { documents })
+    }
+
     fn validate_source_filename(&self, file_name: &str) -> Result<StatementFilename, ToolError> {
         Ok(StatementFilename::parse(file_name)?)
     }
@@ -910,7 +1016,10 @@ impl TurboLedgerTools for TurboLedgerService {
             )?;
         }
 
-        let tx_ids = inserted.iter().map(|row| row.tx_id.clone()).collect::<Vec<_>>();
+        let tx_ids = inserted
+            .iter()
+            .map(|row| row.tx_id.clone())
+            .collect::<Vec<_>>();
         Ok(IngestStatementRowsResponse {
             inserted_count: tx_ids.len(),
             tx_ids,
@@ -921,14 +1030,18 @@ impl TurboLedgerTools for TurboLedgerService {
         let file_name = std::path::Path::new(&request.pdf_path)
             .file_name()
             .and_then(|name| name.to_str())
-            .ok_or_else(|| ToolError::InvalidInput("pdf_path must have a valid filename".to_string()))?;
+            .ok_or_else(|| {
+                ToolError::InvalidInput("pdf_path must have a valid filename".to_string())
+            })?;
         let _parsed = self.validate_source_filename(file_name)?;
 
         // Derive the allowed base directory from the workbook path to prevent path traversal.
         let allowed_base = request
             .workbook_path
             .parent()
-            .ok_or_else(|| ToolError::InvalidInput("workbook_path must have a parent directory".to_string()))?
+            .ok_or_else(|| {
+                ToolError::InvalidInput("workbook_path must have a parent directory".to_string())
+            })?
             .to_path_buf();
 
         for row in &request.extracted_rows {
@@ -936,7 +1049,10 @@ impl TurboLedgerTools for TurboLedgerService {
             let resolved = if source_path.is_absolute() {
                 // Absolute paths are allowed only if they reside within the allowed base directory.
                 // Reject any `..` components that could escape the base via lexical traversal.
-                if source_path.components().any(|c| c == std::path::Component::ParentDir) {
+                if source_path
+                    .components()
+                    .any(|c| c == std::path::Component::ParentDir)
+                {
                     return Err(ToolError::InvalidInput(format!(
                         "source_ref '{}' contains path traversal components",
                         row.source_ref
@@ -951,7 +1067,10 @@ impl TurboLedgerTools for TurboLedgerService {
                 source_path.to_path_buf()
             } else {
                 // Relative paths must not contain `..` components.
-                if source_path.components().any(|c| c == std::path::Component::ParentDir) {
+                if source_path
+                    .components()
+                    .any(|c| c == std::path::Component::ParentDir)
+                {
                     return Err(ToolError::InvalidInput(format!(
                         "source_ref '{}' contains path traversal components",
                         row.source_ref
@@ -965,10 +1084,11 @@ impl TurboLedgerTools for TurboLedgerService {
             if let Some(parent) = resolved.parent() {
                 std::fs::create_dir_all(parent).map_err(|e| ToolError::Internal(e.to_string()))?;
             }
-            let bytes = request
-                .raw_context_bytes
-                .as_deref()
-                .ok_or_else(|| ToolError::InvalidInput("raw_context_bytes required when source_ref file does not exist".to_string()))?;
+            let bytes = request.raw_context_bytes.as_deref().ok_or_else(|| {
+                ToolError::InvalidInput(
+                    "raw_context_bytes required when source_ref file does not exist".to_string(),
+                )
+            })?;
             std::fs::write(&resolved, bytes).map_err(|e| ToolError::Internal(e.to_string()))?;
         }
 
@@ -987,13 +1107,19 @@ impl TurboLedgerTools for TurboLedgerService {
         &self,
         request: GetRawContextRequest,
     ) -> Result<GetRawContextResponse, ToolError> {
-        let allowed_base = self.workbook_path()
+        let allowed_base = self
+            .workbook_path()
             .parent()
-            .ok_or_else(|| ToolError::InvalidInput("workbook_path must have a parent directory".to_string()))?
+            .ok_or_else(|| {
+                ToolError::InvalidInput("workbook_path must have a parent directory".to_string())
+            })?
             .to_path_buf();
 
         let rkyv_path = &request.rkyv_ref;
-        if rkyv_path.components().any(|c| c == std::path::Component::ParentDir) {
+        if rkyv_path
+            .components()
+            .any(|c| c == std::path::Component::ParentDir)
+        {
             return Err(ToolError::InvalidInput(format!(
                 "rkyv_ref '{}' contains path traversal components",
                 rkyv_path.display()
@@ -1057,8 +1183,7 @@ impl TurboLedgerTools for TurboLedgerService {
         let timestamp = now_timestamp();
         let mut results = Vec::with_capacity(batch.classifications.len());
         for c in batch.classifications {
-            let confidence = Decimal::try_from(c.confidence)
-                .unwrap_or(Decimal::ZERO);
+            let confidence = Decimal::try_from(c.confidence).unwrap_or(Decimal::ZERO);
             let old = classification.classifications.get(&c.tx_id).cloned();
             // Emit audit entries for every change, including first classifications (old_value: None).
             if old.as_ref().map(|e| e.category.as_str()) != Some(c.category.as_str()) {
@@ -1157,7 +1282,10 @@ impl TurboLedgerTools for TurboLedgerService {
         )
     }
 
-    fn query_audit_log(&self, _request: QueryAuditLogRequest) -> Result<QueryAuditLogResponse, ToolError> {
+    fn query_audit_log(
+        &self,
+        _request: QueryAuditLogRequest,
+    ) -> Result<QueryAuditLogResponse, ToolError> {
         let entries = self
             .classification_state
             .lock()
@@ -1181,12 +1309,30 @@ impl TurboLedgerTools for TurboLedgerService {
         let active_year = self.manifest.session.active_year;
 
         let mut workbook = Workbook::new();
-        workbook.add_worksheet().set_name("CAT.taxonomy").map_err(map_xlsx)?;
-        workbook.add_worksheet().set_name("FLAGS.open").map_err(map_xlsx)?;
-        workbook.add_worksheet().set_name("FLAGS.resolved").map_err(map_xlsx)?;
-        workbook.add_worksheet().set_name("SCHED.C").map_err(map_xlsx)?;
-        workbook.add_worksheet().set_name("SCHED.D").map_err(map_xlsx)?;
-        workbook.add_worksheet().set_name("SCHED.E").map_err(map_xlsx)?;
+        workbook
+            .add_worksheet()
+            .set_name("CAT.taxonomy")
+            .map_err(map_xlsx)?;
+        workbook
+            .add_worksheet()
+            .set_name("FLAGS.open")
+            .map_err(map_xlsx)?;
+        workbook
+            .add_worksheet()
+            .set_name("FLAGS.resolved")
+            .map_err(map_xlsx)?;
+        workbook
+            .add_worksheet()
+            .set_name("SCHED.C")
+            .map_err(map_xlsx)?;
+        workbook
+            .add_worksheet()
+            .set_name("SCHED.D")
+            .map_err(map_xlsx)?;
+        workbook
+            .add_worksheet()
+            .set_name("SCHED.E")
+            .map_err(map_xlsx)?;
         workbook
             .add_worksheet()
             .set_name("FBAR.accounts")
@@ -1201,7 +1347,9 @@ impl TurboLedgerTools for TurboLedgerService {
         }
 
         {
-            let cat_sheet = workbook.worksheet_from_name("CAT.taxonomy").map_err(map_xlsx)?;
+            let cat_sheet = workbook
+                .worksheet_from_name("CAT.taxonomy")
+                .map_err(map_xlsx)?;
             cat_sheet.write_string(0, 0, "category").map_err(map_xlsx)?;
             for (idx, category) in categories.iter().enumerate() {
                 cat_sheet
@@ -1220,7 +1368,10 @@ impl TurboLedgerTools for TurboLedgerService {
 
         for (account, rows) in by_account {
             let sheet_name = format!("TX.{account}");
-            let ws = workbook.add_worksheet().set_name(sheet_name).map_err(map_xlsx)?;
+            let ws = workbook
+                .add_worksheet()
+                .set_name(sheet_name)
+                .map_err(map_xlsx)?;
             sheets_written += 1;
             ws.write_string(0, 0, "tx_id").map_err(map_xlsx)?;
             ws.write_string(0, 1, "date").map_err(map_xlsx)?;
@@ -1236,11 +1387,14 @@ impl TurboLedgerTools for TurboLedgerService {
                 ws.write_string(line, 0, tx_id).map_err(map_xlsx)?;
                 ws.write_string(line, 1, &row.date).map_err(map_xlsx)?;
                 ws.write_string(line, 2, &row.amount).map_err(map_xlsx)?;
-                ws.write_string(line, 3, &row.description).map_err(map_xlsx)?;
+                ws.write_string(line, 3, &row.description)
+                    .map_err(map_xlsx)?;
                 ws.write_string(
                     line,
                     4,
-                    classified.map(|c| c.category.as_str()).unwrap_or("Uncategorized"),
+                    classified
+                        .map(|c| c.category.as_str())
+                        .unwrap_or("Uncategorized"),
                 )
                 .map_err(map_xlsx)?;
                 ws.write_string(
@@ -1251,28 +1405,41 @@ impl TurboLedgerTools for TurboLedgerService {
                         .unwrap_or_else(|| "0.0".to_string()),
                 )
                 .map_err(map_xlsx)?;
-                ws.write_string(line, 6, &row.source_ref).map_err(map_xlsx)?;
+                ws.write_string(line, 6, &row.source_ref)
+                    .map_err(map_xlsx)?;
             }
         }
 
-        let open_flags = classification.engine.query_flags(active_year as i32, FlagStatus::Open);
-        let resolved_flags = classification.engine.query_flags(active_year as i32, FlagStatus::Resolved);
+        let open_flags = classification
+            .engine
+            .query_flags(active_year as i32, FlagStatus::Open);
+        let resolved_flags = classification
+            .engine
+            .query_flags(active_year as i32, FlagStatus::Resolved);
         {
-            let ws = workbook.worksheet_from_name("FLAGS.open").map_err(map_xlsx)?;
+            let ws = workbook
+                .worksheet_from_name("FLAGS.open")
+                .map_err(map_xlsx)?;
             ws.write_string(0, 0, "tx_id").map_err(map_xlsx)?;
             ws.write_string(0, 1, "reason").map_err(map_xlsx)?;
             for (idx, flag) in open_flags.iter().enumerate() {
-                ws.write_string((idx + 1) as u32, 0, &flag.tx_id).map_err(map_xlsx)?;
-                ws.write_string((idx + 1) as u32, 1, &flag.reason).map_err(map_xlsx)?;
+                ws.write_string((idx + 1) as u32, 0, &flag.tx_id)
+                    .map_err(map_xlsx)?;
+                ws.write_string((idx + 1) as u32, 1, &flag.reason)
+                    .map_err(map_xlsx)?;
             }
         }
         {
-            let ws = workbook.worksheet_from_name("FLAGS.resolved").map_err(map_xlsx)?;
+            let ws = workbook
+                .worksheet_from_name("FLAGS.resolved")
+                .map_err(map_xlsx)?;
             ws.write_string(0, 0, "tx_id").map_err(map_xlsx)?;
             ws.write_string(0, 1, "reason").map_err(map_xlsx)?;
             for (idx, flag) in resolved_flags.iter().enumerate() {
-                ws.write_string((idx + 1) as u32, 0, &flag.tx_id).map_err(map_xlsx)?;
-                ws.write_string((idx + 1) as u32, 1, &flag.reason).map_err(map_xlsx)?;
+                ws.write_string((idx + 1) as u32, 0, &flag.tx_id)
+                    .map_err(map_xlsx)?;
+                ws.write_string((idx + 1) as u32, 1, &flag.reason)
+                    .map_err(map_xlsx)?;
             }
         }
 
@@ -1353,9 +1520,15 @@ fn parse_confidence(input: &str) -> Result<Decimal, ToolError> {
     Ok(confidence)
 }
 
-fn validate_invariants(row: &TransactionInput, tx_id: &str, category: &str) -> Result<(), ToolError> {
+fn validate_invariants(
+    row: &TransactionInput,
+    tx_id: &str,
+    category: &str,
+) -> Result<(), ToolError> {
     if category.trim().is_empty() {
-        return Err(ToolError::InvalidInput("category must not be empty".to_string()));
+        return Err(ToolError::InvalidInput(
+            "category must not be empty".to_string(),
+        ));
     }
     Decimal::from_str(row.amount.trim())
         .map_err(|_| ToolError::InvalidInput("invalid amount decimal".to_string()))?;
@@ -1383,6 +1556,158 @@ fn now_timestamp() -> String {
     match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
         Ok(d) => format!("{}", d.as_secs()),
         Err(_) => "0".to_string(),
+    }
+}
+
+fn resolve_document_inventory_directory(
+    workbook_path: &std::path::Path,
+    directory: &std::path::Path,
+) -> Result<PathBuf, ToolError> {
+    if directory
+        .components()
+        .any(|component| component == std::path::Component::ParentDir)
+    {
+        return Err(ToolError::InvalidInput(
+            "directory must not contain parent traversal components".to_string(),
+        ));
+    }
+
+    let resolved = if directory.is_absolute() {
+        directory.to_path_buf()
+    } else {
+        let base = workbook_path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .map(std::path::Path::to_path_buf)
+            .unwrap_or(std::env::current_dir().map_err(|e| ToolError::Internal(e.to_string()))?);
+        base.join(directory)
+    };
+
+    if !resolved.is_dir() {
+        return Err(ToolError::InvalidInput(format!(
+            "directory '{}' does not exist or is not a directory",
+            resolved.display()
+        )));
+    }
+    Ok(resolved)
+}
+
+fn collect_document_paths(
+    directory: &std::path::Path,
+    recursive: bool,
+) -> Result<Vec<PathBuf>, ToolError> {
+    let mut documents = Vec::new();
+    collect_document_paths_into(directory, recursive, &mut documents)?;
+    documents.sort();
+    Ok(documents)
+}
+
+fn collect_document_paths_into(
+    directory: &std::path::Path,
+    recursive: bool,
+    documents: &mut Vec<PathBuf>,
+) -> Result<(), ToolError> {
+    let mut entries = std::fs::read_dir(directory)
+        .map_err(|e| ToolError::Internal(e.to_string()))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| ToolError::Internal(e.to_string()))?;
+    entries.sort_by_key(|entry| entry.path());
+
+    for entry in entries {
+        let path = entry.path();
+        if path.is_dir() {
+            if recursive {
+                collect_document_paths_into(&path, true, documents)?;
+            }
+            continue;
+        }
+        let is_pdf = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| ext.eq_ignore_ascii_case("pdf"))
+            .unwrap_or(false);
+        if is_pdf {
+            documents.push(path);
+        }
+    }
+
+    Ok(())
+}
+
+fn build_document_record(
+    service: &TurboLedgerService,
+    known_source_refs: &[(String, PathBuf)],
+    document_path: PathBuf,
+) -> Result<DocumentRecordResponse, ToolError> {
+    let file_name = document_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| {
+            ToolError::InvalidInput("document path must have a UTF-8 filename".to_string())
+        })?
+        .to_string();
+
+    match service.validate_source_filename(&file_name) {
+        Ok(parsed) => {
+            let raw_context_ref = document_path.with_extension("rkyv");
+            let ingested_tx_ids = known_source_refs
+                .iter()
+                .filter(|(_, source_ref)| source_ref_matches(source_ref, &raw_context_ref))
+                .map(|(tx_id, _)| tx_id.clone())
+                .collect::<Vec<_>>();
+            let status = if ingested_tx_ids.is_empty() {
+                DocumentQueueStatusRequest::Ready
+            } else {
+                DocumentQueueStatusRequest::Ingested
+            };
+
+            Ok(DocumentRecordResponse {
+                file_name,
+                document_path: document_path.display().to_string(),
+                raw_context_ref: raw_context_ref.display().to_string(),
+                status,
+                blocked_reason: None,
+                next_hint: if ingested_tx_ids.is_empty() {
+                    "call_proxy_ingest_pdf".to_string()
+                } else {
+                    "review_existing_rows".to_string()
+                },
+                vendor: Some(parsed.vendor),
+                account_id: Some(parsed.account),
+                year_month: Some(format!("{:04}-{:02}", parsed.year, parsed.month)),
+                document_type: Some(parsed.doc_type),
+                ingested_tx_ids,
+            })
+        }
+        Err(_) => Ok(DocumentRecordResponse {
+            file_name,
+            document_path: document_path.display().to_string(),
+            raw_context_ref: document_path.with_extension("rkyv").display().to_string(),
+            status: DocumentQueueStatusRequest::InvalidName,
+            blocked_reason: Some("invalid_contract_name".to_string()),
+            next_hint: "rename_then_retry".to_string(),
+            vendor: None,
+            account_id: None,
+            year_month: None,
+            document_type: None,
+            ingested_tx_ids: Vec::new(),
+        }),
+    }
+}
+
+fn source_ref_matches(source_ref: &std::path::Path, expected: &std::path::Path) -> bool {
+    let source_canonical = std::fs::canonicalize(source_ref).ok();
+    let expected_canonical = std::fs::canonicalize(expected).ok();
+    source_canonical.as_ref() == expected_canonical.as_ref()
+        || source_ref == expected
+        || source_ref.file_name() == expected.file_name()
+}
+
+fn document_status_rank(status: DocumentQueueStatusRequest) -> u8 {
+    match status {
+        DocumentQueueStatusRequest::Ingested => 0,
+        DocumentQueueStatusRequest::Ready => 1,
+        DocumentQueueStatusRequest::InvalidName => 2,
     }
 }
 

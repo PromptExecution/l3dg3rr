@@ -8,6 +8,7 @@ This runbook is MCP-only. Agent workflows must use MCP `initialize`, `notificati
 - Upstream capabilities are exposed through passthrough/proxy patterns.
 - `proxy_docling_ingest_pdf` represents docling-style ingest orchestration.
 - `proxy_rustledger_ingest_statement_rows` is callable over MCP `tools/call` as the rustledger-facing proxy surface.
+- `l3dg3rr_document_inventory` derives a document queue from filesystem PDFs plus known ingested artifacts.
 - `l3dg3rr_ontology_query_path` exposes deterministic ontology path traversal.
 - `l3dg3rr_ontology_export_snapshot` exposes deterministic ontology snapshot export.
 - `l3dg3rr_validate_reconciliation` executes explicit validate-stage reconciliation checks.
@@ -50,9 +51,20 @@ Expected behavior:
 
 - `tools/list` includes `proxy_docling_ingest_pdf`.
 - `tools/list` includes `proxy_rustledger_ingest_statement_rows`.
+- `tools/list` includes `l3dg3rr_document_inventory`.
 - `tools/list` includes `l3dg3rr_ontology_query_path`.
 - `tools/list` includes `l3dg3rr_ontology_export_snapshot`.
 - Calls execute through MCP transport only.
+
+## Document Inventory
+
+Use `l3dg3rr_document_inventory` when the agent needs to discover and triage source PDFs before ingest.
+
+Expected queue statuses:
+
+- `ready`: contract-valid PDF discovered and not yet linked to ingested rows.
+- `ingested`: contract-valid PDF whose expected `.rkyv` sidecar is already referenced by ingested rows.
+- `invalid_name`: blocked document that does not satisfy `VENDOR--ACCOUNT--YYYY-MM--DOCTYPE.ext`.
 
 To verify rustledger proxy callability specifically:
 

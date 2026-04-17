@@ -148,6 +148,7 @@ fn doc_01_mcp_only_ingest_via_tools_call() {
         .filter_map(|entry| entry.get("name").and_then(Value::as_str))
         .collect::<Vec<_>>();
     assert!(tool_names.contains(&"proxy_docling_ingest_pdf"));
+    assert!(tool_names.contains(&"l3dg3rr_document_inventory"));
 
     let tempdir = tempfile::tempdir().expect("tempdir");
     let call = client.request(
@@ -170,6 +171,68 @@ fn doc_01_mcp_only_ingest_via_tools_call() {
             .len()
             == 1
     );
+}
+
+#[test]
+fn doc_04_document_inventory_reports_ready_and_invalid_documents() {
+    let mut client = McpStdioClient::spawn();
+    initialize_client(&mut client);
+
+    let tempdir = tempfile::tempdir().expect("tempdir");
+    std::fs::write(
+        tempdir.path().join("WF--BH-CHK--2023-04--statement.pdf"),
+        b"pdf",
+    )
+    .expect("ready pdf");
+    std::fs::write(tempdir.path().join("bad-name.pdf"), b"pdf").expect("invalid pdf");
+
+    let call = client.request(
+        "tools/call",
+        json!({
+            "name": "l3dg3rr_document_inventory",
+            "arguments": {
+                "directory": tempdir.path().display().to_string(),
+                "recursive": false
+            }
+        }),
+    );
+
+    assert_eq!(call["result"]["isError"], Value::Bool(false));
+    let payload = parse_response_payload(&call["result"]);
+    let documents = payload["documents"].as_array().expect("documents array");
+    assert_eq!(documents.len(), 2);
+    assert_eq!(documents[0]["status"], json!("ready"));
+    assert_eq!(documents[0]["next_hint"], json!("call_proxy_ingest_pdf"));
+    assert_eq!(documents[1]["status"], json!("invalid_name"));
+    assert_eq!(
+        documents[1]["blocked_reason"],
+        json!("invalid_contract_name")
+    );
+    assert_eq!(payload["summary"]["status_counts"]["ready"], json!(1));
+    assert_eq!(
+        payload["summary"]["status_counts"]["invalid_name"],
+        json!(1)
+    );
+}
+
+#[test]
+fn doc_04_document_inventory_rejects_missing_directory() {
+    let mut client = McpStdioClient::spawn();
+    initialize_client(&mut client);
+
+    let call = client.request(
+        "tools/call",
+        json!({
+            "name": "l3dg3rr_document_inventory",
+            "arguments": {
+                "directory": "/tmp/does-not-exist-ledgerr-doc-inventory"
+            }
+        }),
+    );
+
+    assert_eq!(call["result"]["isError"], Value::Bool(true));
+    let payload = parse_response_payload(&call["result"]);
+    assert_eq!(payload["error_type"], json!("InvalidInput"));
 }
 
 // DOC-02: canonical + provenance mapping must be deterministic in MCP payloads.
