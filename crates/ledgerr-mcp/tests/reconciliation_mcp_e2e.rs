@@ -1,3 +1,5 @@
+mod common;
+
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
@@ -18,6 +20,10 @@ impl McpStdioClient {
     fn spawn() -> Self {
         let server_bin = env!("CARGO_BIN_EXE_ledgerr-mcp-server");
         let mut child = Command::new(server_bin)
+            .env(
+                "LEDGERR_MCP_MANIFEST",
+                common::stdio_test_manifest("reconciliation-mcp"),
+            )
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -109,14 +115,13 @@ fn imbalanced_request() -> Value {
     })
 }
 
-
 fn parse_response_payload(response: &serde_json::Value) -> serde_json::Value {
     let text = response["content"][0]["text"].as_str().unwrap_or("null");
     serde_json::from_str(text).unwrap_or(serde_json::Value::Null)
 }
 
 #[test]
-fn recon_03_tools_list_includes_reconciliation_stage_tools() {
+fn recon_03_tools_list_includes_reconciliation_tool() {
     let mut client = McpStdioClient::spawn();
     initialize_client(&mut client);
 
@@ -128,9 +133,7 @@ fn recon_03_tools_list_includes_reconciliation_stage_tools() {
         .filter_map(|entry| entry.get("name").and_then(Value::as_str))
         .collect::<Vec<_>>();
 
-    assert!(tool_names.contains(&RECON_VALIDATE_TOOL));
-    assert!(tool_names.contains(&RECON_RECONCILE_TOOL));
-    assert!(tool_names.contains(&RECON_COMMIT_TOOL));
+    assert!(tool_names.contains(&"ledgerr_reconciliation"));
 }
 
 #[test]

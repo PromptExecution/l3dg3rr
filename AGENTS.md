@@ -9,8 +9,13 @@ For product scope and status, read `README.md` first, then use this file for exe
 
 ### MCP Capability Training (Concrete)
 
-Use `TurboLedgerService` in `crates/turbo-mcp/src/lib.rs` as the canonical contract.
+Use `TurboLedgerService` in `crates/ledgerr-mcp/src/lib.rs` as the canonical contract.
 Use `docs/mcp-capability-contract.md` as the canonical MCP surface map (tool names, arg contracts, service mapping, contrived usage flow).
+
+Published MCP surface rule:
+- Default `tools/list` should stay collapsed to the 7 top-level `ledgerr_*` capability families: `ledgerr_documents`, `ledgerr_review`, `ledgerr_reconciliation`, `ledgerr_workflow`, `ledgerr_audit`, `ledgerr_tax`, `ledgerr_ontology`.
+- Use required `action` parameters to expose sub-operations while keeping major capability families visible.
+- Keep any legacy `l3dg3rr_*` or proxy-style names hidden compatibility aliases only; do not advertise them in the default tool catalog.
 
 Core methods:
 - `list_accounts` / `list_accounts_tool`: enumerate account ids from manifest.
@@ -230,9 +235,24 @@ Treat this as a standing operational gate, not a one-time migration task.
 ### Validation Memo
 
 - 2026-04-02: executed post-commit plugin-doc validation against `https://code.claude.com/docs/en/plugins`.
-  - Updated stale tool examples from `l3dg3rr_context_summary` to live MCP tools (`l3dg3rr_get_pipeline_status`, `l3dg3rr_list_accounts`, `l3dg3rr_get_raw_context`).
+  - Updated stale tool examples from `l3dg3rr_context_summary` to then-live MCP tools (`l3dg3rr_get_pipeline_status`, `l3dg3rr_list_accounts`, `l3dg3rr_get_raw_context`).
   - Added plugin skill frontmatter `name` for plugin-doc compatibility.
   - Added runnable `just test` outcome flow (Rust executable) with both simple and blocked-diagnostics scenarios.
+- 2026-04-17: reduced the default MCP catalog to 7 top-level `ledgerr_*` tools and relocated plugin info under `ledgerr_workflow`.
+  - Keep docs/examples aligned to the reduced surface; `tools/list` is now intended to be a trustworthy small catalog for agents.
+  - Legacy `l3dg3rr_*` and proxy tool names remain compatibility aliases only and should not be reintroduced into the advertised catalog.
+- 2026-04-17: issue `#22` established a code-first MCP contract path.
+  - The published MCP surface now lives in `crates/ledgerr-mcp/src/contract.rs`; treat it as the only source of truth for parser shapes, generated JSON Schema, and checked-in operator docs/examples.
+  - Regenerate `docs/mcp-capability-contract.md`, `docs/agent-mcp-runbook.md`, and `scripts/mcp_cli_demo.sh` via `cargo run -p xtask-mcpb -- generate-mcp-artifacts` after changing the published MCP surface.
+  - Drift between `contract.rs` and those generated artifacts is a test failure, not a documentation chore.
+- 2026-04-17: CPA workbook export is now explicitly projection-only.
+  - Treat `ledger_core::workbook::REQUIRED_SHEETS` as the canonical base workbook contract for export paths.
+  - `export_cpa_workbook` should rebuild the full workbook from canonical service state on each export, including `META.config`, `ACCT.registry`, schedule sheets, flag sheets, transaction sheets, and `AUDIT.log`.
+  - Tests should assert representative workbook contents, not just that a file was written.
+- 2026-04-17: restart-visible MCP operational state now persists as a deterministic sidecar next to the manifest workbook path.
+  - Persist ingest idempotency state, transaction row cache, audit log, lifecycle event history, and HSM checkpoint together as one snapshot.
+  - Keep the workbook as the human/accountant artifact; do not overload it as the only machine recovery mechanism for agent queues and replay state.
+  - If the sidecar exists but cannot be parsed or its version is unsupported, fail closed instead of silently resetting state.
 
 
 

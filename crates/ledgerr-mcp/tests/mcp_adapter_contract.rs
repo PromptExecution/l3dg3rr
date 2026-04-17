@@ -1,16 +1,18 @@
 use ledger_core::ingest::TransactionInput;
 
-// DOC-01 (D-01, D-03): MCP transport boundary must expose proxy/passthrough tools.
+// DOC-01: MCP transport boundary should expose the reduced top-level capability surface.
 #[test]
-fn doc_01_mcp_boundary_tool_catalog_exposes_passthrough_proxy_surface() {
+fn doc_01_mcp_boundary_tool_catalog_exposes_reduced_top_level_surface() {
     let tools = ledgerr_mcp::mcp_adapter::tool_names();
 
-    assert!(tools.contains(&"proxy_rustledger_ingest_statement_rows".to_string()));
-    assert!(tools.contains(&"proxy_docling_ingest_pdf".to_string()));
-    assert!(tools.contains(&"l3dg3rr_list_accounts".to_string()));
-    assert!(tools.contains(&"l3dg3rr_document_inventory".to_string()));
-    assert!(tools.contains(&"l3dg3rr_get_raw_context".to_string()));
-    assert!(tools.contains(&"l3dg3rr_get_pipeline_status".to_string()));
+    assert_eq!(tools.len(), 7);
+    assert!(tools.contains(&"ledgerr_documents".to_string()));
+    assert!(tools.contains(&"ledgerr_review".to_string()));
+    assert!(tools.contains(&"ledgerr_reconciliation".to_string()));
+    assert!(tools.contains(&"ledgerr_workflow".to_string()));
+    assert!(tools.contains(&"ledgerr_audit".to_string()));
+    assert!(tools.contains(&"ledgerr_tax".to_string()));
+    assert!(tools.contains(&"ledgerr_ontology".to_string()));
     // MCP lifecycle methods (tools/list, tools/call) are JSON-RPC methods, not tools —
     // they must NOT appear in the tool catalog per MCP spec.
     assert!(!tools.contains(&"tools/list".to_string()));
@@ -66,11 +68,9 @@ fn doc_02_pipeline_status_shape_is_deterministic_and_concise() {
     assert_eq!(status.next_hint, "resolve_blockers_then_retry");
 }
 
-// DOC-01 (D-03): Rustledger proxy surface must remain explicitly advertised in catalog.
+// DOC-01: documents surface remains explicitly advertised in the reduced catalog.
 #[test]
-fn doc_01_rustledger_proxy_tool_name_is_exact_and_callable_target() {
+fn doc_01_documents_tool_name_is_exact_and_callable_target() {
     let tools = ledgerr_mcp::mcp_adapter::tool_names();
-    assert!(tools
-        .iter()
-        .any(|name| name == "proxy_rustledger_ingest_statement_rows"));
+    assert!(tools.iter().any(|name| name == "ledgerr_documents"));
 }

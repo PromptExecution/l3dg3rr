@@ -1,3 +1,5 @@
+mod common;
+
 use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
@@ -22,6 +24,10 @@ impl McpStdioClient {
     fn spawn() -> Self {
         let server_bin = env!("CARGO_BIN_EXE_ledgerr-mcp-server");
         let mut child = Command::new(server_bin)
+            .env(
+                "LEDGERR_MCP_MANIFEST",
+                common::stdio_test_manifest("ontology-mcp"),
+            )
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -178,7 +184,7 @@ fn parse_response_payload(response: &serde_json::Value) -> serde_json::Value {
 }
 
 #[test]
-fn onto_03_tools_list_advertises_ontology_query_and_export_tools() {
+fn onto_03_tools_list_advertises_ontology_tool() {
     let mut client = McpStdioClient::spawn();
     initialize_client(&mut client);
 
@@ -190,8 +196,7 @@ fn onto_03_tools_list_advertises_ontology_query_and_export_tools() {
         .filter_map(|entry| entry.get("name").and_then(Value::as_str))
         .collect::<Vec<_>>();
 
-    assert!(tool_names.contains(&ONTOLOGY_QUERY_TOOL));
-    assert!(tool_names.contains(&ONTOLOGY_EXPORT_TOOL));
+    assert!(tool_names.contains(&"ledgerr_ontology"));
 }
 
 // ONTO-03 (D-03): ontology query and export return deterministic concise payloads over transport.
@@ -315,10 +320,12 @@ fn onto_03_export_snapshot_stable_json_serialization_over_transport() {
 // ONTO-03 (D-03): ontology_export_snapshot routes through TurboLedgerService, not OntologyStore directly.
 #[test]
 fn onto_03_export_snapshot_routes_through_service() {
-    const TEST_MANIFEST: &str = "[session]\nworkbook_path=\"tax-ledger.xlsx\"\nactive_year=2023\n\n[accounts]\nWF-BH-CHK = { institution = \"Wells Fargo\", type = \"checking\", currency = \"USD\" }\n";
-
+    let test_manifest = format!(
+        "{}\n[accounts]\nWF-BH-CHK = {{ institution = \"Wells Fargo\", type = \"checking\", currency = \"USD\" }}\n",
+        common::manifest_for_workbook(&common::unique_workbook_path("ontology-mcp"), 2023)
+    );
     let service =
-        TurboLedgerService::from_manifest_str(TEST_MANIFEST).expect("manifest must parse");
+        TurboLedgerService::from_manifest_str(&test_manifest).expect("manifest must parse");
 
     let tempdir = tempfile::tempdir().expect("tempdir");
     let ontology_path = tempdir.path().join("ontology.json");

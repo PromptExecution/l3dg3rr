@@ -1,6 +1,8 @@
 #![allow(unexpected_cfgs)]
 #![cfg(phase6_gap_tests)]
 
+mod common;
+
 /// Phase 6: MCP Exposure Gaps — Failing Test Suite
 ///
 /// These tests document capabilities that exist in the `TurboLedgerTools` service API
@@ -34,6 +36,10 @@ impl McpClient {
     fn spawn() -> Self {
         let server_bin = env!("CARGO_BIN_EXE_ledgerr-mcp-server");
         let mut child = Command::new(server_bin)
+            .env(
+                "LEDGERR_MCP_MANIFEST",
+                common::stdio_test_manifest("phase6-gaps"),
+            )
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -723,10 +729,10 @@ fn invariant_classify_ingested_confidence_is_decimal_exact() {
         ClassifyIngestedRequest, IngestPdfRequest, TurboLedgerService, TurboLedgerTools,
     };
 
-    let svc = TurboLedgerService::from_manifest_str(
-        "[session]\nworkbook_path=\"tax-ledger.xlsx\"\nactive_year=2023\n",
-    )
-    .expect("manifest");
+    let workbook_path = common::unique_workbook_path("phase6-classify-ingested");
+    let svc =
+        TurboLedgerService::from_manifest_str(&common::manifest_for_workbook(&workbook_path, 2023))
+            .expect("manifest");
 
     let dir = tempfile::tempdir().expect("tempdir");
     svc.ingest_pdf(IngestPdfRequest {
@@ -769,8 +775,7 @@ fn invariant_classify_ingested_confidence_is_decimal_exact() {
     // value — Decimal::from_f64(0.92_f64) != Decimal::from_str("0.92") because the
     // IEEE 754 representation of 0.92 is 0.91999999999999993..., exposing the violation.
     use rust_decimal::prelude::*;
-    let conf_as_decimal = Decimal::from_f64(conf)
-        .expect("confidence must be a finite number");
+    let conf_as_decimal = Decimal::from_f64(conf).expect("confidence must be a finite number");
     let expected = Decimal::from_str("0.92").expect("parse exact decimal");
     assert_eq!(
         conf_as_decimal, expected,
@@ -789,10 +794,10 @@ fn invariant_query_flags_confidence_is_decimal_exact() {
         TurboLedgerService, TurboLedgerTools,
     };
 
-    let svc = TurboLedgerService::from_manifest_str(
-        "[session]\nworkbook_path=\"tax-ledger.xlsx\"\nactive_year=2023\n",
-    )
-    .expect("manifest");
+    let workbook_path = common::unique_workbook_path("phase6-query-flags");
+    let svc =
+        TurboLedgerService::from_manifest_str(&common::manifest_for_workbook(&workbook_path, 2023))
+            .expect("manifest");
 
     let dir = tempfile::tempdir().expect("tempdir");
     svc.ingest_pdf(IngestPdfRequest {
@@ -838,8 +843,7 @@ fn invariant_query_flags_confidence_is_decimal_exact() {
     // Same reasoning as the classify_ingested invariant: Ryu Display hides f64
     // imprecision for 0.33. Use Decimal conversion to reliably detect the violation.
     use rust_decimal::prelude::*;
-    let conf_as_decimal = Decimal::from_f64(conf)
-        .expect("confidence must be a finite number");
+    let conf_as_decimal = Decimal::from_f64(conf).expect("confidence must be a finite number");
     let expected = Decimal::from_str("0.33").expect("parse exact decimal");
     assert_eq!(
         conf_as_decimal, expected,
@@ -848,3 +852,4 @@ fn invariant_query_flags_confidence_is_decimal_exact() {
          Fix: change FlagRecordResponse.confidence to rust_decimal::Decimal."
     );
 }
+mod common;

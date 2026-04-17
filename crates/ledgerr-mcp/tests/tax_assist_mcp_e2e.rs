@@ -1,3 +1,5 @@
+mod common;
+
 use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
@@ -21,6 +23,10 @@ impl McpStdioClient {
     fn spawn() -> Self {
         let server_bin = env!("CARGO_BIN_EXE_ledgerr-mcp-server");
         let mut child = Command::new(server_bin)
+            .env(
+                "LEDGERR_MCP_MANIFEST",
+                common::stdio_test_manifest("tax-assist-mcp"),
+            )
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -193,14 +199,13 @@ fn ingest_one_row(client: &mut McpStdioClient) {
     assert_eq!(ingest["result"]["isError"], Value::Bool(false));
 }
 
-
 fn parse_response_payload(response: &serde_json::Value) -> serde_json::Value {
     let text = response["content"][0]["text"].as_str().unwrap_or("null");
     serde_json::from_str(text).unwrap_or(serde_json::Value::Null)
 }
 
 #[test]
-fn taxa_mcp_tools_list_advertises_tax_tools() {
+fn taxa_mcp_tools_list_advertises_tax_tool() {
     let mut client = McpStdioClient::spawn();
     initialize_client(&mut client);
 
@@ -212,9 +217,7 @@ fn taxa_mcp_tools_list_advertises_tax_tools() {
         .filter_map(|entry| entry.get("name").and_then(Value::as_str))
         .collect::<Vec<_>>();
 
-    assert!(tool_names.contains(&TAX_ASSIST_TOOL));
-    assert!(tool_names.contains(&TAX_EVIDENCE_CHAIN_TOOL));
-    assert!(tool_names.contains(&TAX_AMBIGUITY_REVIEW_TOOL));
+    assert!(tool_names.contains(&"ledgerr_tax"));
 }
 
 #[test]

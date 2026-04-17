@@ -9,14 +9,14 @@ This repo now includes a Claude plugin marketplace and a plugin entry intended f
 
 ## Key files
 
-- Marketplace catalog: [marketplace.json](/home/brianh/promptexecution/mbse/l3dg3rr/.claude-plugin/marketplace.json)
-- Plugin manifest: [plugin.json](/home/brianh/promptexecution/mbse/l3dg3rr/plugins/l3dg3rr-plugin-create/.claude-plugin/plugin.json)
-- Plugin skill: [SKILL.md](/home/brianh/promptexecution/mbse/l3dg3rr/plugins/l3dg3rr-plugin-create/skills/plugin-create-for-l3dg3rr/SKILL.md)
-- MCP server entrypoint: [turbo-mcp-server.rs](/home/brianh/promptexecution/mbse/l3dg3rr/crates/turbo-mcp/src/bin/turbo-mcp-server.rs)
-- Runtime helper commands: [Justfile](/home/brianh/promptexecution/mbse/l3dg3rr/Justfile)
-- MCP regression script: [mcp_e2e.sh](/home/brianh/promptexecution/mbse/l3dg3rr/scripts/mcp_e2e.sh)
-- Container build: [Dockerfile](/home/brianh/promptexecution/mbse/l3dg3rr/Dockerfile)
-- Python launcher package: [pyproject.toml](/home/brianh/promptexecution/mbse/l3dg3rr/plugins/l3dg3rr-plugin-create/python/pyproject.toml)
+- Marketplace catalog: [marketplace.json](.claude-plugin/marketplace.json)
+- Plugin manifest: [plugin.json](plugins/l3dg3rr-plugin-create/.claude-plugin/plugin.json)
+- Plugin skill: [SKILL.md](plugins/l3dg3rr-plugin-create/skills/plugin-create-for-l3dg3rr/SKILL.md)
+- MCP server entrypoint: [ledgerr-mcp-server.rs](crates/ledgerr-mcp/src/bin/ledgerr-mcp-server.rs)
+- Runtime helper commands: [Justfile](Justfile)
+- MCP regression script: [mcp_e2e.sh](scripts/mcp_e2e.sh)
+- Container build: [Dockerfile](Dockerfile)
+- Python launcher package: [pyproject.toml](plugins/l3dg3rr-plugin-create/python/pyproject.toml)
 
 ## Install in Cowork
 
@@ -51,7 +51,7 @@ just mcp-start
 ### 2) Compiled binary
 
 ```bash
-cargo build --release -p turbo-mcp --bin turbo-mcp-server
+cargo build --release -p ledgerr-mcp --bin ledgerr-mcp-server
 just mcp-start-release
 ```
 
@@ -60,7 +60,7 @@ just mcp-start-release
 ```bash
 docker build -t tax-ledger:dev .
 docker run -i --rm -v "$PWD:/workspace" -w /workspace tax-ledger:dev \
-  cargo run -p turbo-mcp --bin turbo-mcp-server
+  cargo run -p ledgerr-mcp --bin ledgerr-mcp-server
 ```
 
 ### 4) Python packaging / launcher
@@ -75,7 +75,7 @@ Run:
 
 ```bash
 l3dg3rr-mcp --mode cargo
-l3dg3rr-mcp --mode binary --binary ./target/release/turbo-mcp-server
+l3dg3rr-mcp --mode binary --binary ./target/release/ledgerr-mcp-server
 l3dg3rr-mcp --mode docker --image tax-ledger:dev
 ```
 
@@ -93,14 +93,14 @@ After install, in a Cowork task:
 
 ```text
 tools/list
-tools/call l3dg3rr_get_pipeline_status {}
-tools/call l3dg3rr_list_accounts {}
+tools/call ledgerr_documents {"action":"pipeline_status"}
+tools/call ledgerr_documents {"action":"list_accounts"}
 ```
 
 Optional raw-context retrieval check (after an ingest tool call writes a `.rkyv` path within your workbook directory):
 
 ```text
-tools/call l3dg3rr_get_raw_context {"rkyv_ref":"relative/path/to/context.rkyv"}
+tools/call ledgerr_documents {"action":"get_raw_context","rkyv_ref":"relative/path/to/context.rkyv"}
 ```
 
 Then run deeper checks from shell:

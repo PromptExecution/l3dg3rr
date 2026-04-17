@@ -6,6 +6,10 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::{
+    contract::{
+        self, AuditArgs, DocumentsArgs, OntologyArgs, ReconciliationArgs, ReviewArgs, TaxArgs,
+        WorkflowArgs,
+    },
     ClassifyIngestedRequest, ClassifyTransactionRequest, DocumentInventoryRequest,
     DocumentQueueStatusRequest, EventHistoryFilter, ExportCpaWorkbookRequest, FlagStatusRequest,
     GetRawContextRequest, GetScheduleSummaryRequest, HsmResumeRequest, HsmStatusRequest,
@@ -13,74 +17,14 @@ use crate::{
     OntologyExportSnapshotRequest, OntologyQueryPathRequest, OntologyUpsertEdgesRequest,
     OntologyUpsertEntitiesRequest, QueryAuditLogRequest, QueryFlagsRequest,
     ReconcileExcelClassificationRequest, ReconciliationStageRequest, ReplayLifecycleRequest,
-    ScheduleKindRequest, TaxAmbiguityReviewRequest, TaxAssistRequest, TaxEvidenceChainRequest,
-    ToolError, TurboLedgerService, TurboLedgerTools,
+    RunRhaiRuleRequest, SampleTxRequest, ScheduleKindRequest, TaxAmbiguityReviewRequest,
+    TaxAssistRequest, TaxEvidenceChainRequest, ToolError, TurboLedgerService, TurboLedgerTools,
 };
 
-pub const LIST_ACCOUNTS_TOOL: &str = "l3dg3rr_list_accounts";
-pub const DOCUMENT_INVENTORY_TOOL: &str = "l3dg3rr_document_inventory";
-pub const GET_RAW_CONTEXT_TOOL: &str = "l3dg3rr_get_raw_context";
-pub const ONTOLOGY_QUERY_PATH_TOOL: &str = "l3dg3rr_ontology_query_path";
-pub const ONTOLOGY_EXPORT_SNAPSHOT_TOOL: &str = "l3dg3rr_ontology_export_snapshot";
-pub const RECON_VALIDATE_TOOL: &str = "l3dg3rr_validate_reconciliation";
-pub const RECON_RECONCILE_TOOL: &str = "l3dg3rr_reconcile_postings";
-pub const RECON_COMMIT_TOOL: &str = "l3dg3rr_commit_guarded";
-pub const HSM_TRANSITION_TOOL: &str = "l3dg3rr_hsm_transition";
-pub const HSM_STATUS_TOOL: &str = "l3dg3rr_hsm_status";
-pub const HSM_RESUME_TOOL: &str = "l3dg3rr_hsm_resume";
-pub const EVENT_REPLAY_TOOL: &str = "l3dg3rr_event_replay";
-pub const EVENT_HISTORY_TOOL: &str = "l3dg3rr_event_history";
-pub const TAX_ASSIST_TOOL: &str = "l3dg3rr_tax_assist";
-pub const TAX_EVIDENCE_CHAIN_TOOL: &str = "l3dg3rr_tax_evidence_chain";
-pub const TAX_AMBIGUITY_REVIEW_TOOL: &str = "l3dg3rr_tax_ambiguity_review";
-
-// P0 tools
-pub const CLASSIFY_INGESTED_TOOL: &str = "l3dg3rr_classify_ingested";
-pub const QUERY_FLAGS_TOOL: &str = "l3dg3rr_query_flags";
-pub const QUERY_AUDIT_LOG_TOOL: &str = "l3dg3rr_query_audit_log";
-
-// P1 tools
-pub const CLASSIFY_TRANSACTION_TOOL: &str = "l3dg3rr_classify_transaction";
-pub const RECONCILE_EXCEL_CLASSIFICATION_TOOL: &str = "l3dg3rr_reconcile_excel_classification";
-pub const GET_SCHEDULE_SUMMARY_TOOL: &str = "l3dg3rr_get_schedule_summary";
-
-// P2 tools
-pub const EXPORT_CPA_WORKBOOK_TOOL: &str = "l3dg3rr_export_cpa_workbook";
-pub const ONTOLOGY_UPSERT_ENTITIES_TOOL: &str = "l3dg3rr_ontology_upsert_entities";
-pub const ONTOLOGY_UPSERT_EDGES_TOOL: &str = "l3dg3rr_ontology_upsert_edges";
-
-// Meta / self-management (always included regardless of feature flags)
-pub use crate::plugin_info::PLUGIN_INFO_TOOL;
-
-pub const TOOL_GROUP_CORE: &[&str] = &[
-    LIST_ACCOUNTS_TOOL,
-    DOCUMENT_INVENTORY_TOOL,
-    GET_RAW_CONTEXT_TOOL,
-    "proxy_docling_ingest_pdf",
-    "proxy_rustledger_ingest_statement_rows",
-    "l3dg3rr_get_pipeline_status",
-];
-pub const TOOL_GROUP_ONTOLOGY: &[&str] = &[ONTOLOGY_QUERY_PATH_TOOL, ONTOLOGY_EXPORT_SNAPSHOT_TOOL];
-pub const TOOL_GROUP_RECONCILIATION: &[&str] =
-    &[RECON_VALIDATE_TOOL, RECON_RECONCILE_TOOL, RECON_COMMIT_TOOL];
-pub const TOOL_GROUP_HSM: &[&str] = &[HSM_TRANSITION_TOOL, HSM_STATUS_TOOL, HSM_RESUME_TOOL];
-pub const TOOL_GROUP_EVENTS: &[&str] = &[EVENT_REPLAY_TOOL, EVENT_HISTORY_TOOL];
-pub const TOOL_GROUP_CLASSIFICATION: &[&str] = &[
-    CLASSIFY_INGESTED_TOOL,
-    QUERY_FLAGS_TOOL,
-    CLASSIFY_TRANSACTION_TOOL,
-    RECONCILE_EXCEL_CLASSIFICATION_TOOL,
-];
-pub const TOOL_GROUP_TAX: &[&str] = &[
-    TAX_ASSIST_TOOL,
-    TAX_EVIDENCE_CHAIN_TOOL,
-    TAX_AMBIGUITY_REVIEW_TOOL,
-    GET_SCHEDULE_SUMMARY_TOOL,
-    EXPORT_CPA_WORKBOOK_TOOL,
-];
-pub const TOOL_GROUP_AUDIT: &[&str] = &[QUERY_AUDIT_LOG_TOOL];
-pub const TOOL_GROUP_ONTOLOGY_WRITE: &[&str] =
-    &[ONTOLOGY_UPSERT_ENTITIES_TOOL, ONTOLOGY_UPSERT_EDGES_TOOL];
+pub use crate::contract::{
+    AUDIT_TOOL, DOCUMENTS_TOOL, ONTOLOGY_TOOL, RECONCILIATION_TOOL, REVIEW_TOOL, TAX_TOOL,
+    WORKFLOW_TOOL,
+};
 
 #[allow(clippy::vec_init_then_push)]
 pub fn tool_names() -> Vec<String> {
@@ -114,36 +58,27 @@ pub fn tool_names_for(features: &[&str]) -> Vec<String> {
     let mut tools = Vec::new();
 
     if features.contains(&"core") {
-        tools.extend(TOOL_GROUP_CORE.iter().map(|s| s.to_string()));
-    }
-    if features.contains(&"ontology") || features.contains(&"tax") {
-        tools.extend(TOOL_GROUP_ONTOLOGY.iter().map(|s| s.to_string()));
-    }
-    if features.contains(&"reconciliation") || features.contains(&"tax") {
-        tools.extend(TOOL_GROUP_RECONCILIATION.iter().map(|s| s.to_string()));
-    }
-    if features.contains(&"hsm") || features.contains(&"tax") {
-        tools.extend(TOOL_GROUP_HSM.iter().map(|s| s.to_string()));
-    }
-    if features.contains(&"events") || features.contains(&"tax") {
-        tools.extend(TOOL_GROUP_EVENTS.iter().map(|s| s.to_string()));
+        tools.push(DOCUMENTS_TOOL.to_string());
+        tools.push(WORKFLOW_TOOL.to_string());
     }
     if features.contains(&"classification") {
-        tools.extend(TOOL_GROUP_CLASSIFICATION.iter().map(|s| s.to_string()));
+        tools.push(REVIEW_TOOL.to_string());
+    }
+    if features.contains(&"reconciliation") {
+        tools.push(RECONCILIATION_TOOL.to_string());
+    }
+    if features.contains(&"events") || features.contains(&"audit") {
+        tools.push(AUDIT_TOOL.to_string());
     }
     if features.contains(&"tax") {
-        tools.extend(TOOL_GROUP_TAX.iter().map(|s| s.to_string()));
-    }
-    if features.contains(&"audit") {
-        tools.extend(TOOL_GROUP_AUDIT.iter().map(|s| s.to_string()));
+        tools.push(TAX_TOOL.to_string());
     }
     if features.contains(&"ontology") {
-        tools.extend(TOOL_GROUP_ONTOLOGY_WRITE.iter().map(|s| s.to_string()));
+        tools.push(ONTOLOGY_TOOL.to_string());
     }
 
-    // plugin_info is always available — not gated by any feature flag.
-    tools.push(PLUGIN_INFO_TOOL.to_string());
-
+    tools.sort();
+    tools.dedup();
     tools
 }
 
@@ -161,283 +96,7 @@ pub fn tool_descriptors() -> Vec<Value> {
 
 /// Returns the JSON Schema for the input arguments of a named tool.
 pub fn tool_input_schema(name: &str) -> Value {
-    match name {
-        // ── no-argument tools ──────────────────────────────────────────────
-        LIST_ACCOUNTS_TOOL
-        | "l3dg3rr_get_pipeline_status"
-        | HSM_STATUS_TOOL
-        | QUERY_AUDIT_LOG_TOOL => json!({ "type": "object", "properties": {} }),
-
-        DOCUMENT_INVENTORY_TOOL => json!({
-            "type": "object",
-            "required": ["directory"],
-            "properties": {
-                "directory": { "type": "string", "description": "Directory to scan for PDF source documents" },
-                "recursive": { "type": "boolean", "description": "Whether to recurse into subdirectories" },
-                "statuses": {
-                    "type": "array",
-                    "items": { "type": "string", "enum": ["invalid_name", "ready", "ingested"] },
-                    "description": "Optional status filter"
-                }
-            }
-        }),
-
-        // ── ontology_export_snapshot ───────────────────────────────────────
-        ONTOLOGY_EXPORT_SNAPSHOT_TOOL => json!({
-            "type": "object",
-            "required": ["ontology_path"],
-            "properties": {
-                "ontology_path": { "type": "string", "description": "Path to the ontology file" }
-            }
-        }),
-
-        // ── get_raw_context ───────────────────────────────────────────────
-        GET_RAW_CONTEXT_TOOL => json!({
-            "type": "object",
-            "required": ["path"],
-            "properties": {
-                "path": { "type": "string", "description": "Path to the rkyv context file" }
-            }
-        }),
-
-        // ── proxy_docling_ingest_pdf ───────────────────────────────────────
-        "proxy_docling_ingest_pdf" => json!({
-            "type": "object",
-            "required": ["pdf_path", "journal_path", "workbook_path"],
-            "properties": {
-                "pdf_path": { "type": "string", "description": "Path to the PDF file (VENDOR--ACCOUNT--YYYY-MM--DOCTYPE naming required)" },
-                "journal_path": { "type": "string", "description": "Path to the journal file" },
-                "workbook_path": { "type": "string", "description": "Path to the Excel workbook" },
-                "raw_context_bytes": {
-                    "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 255 },
-                    "description": "Raw PDF bytes as a byte array (required when source file does not yet exist on disk)"
-                },
-                "extracted_rows": {
-                    "type": "array", "items": { "type": "object" },
-                    "description": "Pre-extracted transaction rows from Docling (optional; omit or pass [] to ingest without rows)"
-                }
-            }
-        }),
-
-        // ── proxy_rustledger_ingest_statement_rows ────────────────────────
-        "proxy_rustledger_ingest_statement_rows" => json!({
-            "type": "object",
-            "required": ["rows"],
-            "properties": {
-                "rows": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "required": ["account_id", "date", "amount", "description", "source_ref"],
-                        "properties": {
-                            "account_id": { "type": "string" },
-                            "date": { "type": "string", "format": "date" },
-                            "amount": { "type": "string", "description": "Decimal string, e.g. \"-42.11\"" },
-                            "description": { "type": "string" },
-                            "source_ref": { "type": "string" }
-                        }
-                    }
-                }
-            }
-        }),
-
-        // ── ontology_query_path ───────────────────────────────────────────
-        ONTOLOGY_QUERY_PATH_TOOL => json!({
-            "type": "object",
-            "required": ["path"],
-            "properties": {
-                "path": { "type": "string", "description": "Filesystem path to the ontology file" },
-                "max_depth": { "type": "integer", "minimum": 0, "description": "Maximum traversal depth (optional)" }
-            }
-        }),
-
-        // ── reconciliation tools (validate / reconcile / commit) ──────────
-        RECON_VALIDATE_TOOL | RECON_RECONCILE_TOOL | RECON_COMMIT_TOOL => json!({
-            "type": "object",
-            "required": ["source_total", "extracted_total", "posting_amounts"],
-            "properties": {
-                "source_total": { "type": "string", "description": "Total from source document (decimal string)" },
-                "extracted_total": { "type": "string", "description": "Total of extracted rows (decimal string)" },
-                "posting_amounts": {
-                    "type": "array", "items": { "type": "string" },
-                    "description": "Individual posting amounts as decimal strings"
-                }
-            }
-        }),
-
-        // ── hsm_transition ────────────────────────────────────────────────
-        HSM_TRANSITION_TOOL => json!({
-            "type": "object",
-            "required": ["target_state", "target_substate"],
-            "properties": {
-                "target_state": { "type": "string" },
-                "target_substate": { "type": "string" }
-            }
-        }),
-
-        // ── hsm_resume ────────────────────────────────────────────────────
-        HSM_RESUME_TOOL => json!({
-            "type": "object",
-            "required": ["state_marker"],
-            "properties": {
-                "state_marker": { "type": "string" }
-            }
-        }),
-
-        // ── event_history ─────────────────────────────────────────────────
-        EVENT_HISTORY_TOOL => json!({
-            "type": "object",
-            "properties": {
-                "tx_id": { "type": "string" },
-                "document_ref": { "type": "string" },
-                "time_start": { "type": "string", "format": "date-time" },
-                "time_end": { "type": "string", "format": "date-time" }
-            }
-        }),
-
-        // ── event_replay ──────────────────────────────────────────────────
-        EVENT_REPLAY_TOOL => json!({
-            "type": "object",
-            "properties": {
-                "tx_id": { "type": "string" },
-                "document_ref": { "type": "string" }
-            }
-        }),
-
-        // ── classify_ingested ─────────────────────────────────────────────
-        CLASSIFY_INGESTED_TOOL => json!({
-            "type": "object",
-            "required": ["rule_file", "review_threshold"],
-            "properties": {
-                "rule_file": { "type": "string", "description": "Path to the Rhai rule file" },
-                "review_threshold": { "type": "number", "description": "Confidence threshold below which transactions are flagged for review" }
-            }
-        }),
-
-        // ── query_flags ───────────────────────────────────────────────────
-        QUERY_FLAGS_TOOL => json!({
-            "type": "object",
-            "required": ["year", "status"],
-            "properties": {
-                "year": { "type": "integer" },
-                "status": { "type": "string", "enum": ["open", "resolved"] }
-            }
-        }),
-
-        // ── classify_transaction / reconcile_excel_classification ─────────
-        CLASSIFY_TRANSACTION_TOOL | RECONCILE_EXCEL_CLASSIFICATION_TOOL => json!({
-            "type": "object",
-            "required": ["tx_id", "category", "confidence", "actor"],
-            "properties": {
-                "tx_id": { "type": "string" },
-                "category": { "type": "string" },
-                "confidence": { "type": "string" },
-                "note": { "type": "string" },
-                "actor": { "type": "string" }
-            }
-        }),
-
-        // ── tax_assist / tax_ambiguity_review ─────────────────────────────
-        TAX_ASSIST_TOOL | TAX_AMBIGUITY_REVIEW_TOOL => json!({
-            "type": "object",
-            "required": ["ontology_path", "from_entity_id", "reconciliation"],
-            "properties": {
-                "ontology_path": { "type": "string" },
-                "from_entity_id": { "type": "string" },
-                "max_depth": { "type": "integer", "minimum": 0 },
-                "reconciliation": {
-                    "type": "object",
-                    "required": ["source_total", "extracted_total", "posting_amounts"],
-                    "properties": {
-                        "source_total": { "type": "string" },
-                        "extracted_total": { "type": "string" },
-                        "posting_amounts": { "type": "array", "items": { "type": "string" } }
-                    }
-                }
-            }
-        }),
-
-        // ── tax_evidence_chain ────────────────────────────────────────────
-        TAX_EVIDENCE_CHAIN_TOOL => json!({
-            "type": "object",
-            "required": ["ontology_path", "from_entity_id"],
-            "properties": {
-                "ontology_path": { "type": "string" },
-                "from_entity_id": { "type": "string" },
-                "tx_id": { "type": "string" },
-                "document_ref": { "type": "string" }
-            }
-        }),
-
-        // ── get_schedule_summary ──────────────────────────────────────────
-        GET_SCHEDULE_SUMMARY_TOOL => json!({
-            "type": "object",
-            "required": ["year", "schedule"],
-            "properties": {
-                "year": { "type": "integer" },
-                "schedule": { "type": "string", "enum": ["ScheduleC", "ScheduleD", "ScheduleE", "Fbar"] }
-            }
-        }),
-
-        // ── export_cpa_workbook ───────────────────────────────────────────
-        EXPORT_CPA_WORKBOOK_TOOL => json!({
-            "type": "object",
-            "required": ["workbook_path"],
-            "properties": {
-                "workbook_path": { "type": "string", "description": "Output path for the Excel workbook" }
-            }
-        }),
-
-        // ── ontology_upsert_entities ──────────────────────────────────────
-        ONTOLOGY_UPSERT_ENTITIES_TOOL => json!({
-            "type": "object",
-            "required": ["path", "entities"],
-            "properties": {
-                "path": { "type": "string" },
-                "entities": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "required": ["kind"],
-                        "properties": {
-                            "kind": { "type": "string", "enum": ["Document", "Account", "Institution", "Transaction", "TaxCategory", "EvidenceReference"] },
-                            "id": { "type": "string" },
-                            "label": { "type": "string" },
-                            "properties": { "type": "object" }
-                        }
-                    }
-                }
-            }
-        }),
-
-        // ── ontology_upsert_edges ─────────────────────────────────────────
-        ONTOLOGY_UPSERT_EDGES_TOOL => json!({
-            "type": "object",
-            "required": ["path", "edges"],
-            "properties": {
-                "path": { "type": "string" },
-                "edges": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "required": ["from_id", "to_id", "relation"],
-                        "properties": {
-                            "from_id": { "type": "string" },
-                            "to_id": { "type": "string" },
-                            "relation": { "type": "string" },
-                            "provenance": { "type": "object" }
-                        }
-                    }
-                }
-            }
-        }),
-
-        // ── plugin_info ───────────────────────────────────────────────────
-        PLUGIN_INFO_TOOL => crate::plugin_info::input_schema(),
-
-        // ── unknown / future tools ────────────────────────────────────────
-        _ => json!({ "type": "object" }),
-    }
+    contract::tool_input_schema(name)
 }
 
 pub fn handle_list_accounts(service: &TurboLedgerService) -> Value {
@@ -636,14 +295,410 @@ pub fn unknown_tool_result(tool_name: &str) -> Value {
     })
 }
 
-/// Handle a `l3dg3rr_plugin_info` tool call.
-/// Wraps `crate::plugin_info::handle` in the standard MCP content envelope.
-pub fn handle_plugin_info(arguments: &Value) -> Value {
+fn handle_plugin_info(arguments: &Value) -> Value {
     let payload = crate::plugin_info::handle(arguments);
     json!({
         "content": [text_content(payload)],
         "isError": false
     })
+}
+
+pub fn handle_documents_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
+    let request = match contract::parse_documents(arguments) {
+        Ok(request) => request,
+        Err(err) => return error_envelope(&err),
+    };
+
+    match request {
+        DocumentsArgs::ListAccounts => handle_list_accounts(service),
+        DocumentsArgs::GetRawContext { rkyv_ref } => {
+            handle_get_raw_context(service, &json!({ "rkyv_ref": rkyv_ref }))
+        }
+        DocumentsArgs::PipelineStatus => handle_pipeline_status(true, true, true, Vec::new()),
+        DocumentsArgs::ValidateFilename { file_name } => {
+            match service.validate_source_filename(&file_name) {
+                Ok(parsed) => json!({
+                    "content": [text_content(json!({
+                        "vendor": parsed.vendor,
+                        "account": parsed.account,
+                        "year": parsed.year,
+                        "month": parsed.month,
+                        "doc_type": parsed.doc_type,
+                    }))],
+                    "isError": false
+                }),
+                Err(err) => error_envelope(&err),
+            }
+        }
+        DocumentsArgs::IngestPdf {
+            pdf_path,
+            journal_path,
+            workbook_path,
+            raw_context_bytes,
+            extracted_rows,
+        } => handle_ingest_pdf(
+            service,
+            &json!({
+                "pdf_path": pdf_path,
+                "journal_path": journal_path,
+                "workbook_path": workbook_path,
+                "raw_context_bytes": raw_context_bytes,
+                "extracted_rows": extracted_rows,
+            }),
+            None,
+        ),
+        DocumentsArgs::IngestRows {
+            journal_path,
+            workbook_path,
+            rows,
+        } => handle_ingest_statement_rows(
+            service,
+            &json!({
+                "journal_path": journal_path,
+                "workbook_path": workbook_path,
+                "rows": rows,
+            }),
+            None,
+        ),
+        DocumentsArgs::DocumentInventory {
+            directory,
+            recursive,
+            statuses,
+        } => {
+            let status_filter: Vec<DocumentQueueStatusRequest> = statuses
+                .into_iter()
+                .filter_map(|s| DocumentQueueStatusRequest::parse(s.as_str()))
+                .collect();
+            handle_document_inventory(
+                service,
+                &json!({
+                    "directory": directory,
+                    "recursive": recursive,
+                    "statuses": status_filter.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+                }),
+            )
+        }
+    }
+}
+
+pub fn handle_review_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
+    let request = match contract::parse_review(arguments) {
+        Ok(request) => request,
+        Err(err) => return error_envelope(&err),
+    };
+
+    match request {
+        ReviewArgs::RunRule {
+            rule_file,
+            sample_tx,
+        } => {
+            let request = match parse_run_rhai_rule_request(&json!({
+                "rule_file": rule_file,
+                "sample_tx": sample_tx,
+            })) {
+                Ok(request) => request,
+                Err(err) => return error_envelope(&err),
+            };
+            match service.run_rhai_rule(request) {
+                Ok(response) => json!({
+                    "content": [text_content(json!({
+                        "category": response.category,
+                        "confidence": response.confidence,
+                        "review": response.review,
+                        "reason": response.reason,
+                    }))],
+                    "isError": false
+                }),
+                Err(err) => error_envelope(&err),
+            }
+        }
+        ReviewArgs::ClassifyIngested {
+            rule_file,
+            review_threshold,
+        } => handle_classify_ingested(
+            service,
+            &json!({
+                "rule_file": rule_file,
+                "review_threshold": review_threshold.as_json(),
+            }),
+        ),
+        ReviewArgs::QueryFlags { year, status } => handle_query_flags(
+            service,
+            &json!({
+                "year": year,
+                "status": match status {
+                    crate::contract::ReviewStatusInput::Open => "open",
+                    crate::contract::ReviewStatusInput::Resolved => "resolved",
+                }
+            }),
+        ),
+        ReviewArgs::ClassifyTransaction {
+            tx_id,
+            category,
+            confidence,
+            note,
+            actor,
+        } => handle_classify_transaction(
+            service,
+            &json!({
+                "tx_id": tx_id,
+                "category": category,
+                "confidence": confidence,
+                "note": note,
+                "actor": actor,
+            }),
+        ),
+        ReviewArgs::ReconcileExcelClassification {
+            tx_id,
+            category,
+            confidence,
+            actor,
+            note,
+        } => handle_reconcile_excel_classification(
+            service,
+            &json!({
+                "tx_id": tx_id,
+                "category": category,
+                "confidence": confidence,
+                "actor": actor,
+                "note": note,
+            }),
+        ),
+    }
+}
+
+pub fn handle_reconciliation_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
+    let request = match contract::parse_reconciliation(arguments) {
+        Ok(request) => request,
+        Err(err) => return error_envelope(&err),
+    };
+
+    match request {
+        ReconciliationArgs::Validate {
+            source_total,
+            extracted_total,
+            posting_amounts,
+        } => dispatch_reconciliation(
+            service,
+            "validate",
+            &json!({
+                "source_total": source_total,
+                "extracted_total": extracted_total,
+                "posting_amounts": posting_amounts,
+            }),
+        ),
+        ReconciliationArgs::Reconcile {
+            source_total,
+            extracted_total,
+            posting_amounts,
+        } => dispatch_reconciliation(
+            service,
+            "reconcile",
+            &json!({
+                "source_total": source_total,
+                "extracted_total": extracted_total,
+                "posting_amounts": posting_amounts,
+            }),
+        ),
+        ReconciliationArgs::Commit {
+            source_total,
+            extracted_total,
+            posting_amounts,
+        } => dispatch_reconciliation(
+            service,
+            "commit",
+            &json!({
+                "source_total": source_total,
+                "extracted_total": extracted_total,
+                "posting_amounts": posting_amounts,
+            }),
+        ),
+    }
+}
+
+pub fn handle_workflow_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
+    let request = match contract::parse_workflow(arguments) {
+        Ok(request) => request,
+        Err(err) => return error_envelope(&err),
+    };
+
+    match request {
+        WorkflowArgs::Status => dispatch_hsm(service, "status", &json!({})),
+        WorkflowArgs::Transition {
+            target_state,
+            target_substate,
+        } => dispatch_hsm(
+            service,
+            "transition",
+            &json!({
+                "target_state": target_state,
+                "target_substate": target_substate,
+            }),
+        ),
+        WorkflowArgs::Resume { state_marker } => dispatch_hsm(
+            service,
+            "resume",
+            &json!({
+                "state_marker": state_marker,
+            }),
+        ),
+        WorkflowArgs::PluginInfo { payload } => handle_plugin_info(&json!({
+            "subcommand": payload.subcommand.map(|value| value.0),
+        })),
+    }
+}
+
+pub fn handle_audit_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
+    let request = match contract::parse_audit(arguments) {
+        Ok(request) => request,
+        Err(err) => return error_envelope(&err),
+    };
+
+    match request {
+        AuditArgs::EventHistory {
+            tx_id,
+            document_ref,
+            time_start,
+            time_end,
+        } => handle_event_history(
+            service,
+            &json!({
+                "tx_id": tx_id,
+                "document_ref": document_ref,
+                "time_start": time_start,
+                "time_end": time_end,
+            }),
+        ),
+        AuditArgs::EventReplay {
+            tx_id,
+            document_ref,
+        } => handle_event_replay(
+            service,
+            &json!({
+                "tx_id": tx_id,
+                "document_ref": document_ref,
+            }),
+        ),
+        AuditArgs::QueryAuditLog => handle_query_audit_log(service, &json!({})),
+    }
+}
+
+pub fn handle_tax_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
+    let request = match contract::parse_tax(arguments) {
+        Ok(request) => request,
+        Err(err) => return error_envelope(&err),
+    };
+
+    match request {
+        TaxArgs::Assist {
+            ontology_path,
+            from_entity_id,
+            max_depth,
+            reconciliation,
+        } => handle_tax_assist(
+            service,
+            &json!({
+                "ontology_path": ontology_path,
+                "from_entity_id": from_entity_id,
+                "max_depth": max_depth,
+                "reconciliation": reconciliation,
+            }),
+        ),
+        TaxArgs::EvidenceChain {
+            ontology_path,
+            from_entity_id,
+            tx_id,
+            document_ref,
+        } => handle_tax_evidence_chain(
+            service,
+            &json!({
+                "ontology_path": ontology_path,
+                "from_entity_id": from_entity_id,
+                "tx_id": tx_id,
+                "document_ref": document_ref,
+            }),
+        ),
+        TaxArgs::AmbiguityReview {
+            ontology_path,
+            from_entity_id,
+            max_depth,
+            reconciliation,
+        } => handle_tax_ambiguity_review(
+            service,
+            &json!({
+                "ontology_path": ontology_path,
+                "from_entity_id": from_entity_id,
+                "max_depth": max_depth,
+                "reconciliation": reconciliation,
+            }),
+        ),
+        TaxArgs::ScheduleSummary { year, schedule } => handle_get_schedule_summary(
+            service,
+            &json!({
+                "year": year,
+                "schedule": match schedule {
+                    crate::contract::ScheduleInput::ScheduleC => "ScheduleC",
+                    crate::contract::ScheduleInput::ScheduleD => "ScheduleD",
+                    crate::contract::ScheduleInput::ScheduleE => "ScheduleE",
+                    crate::contract::ScheduleInput::Fbar => "Fbar",
+                }
+            }),
+        ),
+        TaxArgs::ExportWorkbook { workbook_path } => handle_export_cpa_workbook(
+            service,
+            &json!({
+                "workbook_path": workbook_path,
+            }),
+        ),
+    }
+}
+
+pub fn handle_ontology_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
+    let request = match contract::parse_ontology(arguments) {
+        Ok(request) => request,
+        Err(err) => return error_envelope(&err),
+    };
+
+    match request {
+        OntologyArgs::QueryPath {
+            ontology_path,
+            from_entity_id,
+            max_depth,
+        } => handle_ontology_query_path(
+            service,
+            &json!({
+                "ontology_path": ontology_path,
+                "from_entity_id": from_entity_id,
+                "max_depth": max_depth,
+            }),
+        ),
+        OntologyArgs::ExportSnapshot { ontology_path } => handle_ontology_export_snapshot(
+            service,
+            &json!({
+                "ontology_path": ontology_path,
+            }),
+        ),
+        OntologyArgs::UpsertEntities {
+            ontology_path,
+            entities,
+        } => handle_ontology_upsert_entities(
+            service,
+            &json!({
+                "ontology_path": ontology_path,
+                "entities": entities,
+            }),
+        ),
+        OntologyArgs::UpsertEdges {
+            ontology_path,
+            edges,
+        } => handle_ontology_upsert_edges(
+            service,
+            &json!({
+                "ontology_path": ontology_path,
+                "edges": edges,
+            }),
+        ),
+    }
 }
 
 pub fn protocol_method_not_found(id: Value, method: &str) -> Value {
@@ -654,6 +709,17 @@ pub fn protocol_method_not_found(id: Value, method: &str) -> Value {
             "code": -32601,
             "message": format!("method not found: {method}")
         }
+    })
+}
+
+fn unknown_tool_action_result(tool_name: &str, action: &str) -> Value {
+    json!({
+        "content": [text_content(json!({
+            "isError": true,
+            "error_type": "InvalidInput",
+            "message": format!("unknown action `{action}` for tool `{tool_name}`")
+        }))],
+        "isError": true
     })
 }
 
@@ -827,11 +893,11 @@ pub fn dispatch_reconciliation(
     };
 
     let response = match tool_name {
-        RECON_VALIDATE_TOOL => service.validate_reconciliation_stage_tool(request),
-        RECON_RECONCILE_TOOL => service.reconcile_reconciliation_stage_tool(request),
-        RECON_COMMIT_TOOL => service.commit_reconciliation_stage_tool(request),
+        "validate" => service.validate_reconciliation_stage_tool(request),
+        "reconcile" => service.reconcile_reconciliation_stage_tool(request),
+        "commit" => service.commit_reconciliation_stage_tool(request),
         _ => {
-            return unknown_tool_result(tool_name);
+            return unknown_tool_action_result(RECONCILIATION_TOOL, tool_name);
         }
     };
 
@@ -880,7 +946,7 @@ pub fn dispatch_reconciliation(
 
 pub fn dispatch_hsm(service: &TurboLedgerService, tool_name: &str, arguments: &Value) -> Value {
     match tool_name {
-        HSM_TRANSITION_TOOL => {
+        "transition" => {
             let request = match parse_hsm_transition_request(arguments) {
                 Ok(request) => request,
                 Err(err) => return error_envelope(&err),
@@ -919,7 +985,7 @@ pub fn dispatch_hsm(service: &TurboLedgerService, tool_name: &str, arguments: &V
                 Err(err) => error_envelope(&err),
             }
         }
-        HSM_STATUS_TOOL => match service.hsm_status_tool(HsmStatusRequest) {
+        "status" => match service.hsm_status_tool(HsmStatusRequest) {
             Ok(response) => json!({
                 "content": [text_content(json!({
                         "state": response.state,
@@ -933,7 +999,7 @@ pub fn dispatch_hsm(service: &TurboLedgerService, tool_name: &str, arguments: &V
             }),
             Err(err) => error_envelope(&err),
         },
-        HSM_RESUME_TOOL => {
+        "resume" => {
             let request = match parse_hsm_resume_request(arguments) {
                 Ok(request) => request,
                 Err(err) => return error_envelope(&err),
@@ -968,7 +1034,7 @@ pub fn dispatch_hsm(service: &TurboLedgerService, tool_name: &str, arguments: &V
                 Err(err) => error_envelope(&err),
             }
         }
-        _ => unknown_tool_result(tool_name),
+        _ => unknown_tool_action_result(WORKFLOW_TOOL, tool_name),
     }
 }
 
@@ -1716,6 +1782,23 @@ fn parse_classify_ingested_request(
     Ok(ClassifyIngestedRequest {
         rule_file,
         review_threshold,
+    })
+}
+
+fn parse_run_rhai_rule_request(arguments: &Value) -> Result<RunRhaiRuleRequest, ToolError> {
+    let rule_file = PathBuf::from(required_str(arguments, "rule_file")?);
+    let sample_tx = arguments.get("sample_tx").ok_or_else(|| {
+        ToolError::InvalidInput("missing or invalid `sample_tx` in tool arguments".to_string())
+    })?;
+    Ok(RunRhaiRuleRequest {
+        rule_file,
+        sample_tx: SampleTxRequest {
+            tx_id: required_str(sample_tx, "tx_id")?.to_string(),
+            account_id: required_str(sample_tx, "account_id")?.to_string(),
+            date: required_str(sample_tx, "date")?.to_string(),
+            amount: required_str(sample_tx, "amount")?.to_string(),
+            description: required_str(sample_tx, "description")?.to_string(),
+        },
     })
 }
 

@@ -1,3 +1,5 @@
+mod common;
+
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
@@ -8,7 +10,6 @@ fn parse_response_payload(response: &Value) -> Value {
     serde_json::from_str(text).unwrap_or(Value::Null)
 }
 
-const EVENT_REPLAY_TOOL: &str = "l3dg3rr_event_replay";
 const EVENT_HISTORY_TOOL: &str = "l3dg3rr_event_history";
 
 struct McpStdioClient {
@@ -22,6 +23,10 @@ impl McpStdioClient {
     fn spawn() -> Self {
         let server_bin = env!("CARGO_BIN_EXE_ledgerr-mcp-server");
         let mut child = Command::new(server_bin)
+            .env(
+                "LEDGERR_MCP_MANIFEST",
+                common::stdio_test_manifest("events-mcp"),
+            )
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -126,7 +131,7 @@ fn ingest_one_row(
 }
 
 #[test]
-fn evt_03_tools_list_advertises_event_replay_and_history() {
+fn evt_03_tools_list_advertises_audit_tool() {
     let mut client = McpStdioClient::spawn();
     initialize_client(&mut client);
 
@@ -138,8 +143,7 @@ fn evt_03_tools_list_advertises_event_replay_and_history() {
         .filter_map(|entry| entry.get("name").and_then(Value::as_str))
         .collect::<Vec<_>>();
 
-    assert!(tool_names.contains(&EVENT_REPLAY_TOOL));
-    assert!(tool_names.contains(&EVENT_HISTORY_TOOL));
+    assert!(tool_names.contains(&"ledgerr_audit"));
 }
 
 #[test]

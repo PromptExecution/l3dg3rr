@@ -1,3 +1,5 @@
+mod common;
+
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
@@ -8,7 +10,7 @@ fn parse_response_payload(response: &Value) -> Value {
     serde_json::from_str(text).unwrap_or(Value::Null)
 }
 
-const PLUGIN_INFO_TOOL: &str = "l3dg3rr_plugin_info";
+const WORKFLOW_TOOL: &str = "ledgerr_workflow";
 
 struct McpStdioClient {
     child: Child,
@@ -21,6 +23,10 @@ impl McpStdioClient {
     fn spawn() -> Self {
         let server_bin = env!("CARGO_BIN_EXE_ledgerr-mcp-server");
         let mut child = Command::new(server_bin)
+            .env(
+                "LEDGERR_MCP_MANIFEST",
+                common::stdio_test_manifest("plugin-info-mcp"),
+            )
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -28,7 +34,12 @@ impl McpStdioClient {
             .expect("spawn ledgerr-mcp-server");
         let stdin = child.stdin.take().expect("server stdin");
         let stdout = BufReader::new(child.stdout.take().expect("server stdout"));
-        Self { child, stdin, stdout, next_id: 1 }
+        Self {
+            child,
+            stdin,
+            stdout,
+            next_id: 1,
+        }
     }
 
     fn request(&mut self, method: &str, params: Value) -> Value {
@@ -39,7 +50,8 @@ impl McpStdioClient {
     }
 
     fn send_notification_initialized(&mut self) {
-        let payload = json!({ "jsonrpc": "2.0", "method": "notifications/initialized", "params": {} });
+        let payload =
+            json!({ "jsonrpc": "2.0", "method": "notifications/initialized", "params": {} });
         let line = serde_json::to_string(&payload).expect("serialize");
         writeln!(self.stdin, "{line}").expect("write");
         self.stdin.flush().expect("flush");
@@ -78,7 +90,7 @@ fn initialize_client(client: &mut McpStdioClient) {
 // ── tools/list ────────────────────────────────────────────────────────────────
 
 #[test]
-fn pi_01_tools_list_advertises_plugin_info() {
+fn pi_01_tools_list_advertises_workflow_not_plugin_info() {
     let mut client = McpStdioClient::spawn();
     initialize_client(&mut client);
 
@@ -91,13 +103,14 @@ fn pi_01_tools_list_advertises_plugin_info() {
         .collect::<Vec<_>>();
 
     assert!(
-        names.contains(&PLUGIN_INFO_TOOL),
-        "tools/list must include {PLUGIN_INFO_TOOL}; got: {names:?}"
+        names.contains(&WORKFLOW_TOOL),
+        "tools/list must include {WORKFLOW_TOOL}; got: {names:?}"
     );
+    assert!(!names.contains(&"l3dg3rr_plugin_info"));
 }
 
 #[test]
-fn pi_01_plugin_info_schema_has_subcommand_enum() {
+fn pi_01_workflow_schema_has_plugin_info_subcommand_enum() {
     let mut client = McpStdioClient::spawn();
     initialize_client(&mut client);
 
@@ -106,17 +119,18 @@ fn pi_01_plugin_info_schema_has_subcommand_enum() {
         .as_array()
         .expect("tools array")
         .iter()
-        .find(|t| t["name"] == PLUGIN_INFO_TOOL)
-        .expect("plugin_info in tools/list")["inputSchema"]
+        .find(|t| t["name"] == WORKFLOW_TOOL)
+        .expect("workflow in tools/list")["inputSchema"]
         .clone();
 
-    let enum_values = schema["properties"]["subcommand"]["enum"]
-        .as_array()
-        .expect("subcommand enum");
-    let variants: Vec<&str> = enum_values.iter().filter_map(Value::as_str).collect();
-    assert!(variants.contains(&"check"));
-    assert!(variants.contains(&"upgrade"));
-    assert!(variants.contains(&"cleanup"));
+    let schema_text = schema.to_string();
+    // The schema advertises the plugin_info action and documents the known subcommand
+    // values in the description instead of a closed enum, so schema-driven clients
+    // can still discover them while accepting unknown strings (Postel boundary).
+    assert!(schema_text.contains("\"plugin_info\""));
+    assert!(schema_text.contains("check"));
+    assert!(schema_text.contains("upgrade"));
+    assert!(schema_text.contains("cleanup"));
 }
 
 // ── subcommand: check (default) ───────────────────────────────────────────────
@@ -128,14 +142,17 @@ fn pi_02_check_returns_version_and_host_metadata() {
 
     let resp = client.request(
         "tools/call",
-        json!({ "name": PLUGIN_INFO_TOOL, "arguments": {} }),
+        json!({ "name": WORKFLOW_TOOL, "arguments": { "action": "plugin_info" } }),
     );
     assert_eq!(resp["result"]["isError"], Value::Bool(false));
 
     let p = parse_response_payload(&resp["result"]);
     assert!(p["current_version"].is_string(), "current_version missing");
     assert!(p["latest_version"].is_string(), "latest_version missing");
-    assert!(p["update_available"].is_boolean(), "update_available missing");
+    assert!(
+        p["update_available"].is_boolean(),
+        "update_available missing"
+    );
     assert!(p["log_path"].is_string(), "log_path missing");
     assert!(p["host"].is_object(), "host metadata missing");
     assert!(p["host"]["os"].is_string());
@@ -150,11 +167,11 @@ fn pi_02_explicit_check_subcommand_is_identical_to_default() {
 
     let default_resp = client.request(
         "tools/call",
-        json!({ "name": PLUGIN_INFO_TOOL, "arguments": {} }),
+        json!({ "name": WORKFLOW_TOOL, "arguments": { "action": "plugin_info" } }),
     );
     let explicit_resp = client.request(
         "tools/call",
-        json!({ "name": PLUGIN_INFO_TOOL, "arguments": { "subcommand": "check" } }),
+        json!({ "name": WORKFLOW_TOOL, "arguments": { "action": "plugin_info", "subcommand": "check" } }),
     );
 
     let default_p = parse_response_payload(&default_resp["result"]);
@@ -162,7 +179,10 @@ fn pi_02_explicit_check_subcommand_is_identical_to_default() {
 
     // Both must report the same embedded version.
     assert_eq!(default_p["current_version"], explicit_p["current_version"]);
-    assert_eq!(default_p["update_available"], explicit_p["update_available"]);
+    assert_eq!(
+        default_p["update_available"],
+        explicit_p["update_available"]
+    );
 }
 
 #[test]
@@ -172,13 +192,18 @@ fn pi_02_current_version_is_non_empty_semver_like() {
 
     let resp = client.request(
         "tools/call",
-        json!({ "name": PLUGIN_INFO_TOOL, "arguments": {} }),
+        json!({ "name": WORKFLOW_TOOL, "arguments": { "action": "plugin_info" } }),
     );
     let p = parse_response_payload(&resp["result"]);
-    let version = p["current_version"].as_str().expect("current_version string");
+    let version = p["current_version"]
+        .as_str()
+        .expect("current_version string");
 
     // Must have at least one dot — x.y or x.y.z shape.
-    assert!(version.contains('.'), "version should be semver-like, got: {version}");
+    assert!(
+        version.contains('.'),
+        "version should be semver-like, got: {version}"
+    );
 }
 
 // ── subcommand: cleanup ───────────────────────────────────────────────────────
@@ -190,7 +215,7 @@ fn pi_03_cleanup_returns_removed_array_and_count() {
 
     let resp = client.request(
         "tools/call",
-        json!({ "name": PLUGIN_INFO_TOOL, "arguments": { "subcommand": "cleanup" } }),
+        json!({ "name": WORKFLOW_TOOL, "arguments": { "action": "plugin_info", "subcommand": "cleanup" } }),
     );
     assert_eq!(resp["result"]["isError"], Value::Bool(false));
 
@@ -211,7 +236,7 @@ fn pi_04_upgrade_returns_not_supported_on_non_windows_without_feature() {
 
     let resp = client.request(
         "tools/call",
-        json!({ "name": PLUGIN_INFO_TOOL, "arguments": { "subcommand": "upgrade" } }),
+        json!({ "name": WORKFLOW_TOOL, "arguments": { "action": "plugin_info", "subcommand": "upgrade" } }),
     );
     assert_eq!(resp["result"]["isError"], Value::Bool(false));
 
@@ -239,7 +264,7 @@ fn pi_05_all_subcommands_return_text_content_type() {
     for subcommand in ["check", "cleanup", "upgrade"] {
         let resp = client.request(
             "tools/call",
-            json!({ "name": PLUGIN_INFO_TOOL, "arguments": { "subcommand": subcommand } }),
+            json!({ "name": WORKFLOW_TOOL, "arguments": { "action": "plugin_info", "subcommand": subcommand } }),
         );
         let content_type = resp["result"]["content"][0]["type"].as_str().unwrap_or("");
         assert_eq!(
@@ -256,7 +281,7 @@ fn pi_05_unknown_subcommand_falls_through_to_check() {
 
     let resp = client.request(
         "tools/call",
-        json!({ "name": PLUGIN_INFO_TOOL, "arguments": { "subcommand": "nonsense" } }),
+        json!({ "name": WORKFLOW_TOOL, "arguments": { "action": "plugin_info", "subcommand": "nonsense" } }),
     );
     assert_eq!(resp["result"]["isError"], Value::Bool(false));
 

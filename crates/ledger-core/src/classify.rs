@@ -2,6 +2,7 @@ use std::path::Path;
 
 use crate::ingest::{deterministic_tx_id, TransactionInput};
 use rhai::{Dynamic, Engine, EvalAltResult, Map, Scope, AST};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClassificationError {
@@ -46,13 +47,13 @@ pub struct ClassificationBatch {
     pub classifications: Vec<ClassifiedTransaction>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FlagStatus {
     Open,
     Resolved,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReviewFlag {
     pub tx_id: String,
     pub year: i32,
@@ -62,7 +63,7 @@ pub struct ReviewFlag {
     pub confidence: f64,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ClassificationEngine {
     flags: Vec<ReviewFlag>,
 }
@@ -200,10 +201,16 @@ fn run_classify_fn(
 fn sample_to_map(sample: &SampleTransaction) -> Map {
     let mut tx = Map::new();
     tx.insert("tx_id".into(), Dynamic::from(sample.tx_id.clone()));
-    tx.insert("account_id".into(), Dynamic::from(sample.account_id.clone()));
+    tx.insert(
+        "account_id".into(),
+        Dynamic::from(sample.account_id.clone()),
+    );
     tx.insert("date".into(), Dynamic::from(sample.date.clone()));
     tx.insert("amount".into(), Dynamic::from(sample.amount.clone()));
-    tx.insert("description".into(), Dynamic::from(sample.description.clone()));
+    tx.insert(
+        "description".into(),
+        Dynamic::from(sample.description.clone()),
+    );
     tx
 }
 

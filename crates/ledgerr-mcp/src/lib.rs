@@ -7,9 +7,12 @@ use ledger_core::classify::{ClassificationEngine, FlagStatus, SampleTransaction}
 use ledger_core::filename::{FilenameError, StatementFilename};
 use ledger_core::ingest::{deterministic_tx_id, IngestedLedger, TransactionInput};
 use ledger_core::manifest::Manifest;
+use ledger_core::workbook::REQUIRED_SHEETS;
 use rust_decimal::Decimal;
 use rust_xlsxwriter::Workbook;
+use serde::{Deserialize, Serialize};
 
+pub mod contract;
 pub mod events;
 pub mod hsm;
 pub mod mcp_adapter;
@@ -382,13 +385,13 @@ pub trait TurboLedgerTools {
     ) -> Result<GetScheduleSummaryResponse, ToolError>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct StoredClassification {
     category: String,
     confidence: Decimal,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct AuditEntry {
     timestamp: String,
     actor: String,
@@ -399,12 +402,35 @@ struct AuditEntry {
     note: Option<String>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct ClassificationState {
     tx_rows: BTreeMap<String, TransactionInput>,
     classifications: BTreeMap<String, StoredClassification>,
     audit_log: Vec<AuditEntry>,
     engine: ClassificationEngine,
+}
+
+const PERSISTED_STATE_VERSION: u32 = 1;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PersistedServiceState {
+    version: u32,
+    ingest_state: IngestedLedger,
+    classification_state: ClassificationState,
+    lifecycle_events: InMemoryLifecycleEventStore,
+    hsm_state: HsmMachine,
+}
+
+impl Default for PersistedServiceState {
+    fn default() -> Self {
+        Self {
+            version: PERSISTED_STATE_VERSION,
+            ingest_state: IngestedLedger::default(),
+            classification_state: ClassificationState::default(),
+            lifecycle_events: InMemoryLifecycleEventStore::default(),
+            hsm_state: HsmMachine::default(),
+        }
+    }
 }
 
 pub struct TurboLedgerService {
@@ -418,17 +444,61 @@ pub struct TurboLedgerService {
 impl TurboLedgerService {
     pub fn from_manifest_str(src: &str) -> Result<Self, ToolError> {
         let manifest = Manifest::parse(src).map_err(|e| ToolError::InvalidInput(e.to_string()))?;
+        let persisted =
+            load_persisted_state(std::path::Path::new(&manifest.session.workbook_path))?;
         Ok(Self {
             manifest,
-            ingest_state: Mutex::new(IngestedLedger::default()),
-            classification_state: Mutex::new(ClassificationState::default()),
-            lifecycle_events: Mutex::new(InMemoryLifecycleEventStore::default()),
-            hsm_state: Mutex::new(HsmMachine::default()),
+            ingest_state: Mutex::new(persisted.ingest_state),
+            classification_state: Mutex::new(persisted.classification_state),
+            lifecycle_events: Mutex::new(persisted.lifecycle_events),
+            hsm_state: Mutex::new(persisted.hsm_state),
         })
     }
 
     pub fn workbook_path(&self) -> &std::path::Path {
         std::path::Path::new(&self.manifest.session.workbook_path)
+    }
+
+    fn state_sidecar_path(&self) -> PathBuf {
+        persisted_state_path(self.workbook_path())
+    }
+
+    fn snapshot_persisted_state(&self) -> Result<PersistedServiceState, ToolError> {
+        // Persist all restart-visible state as one snapshot so idempotency, audit,
+        // lifecycle replay, and HSM resume move together. Partial silent resets would
+        // be worse than a hard failure in this accountant-facing workflow.
+        let ingest_state = self
+            .ingest_state
+            .lock()
+            .map_err(|_| ToolError::Internal("ingest lock poisoned".to_string()))?
+            .clone();
+        let classification_state = self
+            .classification_state
+            .lock()
+            .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?
+            .clone();
+        let lifecycle_events = self
+            .lifecycle_events
+            .lock()
+            .map_err(|_| ToolError::Internal("events lock poisoned".to_string()))?
+            .clone();
+        let hsm_state = self
+            .hsm_state
+            .lock()
+            .map_err(|_| ToolError::Internal("hsm lock poisoned".to_string()))?
+            .clone();
+        Ok(PersistedServiceState {
+            version: PERSISTED_STATE_VERSION,
+            ingest_state,
+            classification_state,
+            lifecycle_events,
+            hsm_state,
+        })
+    }
+
+    fn persist_state(&self) -> Result<(), ToolError> {
+        let snapshot = self.snapshot_persisted_state()?;
+        persist_state_to_path(&self.state_sidecar_path(), &snapshot)
     }
 
     pub fn list_accounts_tool(
@@ -549,7 +619,10 @@ impl TurboLedgerService {
         if hsm::allowed_next_node(current) == Some(requested) {
             hsm.current = requested;
             hsm.last_valid_checkpoint = hsm::checkpoint_marker(requested);
-            return Ok(hsm::transition_advanced_response(requested));
+            let response = hsm::transition_advanced_response(requested);
+            drop(hsm);
+            self.persist_state()?;
+            return Ok(response);
         }
 
         Ok(hsm::transition_blocked_response(current, requested))
@@ -591,7 +664,10 @@ impl TurboLedgerService {
         }
 
         hsm.current = resume_node;
-        Ok(hsm::resume_response(hsm.current, true, Vec::new()))
+        let response = hsm::resume_response(hsm.current, true, Vec::new());
+        drop(hsm);
+        self.persist_state()?;
+        Ok(response)
     }
 
     pub fn adjust_transaction(
@@ -911,6 +987,7 @@ impl TurboLedgerService {
             Some(tx_row.source_ref.clone()),
             payload,
         )?;
+        self.persist_state()?;
 
         Ok(response)
     }
@@ -1015,6 +1092,7 @@ impl TurboLedgerTools for TurboLedgerService {
                 payload,
             )?;
         }
+        self.persist_state()?;
 
         let tx_ids = inserted
             .iter()
@@ -1223,6 +1301,8 @@ impl TurboLedgerTools for TurboLedgerService {
                 reason: c.reason,
             });
         }
+        drop(classification);
+        self.persist_state()?;
 
         Ok(ClassifyIngestedResponse {
             classifications: results,
@@ -1301,49 +1381,94 @@ impl TurboLedgerTools for TurboLedgerService {
         &self,
         request: ExportCpaWorkbookRequest,
     ) -> Result<ExportCpaWorkbookResponse, ToolError> {
-        let classification = self
-            .classification_state
-            .lock()
-            .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?;
-
         let active_year = self.manifest.session.active_year;
 
+        // Clone the data needed for export while holding the lock, then release
+        // it before the (potentially slow) workbook build and disk write.
+        let (tx_rows, classifications, audit_log, open_flags, resolved_flags) = {
+            let classification = self
+                .classification_state
+                .lock()
+                .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?;
+            let tx_rows = classification.tx_rows.clone();
+            let classifications = classification.classifications.clone();
+            let audit_log = classification.audit_log.clone();
+            let open_flags = classification
+                .engine
+                .query_flags(active_year as i32, FlagStatus::Open);
+            let resolved_flags = classification
+                .engine
+                .query_flags(active_year as i32, FlagStatus::Resolved);
+            (tx_rows, classifications, audit_log, open_flags, resolved_flags)
+        };
+
+        // Workbook export is an artifact projection, not a mutable source of truth.
+        // Rebuild the full accountant-facing workbook from canonical service state on
+        // every export so the handoff file stays consistent with the declared contract.
         let mut workbook = Workbook::new();
-        workbook
-            .add_worksheet()
-            .set_name("CAT.taxonomy")
-            .map_err(map_xlsx)?;
-        workbook
-            .add_worksheet()
-            .set_name("FLAGS.open")
-            .map_err(map_xlsx)?;
-        workbook
-            .add_worksheet()
-            .set_name("FLAGS.resolved")
-            .map_err(map_xlsx)?;
-        workbook
-            .add_worksheet()
-            .set_name("SCHED.C")
-            .map_err(map_xlsx)?;
-        workbook
-            .add_worksheet()
-            .set_name("SCHED.D")
-            .map_err(map_xlsx)?;
-        workbook
-            .add_worksheet()
-            .set_name("SCHED.E")
-            .map_err(map_xlsx)?;
-        workbook
-            .add_worksheet()
-            .set_name("FBAR.accounts")
-            .map_err(map_xlsx)?;
-        // 7 fixed base sheets written so far; TX.* sheets are added per account below.
-        let mut sheets_written: usize = 7;
+        for sheet_name in REQUIRED_SHEETS {
+            workbook
+                .add_worksheet()
+                .set_name(*sheet_name)
+                .map_err(map_xlsx)?;
+        }
+        let mut sheets_written: usize = REQUIRED_SHEETS.len();
 
         let mut categories = BTreeSet::new();
         categories.insert("Uncategorized".to_string());
-        for entry in classification.classifications.values() {
+        for entry in classifications.values() {
             categories.insert(entry.category.clone());
+        }
+
+        {
+            let meta_sheet = workbook
+                .worksheet_from_name("META.config")
+                .map_err(map_xlsx)?;
+            meta_sheet
+                .write_string(0, 0, "workbook_path")
+                .map_err(map_xlsx)?;
+            meta_sheet
+                .write_string(0, 1, "active_year")
+                .map_err(map_xlsx)?;
+            meta_sheet
+                .write_string(1, 0, &self.manifest.session.workbook_path)
+                .map_err(map_xlsx)?;
+            meta_sheet
+                .write_number(1, 1, f64::from(active_year))
+                .map_err(map_xlsx)?;
+        }
+
+        {
+            let account_sheet = workbook
+                .worksheet_from_name("ACCT.registry")
+                .map_err(map_xlsx)?;
+            account_sheet
+                .write_string(0, 0, "account_id")
+                .map_err(map_xlsx)?;
+            account_sheet
+                .write_string(0, 1, "institution")
+                .map_err(map_xlsx)?;
+            account_sheet
+                .write_string(0, 2, "account_type")
+                .map_err(map_xlsx)?;
+            account_sheet
+                .write_string(0, 3, "currency")
+                .map_err(map_xlsx)?;
+            for (idx, (account_id, account)) in self.manifest.accounts.iter().enumerate() {
+                let row = (idx + 1) as u32;
+                account_sheet
+                    .write_string(row, 0, account_id)
+                    .map_err(map_xlsx)?;
+                account_sheet
+                    .write_string(row, 1, &account.institution)
+                    .map_err(map_xlsx)?;
+                account_sheet
+                    .write_string(row, 2, &account.account_type)
+                    .map_err(map_xlsx)?;
+                account_sheet
+                    .write_string(row, 3, &account.currency)
+                    .map_err(map_xlsx)?;
+            }
         }
 
         {
@@ -1359,7 +1484,7 @@ impl TurboLedgerTools for TurboLedgerService {
         }
 
         let mut by_account = BTreeMap::<String, Vec<(String, TransactionInput)>>::new();
-        for (tx_id, row) in &classification.tx_rows {
+        for (tx_id, row) in &tx_rows {
             by_account
                 .entry(row.account_id.clone())
                 .or_default()
@@ -1383,7 +1508,7 @@ impl TurboLedgerTools for TurboLedgerService {
 
             for (idx, (tx_id, row)) in rows.into_iter().enumerate() {
                 let line = (idx + 1) as u32;
-                let classified = classification.classifications.get(&tx_id);
+                let classified = classifications.get(&tx_id);
                 ws.write_string(line, 0, tx_id).map_err(map_xlsx)?;
                 ws.write_string(line, 1, &row.date).map_err(map_xlsx)?;
                 ws.write_string(line, 2, &row.amount).map_err(map_xlsx)?;
@@ -1410,12 +1535,6 @@ impl TurboLedgerTools for TurboLedgerService {
             }
         }
 
-        let open_flags = classification
-            .engine
-            .query_flags(active_year as i32, FlagStatus::Open);
-        let resolved_flags = classification
-            .engine
-            .query_flags(active_year as i32, FlagStatus::Resolved);
         {
             let ws = workbook
                 .worksheet_from_name("FLAGS.open")
@@ -1443,6 +1562,91 @@ impl TurboLedgerTools for TurboLedgerService {
             }
         }
 
+        write_schedule_sheet(
+            &mut workbook,
+            "SCHED.C",
+            &build_schedule_summary_from_classification(
+                &tx_rows,
+                &classifications,
+                active_year as i32,
+                ScheduleKindRequest::ScheduleC,
+            ),
+        )?;
+        write_schedule_sheet(
+            &mut workbook,
+            "SCHED.D",
+            &build_schedule_summary_from_classification(
+                &tx_rows,
+                &classifications,
+                active_year as i32,
+                ScheduleKindRequest::ScheduleD,
+            ),
+        )?;
+        write_schedule_sheet(
+            &mut workbook,
+            "SCHED.E",
+            &build_schedule_summary_from_classification(
+                &tx_rows,
+                &classifications,
+                active_year as i32,
+                ScheduleKindRequest::ScheduleE,
+            ),
+        )?;
+        write_schedule_sheet(
+            &mut workbook,
+            "FBAR.accounts",
+            &build_schedule_summary_from_classification(
+                &tx_rows,
+                &classifications,
+                active_year as i32,
+                ScheduleKindRequest::Fbar,
+            ),
+        )?;
+
+        {
+            let audit_sheet = workbook
+                .worksheet_from_name("AUDIT.log")
+                .map_err(map_xlsx)?;
+            audit_sheet
+                .write_string(0, 0, "timestamp")
+                .map_err(map_xlsx)?;
+            audit_sheet.write_string(0, 1, "actor").map_err(map_xlsx)?;
+            audit_sheet.write_string(0, 2, "tx_id").map_err(map_xlsx)?;
+            audit_sheet.write_string(0, 3, "field").map_err(map_xlsx)?;
+            audit_sheet
+                .write_string(0, 4, "old_value")
+                .map_err(map_xlsx)?;
+            audit_sheet
+                .write_string(0, 5, "new_value")
+                .map_err(map_xlsx)?;
+            audit_sheet.write_string(0, 6, "note").map_err(map_xlsx)?;
+
+            for (idx, entry) in audit_log.iter().enumerate() {
+                let row = (idx + 1) as u32;
+                audit_sheet
+                    .write_string(row, 0, &entry.timestamp)
+                    .map_err(map_xlsx)?;
+                audit_sheet
+                    .write_string(row, 1, &entry.actor)
+                    .map_err(map_xlsx)?;
+                audit_sheet
+                    .write_string(row, 2, &entry.tx_id)
+                    .map_err(map_xlsx)?;
+                audit_sheet
+                    .write_string(row, 3, &entry.field)
+                    .map_err(map_xlsx)?;
+                audit_sheet
+                    .write_string(row, 4, entry.old_value.as_deref().unwrap_or(""))
+                    .map_err(map_xlsx)?;
+                audit_sheet
+                    .write_string(row, 5, &entry.new_value)
+                    .map_err(map_xlsx)?;
+                audit_sheet
+                    .write_string(row, 6, entry.note.as_deref().unwrap_or(""))
+                    .map_err(map_xlsx)?;
+            }
+        }
+
         workbook.save(&request.workbook_path).map_err(map_xlsx)?;
         Ok(ExportCpaWorkbookResponse { sheets_written })
     }
@@ -1455,57 +1659,12 @@ impl TurboLedgerTools for TurboLedgerService {
             .classification_state
             .lock()
             .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?;
-
-        let mut grouped = BTreeMap::<String, Decimal>::new();
-        for (tx_id, row) in &classification.tx_rows {
-            if derive_year(&row.date) != request.year {
-                continue;
-            }
-            let amount = match Decimal::from_str(row.amount.trim()) {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
-            let key = match request.schedule {
-                ScheduleKindRequest::Fbar => row.account_id.clone(),
-                _ => {
-                    let category = classification
-                        .classifications
-                        .get(tx_id)
-                        .map(|c| c.category.clone())
-                        .unwrap_or_else(|| "Uncategorized".to_string());
-                    if schedule_for_category(&category) != Some(request.schedule) {
-                        continue;
-                    }
-                    category
-                }
-            };
-
-            if request.schedule == ScheduleKindRequest::Fbar {
-                let abs_amount = amount.abs();
-                let current = grouped.entry(key).or_insert(Decimal::ZERO);
-                if abs_amount > *current {
-                    *current = abs_amount;
-                }
-            } else {
-                *grouped.entry(key).or_insert(Decimal::ZERO) += amount;
-            }
-        }
-
-        let lines = grouped
-            .into_iter()
-            .map(|(key, total)| ScheduleLineResponse {
-                key,
-                total: decimal_to_f64(total),
-            })
-            .collect::<Vec<_>>();
-        let total = lines.iter().map(|line| line.total).sum::<f64>();
-
-        Ok(GetScheduleSummaryResponse {
-            year: request.year,
-            schedule: request.schedule,
-            total,
-            lines,
-        })
+        Ok(build_schedule_summary_from_classification(
+            &classification.tx_rows,
+            &classification.classifications,
+            request.year,
+            request.schedule,
+        ))
     }
 }
 
@@ -1711,6 +1870,79 @@ fn document_status_rank(status: DocumentQueueStatusRequest) -> u8 {
     }
 }
 
+fn persisted_state_path(workbook_path: &std::path::Path) -> PathBuf {
+    PathBuf::from(format!("{}.ledgerr-state.json", workbook_path.display()))
+}
+
+fn load_persisted_state(
+    workbook_path: &std::path::Path,
+) -> Result<PersistedServiceState, ToolError> {
+    let sidecar_path = persisted_state_path(workbook_path);
+    if !sidecar_path.exists() {
+        return Ok(PersistedServiceState::default());
+    }
+
+    let bytes = std::fs::read(&sidecar_path).map_err(|e| {
+        ToolError::Internal(format!(
+            "failed to read persisted state '{}': {e}",
+            sidecar_path.display()
+        ))
+    })?;
+    let state: PersistedServiceState = serde_json::from_slice(&bytes).map_err(|e| {
+        ToolError::Internal(format!(
+            "failed to parse persisted state '{}': {e}",
+            sidecar_path.display()
+        ))
+    })?;
+    if state.version != PERSISTED_STATE_VERSION {
+        return Err(ToolError::Internal(format!(
+            "unsupported persisted state version {} in '{}'",
+            state.version,
+            sidecar_path.display()
+        )));
+    }
+    Ok(state)
+}
+
+fn persist_state_to_path(
+    sidecar_path: &std::path::Path,
+    state: &PersistedServiceState,
+) -> Result<(), ToolError> {
+    if let Some(parent) = sidecar_path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            ToolError::Internal(format!(
+                "failed to create persisted state directory '{}': {e}",
+                parent.display()
+            ))
+        })?;
+    }
+    let bytes = serde_json::to_vec_pretty(state)
+        .map_err(|e| ToolError::Internal(format!("failed to serialize persisted state: {e}")))?;
+    // Write to a sibling temp file first, then rename atomically so a mid-write
+    // crash never leaves a truncated/corrupt sidecar that causes startup to fail closed.
+    let tmp_path: std::path::PathBuf = {
+        let mut tmp_os_string = sidecar_path.as_os_str().to_os_string();
+        tmp_os_string.push(".tmp");
+        tmp_os_string.into()
+    };
+    std::fs::write(&tmp_path, &bytes).map_err(|e| {
+        ToolError::Internal(format!(
+            "failed to write persisted state temp file '{}': {e}",
+            tmp_path.display()
+        ))
+    })?;
+    std::fs::rename(&tmp_path, sidecar_path).map_err(|e| {
+        ToolError::Internal(format!(
+            "failed to rename persisted state '{}' to '{}': {e}",
+            tmp_path.display(),
+            sidecar_path.display()
+        ))
+    })
+}
+
 fn to_audit_response(entry: AuditEntry) -> AuditEntryResponse {
     AuditEntryResponse {
         timestamp: entry.timestamp,
@@ -1746,6 +1978,78 @@ fn schedule_for_category(category: &str) -> Option<ScheduleKindRequest> {
         return Some(ScheduleKindRequest::ScheduleC);
     }
     None
+}
+
+fn write_schedule_sheet(
+    workbook: &mut Workbook,
+    sheet_name: &str,
+    summary: &GetScheduleSummaryResponse,
+) -> Result<(), ToolError> {
+    let sheet = workbook.worksheet_from_name(sheet_name).map_err(map_xlsx)?;
+    sheet.write_string(0, 0, "key").map_err(map_xlsx)?;
+    sheet.write_string(0, 1, "total").map_err(map_xlsx)?;
+    for (idx, line) in summary.lines.iter().enumerate() {
+        let row = (idx + 1) as u32;
+        sheet.write_string(row, 0, &line.key).map_err(map_xlsx)?;
+        sheet.write_number(row, 1, line.total).map_err(map_xlsx)?;
+    }
+    Ok(())
+}
+
+fn build_schedule_summary_from_classification(
+    tx_rows: &BTreeMap<String, TransactionInput>,
+    classifications: &BTreeMap<String, StoredClassification>,
+    year: i32,
+    schedule: ScheduleKindRequest,
+) -> GetScheduleSummaryResponse {
+    let mut grouped = BTreeMap::<String, Decimal>::new();
+    for (tx_id, row) in tx_rows {
+        if derive_year(&row.date) != year {
+            continue;
+        }
+        let amount = match Decimal::from_str(row.amount.trim()) {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+        let key = match schedule {
+            ScheduleKindRequest::Fbar => row.account_id.clone(),
+            _ => {
+                let category = classifications
+                    .get(tx_id)
+                    .map(|c| c.category.clone())
+                    .unwrap_or_else(|| "Uncategorized".to_string());
+                if schedule_for_category(&category) != Some(schedule) {
+                    continue;
+                }
+                category
+            }
+        };
+
+        if schedule == ScheduleKindRequest::Fbar {
+            let abs_amount = amount.abs();
+            let current = grouped.entry(key).or_insert(Decimal::ZERO);
+            if abs_amount > *current {
+                *current = abs_amount;
+            }
+        } else {
+            *grouped.entry(key).or_insert(Decimal::ZERO) += amount;
+        }
+    }
+
+    let lines = grouped
+        .into_iter()
+        .map(|(key, total)| ScheduleLineResponse {
+            key,
+            total: decimal_to_f64(total),
+        })
+        .collect::<Vec<_>>();
+    let total = lines.iter().map(|line| line.total).sum::<f64>();
+    GetScheduleSummaryResponse {
+        year,
+        schedule,
+        total,
+        lines,
+    }
 }
 
 fn decimal_to_f64(value: Decimal) -> f64 {

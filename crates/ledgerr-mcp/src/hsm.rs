@@ -1,4 +1,6 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum LifecycleState {
     Ingest,
     Normalize,
@@ -33,7 +35,7 @@ impl LifecycleState {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum LifecycleSubstate {
     Pending,
     Ready,
@@ -56,7 +58,7 @@ impl LifecycleSubstate {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct LifecycleNode {
     pub state: LifecycleState,
     pub substate: LifecycleSubstate,
@@ -110,7 +112,7 @@ pub struct HsmResumeResponse {
     pub blockers: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HsmMachine {
     pub current: LifecycleNode,
     pub last_valid_checkpoint: String,
@@ -130,7 +132,11 @@ impl Default for HsmMachine {
 }
 
 pub fn checkpoint_marker(node: LifecycleNode) -> String {
-    format!("{}:{}:advanced", node.state.as_str(), node.substate.as_str())
+    format!(
+        "{}:{}:advanced",
+        node.state.as_str(),
+        node.substate.as_str()
+    )
 }
 
 pub fn parse_checkpoint_marker(marker: &str) -> Option<LifecycleNode> {
@@ -144,7 +150,11 @@ pub fn parse_checkpoint_marker(marker: &str) -> Option<LifecycleNode> {
     parse_node(state, substate)
 }
 
-pub fn resume_response(node: LifecycleNode, resumed: bool, mut blockers: Vec<String>) -> HsmResumeResponse {
+pub fn resume_response(
+    node: LifecycleNode,
+    resumed: bool,
+    mut blockers: Vec<String>,
+) -> HsmResumeResponse {
     blockers.sort();
     blockers.dedup();
     HsmResumeResponse {
@@ -195,7 +205,10 @@ pub fn next_hint_for(node: LifecycleNode) -> String {
     .to_string()
 }
 
-pub fn transition_blocked_response(current: LifecycleNode, requested: LifecycleNode) -> HsmTransitionResponse {
+pub fn transition_blocked_response(
+    current: LifecycleNode,
+    requested: LifecycleNode,
+) -> HsmTransitionResponse {
     let mut transition_evidence = vec![
         format!("from={}", current.token()),
         format!("to={}", requested.token()),
@@ -212,7 +225,11 @@ pub fn transition_blocked_response(current: LifecycleNode, requested: LifecycleN
         status: "blocked".to_string(),
         guard_reason: Some("invalid_transition".to_string()),
         transition_evidence,
-        state_marker: format!("{}:{}:blocked", current.state.as_str(), current.substate.as_str()),
+        state_marker: format!(
+            "{}:{}:blocked",
+            current.state.as_str(),
+            current.substate.as_str()
+        ),
     }
 }
 

@@ -3,8 +3,9 @@ use std::path::Path;
 
 use crate::journal::{append_entries, JournalTransaction};
 use crate::workbook::{materialize_tx_projection, TxProjectionRow};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TransactionInput {
     pub account_id: String,
     pub date: String,
@@ -13,13 +14,13 @@ pub struct TransactionInput {
     pub source_ref: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IngestedTransaction {
     pub tx_id: String,
     pub source_ref: String,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct IngestedLedger {
     seen: BTreeSet<String>,
     projection_rows: Vec<TxProjectionRow>,

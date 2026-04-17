@@ -1,3 +1,5 @@
+mod common;
+
 use std::collections::BTreeMap;
 
 use ledgerr_mcp::{
@@ -7,13 +9,10 @@ use ledgerr_mcp::{
 use tempfile::tempdir;
 
 fn service() -> TurboLedgerService {
-    let manifest = r#"
-[session]
-workbook_path = "tax-ledger.xlsx"
-active_year = 2023
-"#;
+    let manifest =
+        common::manifest_for_workbook(&common::unique_workbook_path("ontology-contract"), 2023);
 
-    TurboLedgerService::from_manifest_str(manifest).expect("manifest should parse")
+    TurboLedgerService::from_manifest_str(&manifest).expect("manifest should parse")
 }
 
 // ONTO-01 (D-02, D-03, D-04): valid ontology entities and edges persist with stable content-hash IDs.

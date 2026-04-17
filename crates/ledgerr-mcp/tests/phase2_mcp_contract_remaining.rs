@@ -1,12 +1,14 @@
+mod common;
+
 use ledger_core::ingest::TransactionInput;
 use ledgerr_mcp::{GetRawContextRequest, IngestPdfRequest, TurboLedgerService, TurboLedgerTools};
 
 #[test]
 fn mcp_01_ingest_pdf_returns_deterministic_tx_ids_from_real_ingest() {
-    let service = TurboLedgerService::from_manifest_str(
-        "[session]\nworkbook_path=\"tax-ledger.xlsx\"\nactive_year=2023\n",
-    )
-    .unwrap();
+    let workbook_path = common::unique_workbook_path("phase2-contract");
+    let service =
+        TurboLedgerService::from_manifest_str(&common::manifest_for_workbook(&workbook_path, 2023))
+            .unwrap();
 
     let dir = tempfile::tempdir().unwrap();
     let response = service
@@ -31,10 +33,10 @@ fn mcp_01_ingest_pdf_returns_deterministic_tx_ids_from_real_ingest() {
 
 #[test]
 fn mcp_05_get_raw_context_returns_stored_rkyv_bytes() {
-    let service = TurboLedgerService::from_manifest_str(
-        "[session]\nworkbook_path=\"tax-ledger.xlsx\"\nactive_year=2023\n",
-    )
-    .unwrap();
+    let workbook_path = common::unique_workbook_path("phase2-raw-context");
+    let service =
+        TurboLedgerService::from_manifest_str(&common::manifest_for_workbook(&workbook_path, 2023))
+            .unwrap();
 
     let dir = tempfile::tempdir().unwrap();
     let rkyv = dir.path().join("ctx.rkyv");
