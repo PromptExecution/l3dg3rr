@@ -2,6 +2,36 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.4.0 - 2026-04-17
+#### Features
+- (**plugin-info**) add l3dg3rr_plugin_info MCP tool with Windows self-update - (16d070c) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+- reconcile document inventory queue onto 7-tool contract architecture - (59dd2cf) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+- add document inventory queue - (0dcd8f2) - Claude Sonnet (coordinator)
+- persist mcp operational state across restart - (e2fe9c7) - Claude Sonnet (coordinator)
+- honor workbook export contract - (d130226) - Claude Sonnet (coordinator)
+- generate mcp contract artifacts from rust - (764b3c9) - Claude Sonnet (coordinator)
+#### Bug Fixes
+- (**ci**) resolve clippy errors and warnings blocking CI - (1595d6e) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+- (**docker**) copy docs and scripts into builder so contract tests can read generated artifacts - (5b6f7d7) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+- (**docker**) copy docs and scripts into builder so contract tests can read generated artifacts - (cb1e080) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+- (**docker**) copy docs and scripts into builder so contract tests can read generated artifacts - (0d3beeb) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+- (**docker**) copy docs and scripts into builder so contract tests can read generated artifacts - (9165d81) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+- (**mcp**) BUG-003 — replace invalid "type":"json" content blocks with "type":"text" - (7ca1a73) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+- atomic persist write, valid bash/JSON in demo script, repo-relative doc links - (cc1c26b) - copilot-swe-agent[bot], *elasticdotventures*
+- address PR review feedback - schema enum, mutex scope, and doc path - (290dcb1) - copilot-swe-agent[bot], *elasticdotventures*
+- resolve generated contract ci drift - (b23efe5) - Claude Sonnet (coordinator)
+#### Documentation
+- (**claude**) document required dev tools and release workflow - (9915584) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+#### Tests
+- (**plugin-info**) add MCP e2e tests for l3dg3rr_plugin_info tool - (d4c8e59) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+#### Refactoring
+- collapse mcp surface to ledgerr tools - (5472ead) - Claude Sonnet (coordinator)
+#### Miscellaneous Chores
+- (**cog**) add pre_bump_hook to keep Cargo.toml version in sync - (8b74749) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+- (**version**) bump workspace version to 1.3.7 to match release tags - (6fd8115) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+
+- - -
+
 ## v1.3.8 - 2026-04-17
 #### Bug Fixes
 - (**mcp**) fix BUG-003 (P0): all 27 tool handlers returned `"type": "json"` content blocks, which is not a valid MCP 2025-11-25 content type and causes Zod validation failures in spec-compliant clients; converted every content block to `"type": "text"` with payload serialized as a JSON string; added `text_content()` private helper to centralise the pattern; added `handle_pipeline_status()` handler to eliminate the one remaining hand-rolled response in the server binary - (cbde62d) - Claude Sonnet (coordinator)

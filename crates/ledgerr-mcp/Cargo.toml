@@ -6,7 +6,7 @@ license.workspace = true
 
 [dependencies]
 blake3 = "1.8.3"
-ledger-core = { version = "=1.3.7", path = "../ledger-core" }
+ledger-core = { version = "=1.4.0", path = "../ledger-core" }
 rust_decimal = { version = "1.41.0", features = ["serde"] }
 rust_xlsxwriter = { workspace = true }
 schemars = { version = "0.8", features = ["derive"] }
