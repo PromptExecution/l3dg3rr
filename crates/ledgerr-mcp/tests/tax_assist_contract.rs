@@ -1,3 +1,5 @@
+mod common;
+
 use std::collections::BTreeMap;
 
 use ledgerr_mcp::{
@@ -7,10 +9,9 @@ use ledgerr_mcp::{
 };
 
 fn service() -> TurboLedgerService {
-    TurboLedgerService::from_manifest_str(
-        "[session]\nworkbook_path=\"tax-ledger.xlsx\"\nactive_year=2023\n",
-    )
-    .expect("manifest")
+    let workbook_path = common::unique_workbook_path("tax-assist");
+    TurboLedgerService::from_manifest_str(&common::manifest_for_workbook(&workbook_path, 2023))
+        .expect("manifest")
 }
 
 fn seed_tax_ontology(

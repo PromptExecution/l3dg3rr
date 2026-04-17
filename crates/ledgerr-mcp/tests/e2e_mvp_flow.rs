@@ -1,3 +1,5 @@
+mod common;
+
 use ledger_core::ingest::TransactionInput;
 use ledgerr_mcp::{
     ClassifyTransactionRequest, FlagStatusRequest, GetScheduleSummaryRequest, IngestPdfRequest,
@@ -6,10 +8,9 @@ use ledgerr_mcp::{
 };
 
 fn service() -> TurboLedgerService {
-    TurboLedgerService::from_manifest_str(
-        "[session]\nworkbook_path=\"tax-ledger.xlsx\"\nactive_year=2023\n",
-    )
-    .expect("manifest")
+    let workbook_path = common::unique_workbook_path("e2e-mvp");
+    TurboLedgerService::from_manifest_str(&common::manifest_for_workbook(&workbook_path, 2023))
+        .expect("manifest")
 }
 
 #[test]

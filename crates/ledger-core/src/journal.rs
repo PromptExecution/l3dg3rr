@@ -75,4 +75,3 @@ fn invert_amount(amount: &str) -> String {
         format!("-{}", trimmed)
     }
 }
-

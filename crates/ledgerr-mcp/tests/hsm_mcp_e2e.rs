@@ -1,3 +1,5 @@
+mod common;
+
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
@@ -18,6 +20,10 @@ impl McpStdioClient {
     fn spawn() -> Self {
         let server_bin = env!("CARGO_BIN_EXE_ledgerr-mcp-server");
         let mut child = Command::new(server_bin)
+            .env(
+                "LEDGERR_MCP_MANIFEST",
+                common::stdio_test_manifest("hsm-mcp"),
+            )
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -92,7 +98,6 @@ fn initialize_client(client: &mut McpStdioClient) {
     );
     client.send_notification_initialized();
 }
-
 
 fn parse_response_payload(response: &serde_json::Value) -> serde_json::Value {
     let text = response["content"][0]["text"].as_str().unwrap_or("null");

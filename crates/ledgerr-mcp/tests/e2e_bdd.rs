@@ -1,12 +1,13 @@
+mod common;
+
 use calamine::Reader;
 use ledger_core::ingest::TransactionInput;
 use ledgerr_mcp::{GetRawContextRequest, IngestPdfRequest, TurboLedgerService, TurboLedgerTools};
 
 fn service() -> TurboLedgerService {
-    TurboLedgerService::from_manifest_str(
-        "[session]\nworkbook_path=\"tax-ledger.xlsx\"\nactive_year=2023\n",
-    )
-    .expect("manifest should parse")
+    let workbook_path = common::unique_workbook_path("e2e-bdd");
+    TurboLedgerService::from_manifest_str(&common::manifest_for_workbook(&workbook_path, 2023))
+        .expect("manifest should parse")
 }
 
 #[test]

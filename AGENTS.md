@@ -249,6 +249,10 @@ Treat this as a standing operational gate, not a one-time migration task.
   - Treat `ledger_core::workbook::REQUIRED_SHEETS` as the canonical base workbook contract for export paths.
   - `export_cpa_workbook` should rebuild the full workbook from canonical service state on each export, including `META.config`, `ACCT.registry`, schedule sheets, flag sheets, transaction sheets, and `AUDIT.log`.
   - Tests should assert representative workbook contents, not just that a file was written.
+- 2026-04-17: restart-visible MCP operational state now persists as a deterministic sidecar next to the manifest workbook path.
+  - Persist ingest idempotency state, transaction row cache, audit log, lifecycle event history, and HSM checkpoint together as one snapshot.
+  - Keep the workbook as the human/accountant artifact; do not overload it as the only machine recovery mechanism for agent queues and replay state.
+  - If the sidecar exists but cannot be parsed or its version is unsupported, fail closed instead of silently resetting state.
 
 
 

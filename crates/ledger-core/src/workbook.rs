@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use rust_xlsxwriter::Workbook;
+use serde::{Deserialize, Serialize};
 
 pub const REQUIRED_SHEETS: &[&str] = &[
     "META.config",
@@ -23,7 +24,7 @@ pub fn initialize_workbook(path: &Path) -> Result<(), rust_xlsxwriter::XlsxError
     workbook.save(path)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TxProjectionRow {
     pub tx_id: String,
     pub account_id: String,

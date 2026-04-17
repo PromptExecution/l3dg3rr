@@ -1,3 +1,5 @@
+mod common;
+
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
@@ -21,6 +23,10 @@ impl McpStdioClient {
     fn spawn() -> Self {
         let server_bin = env!("CARGO_BIN_EXE_ledgerr-mcp-server");
         let mut child = Command::new(server_bin)
+            .env(
+                "LEDGERR_MCP_MANIFEST",
+                common::stdio_test_manifest("plugin-info-mcp"),
+            )
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())

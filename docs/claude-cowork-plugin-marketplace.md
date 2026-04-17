@@ -9,14 +9,14 @@ This repo now includes a Claude plugin marketplace and a plugin entry intended f
 
 ## Key files
 
-- Marketplace catalog: [marketplace.json](/home/brianh/promptexecution/mbse/l3dg3rr/.claude-plugin/marketplace.json)
-- Plugin manifest: [plugin.json](/home/brianh/promptexecution/mbse/l3dg3rr/plugins/l3dg3rr-plugin-create/.claude-plugin/plugin.json)
-- Plugin skill: [SKILL.md](/home/brianh/promptexecution/mbse/l3dg3rr/plugins/l3dg3rr-plugin-create/skills/plugin-create-for-l3dg3rr/SKILL.md)
+- Marketplace catalog: [marketplace.json](.claude-plugin/marketplace.json)
+- Plugin manifest: [plugin.json](plugins/l3dg3rr-plugin-create/.claude-plugin/plugin.json)
+- Plugin skill: [SKILL.md](plugins/l3dg3rr-plugin-create/skills/plugin-create-for-l3dg3rr/SKILL.md)
 - MCP server entrypoint: [ledgerr-mcp-server.rs](crates/ledgerr-mcp/src/bin/ledgerr-mcp-server.rs)
-- Runtime helper commands: [Justfile](/home/brianh/promptexecution/mbse/l3dg3rr/Justfile)
-- MCP regression script: [mcp_e2e.sh](/home/brianh/promptexecution/mbse/l3dg3rr/scripts/mcp_e2e.sh)
-- Container build: [Dockerfile](/home/brianh/promptexecution/mbse/l3dg3rr/Dockerfile)
-- Python launcher package: [pyproject.toml](/home/brianh/promptexecution/mbse/l3dg3rr/plugins/l3dg3rr-plugin-create/python/pyproject.toml)
+- Runtime helper commands: [Justfile](Justfile)
+- MCP regression script: [mcp_e2e.sh](scripts/mcp_e2e.sh)
+- Container build: [Dockerfile](Dockerfile)
+- Python launcher package: [pyproject.toml](plugins/l3dg3rr-plugin-create/python/pyproject.toml)
 
 ## Install in Cowork
 

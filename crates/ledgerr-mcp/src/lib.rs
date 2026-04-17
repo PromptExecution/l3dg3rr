@@ -10,6 +10,7 @@ use ledger_core::manifest::Manifest;
 use ledger_core::workbook::REQUIRED_SHEETS;
 use rust_decimal::Decimal;
 use rust_xlsxwriter::Workbook;
+use serde::{Deserialize, Serialize};
 
 pub mod contract;
 pub mod events;
@@ -327,13 +328,13 @@ pub trait TurboLedgerTools {
     ) -> Result<GetScheduleSummaryResponse, ToolError>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct StoredClassification {
     category: String,
     confidence: Decimal,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct AuditEntry {
     timestamp: String,
     actor: String,
@@ -344,12 +345,35 @@ struct AuditEntry {
     note: Option<String>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct ClassificationState {
     tx_rows: BTreeMap<String, TransactionInput>,
     classifications: BTreeMap<String, StoredClassification>,
     audit_log: Vec<AuditEntry>,
     engine: ClassificationEngine,
+}
+
+const PERSISTED_STATE_VERSION: u32 = 1;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PersistedServiceState {
+    version: u32,
+    ingest_state: IngestedLedger,
+    classification_state: ClassificationState,
+    lifecycle_events: InMemoryLifecycleEventStore,
+    hsm_state: HsmMachine,
+}
+
+impl Default for PersistedServiceState {
+    fn default() -> Self {
+        Self {
+            version: PERSISTED_STATE_VERSION,
+            ingest_state: IngestedLedger::default(),
+            classification_state: ClassificationState::default(),
+            lifecycle_events: InMemoryLifecycleEventStore::default(),
+            hsm_state: HsmMachine::default(),
+        }
+    }
 }
 
 pub struct TurboLedgerService {
@@ -363,17 +387,61 @@ pub struct TurboLedgerService {
 impl TurboLedgerService {
     pub fn from_manifest_str(src: &str) -> Result<Self, ToolError> {
         let manifest = Manifest::parse(src).map_err(|e| ToolError::InvalidInput(e.to_string()))?;
+        let persisted =
+            load_persisted_state(std::path::Path::new(&manifest.session.workbook_path))?;
         Ok(Self {
             manifest,
-            ingest_state: Mutex::new(IngestedLedger::default()),
-            classification_state: Mutex::new(ClassificationState::default()),
-            lifecycle_events: Mutex::new(InMemoryLifecycleEventStore::default()),
-            hsm_state: Mutex::new(HsmMachine::default()),
+            ingest_state: Mutex::new(persisted.ingest_state),
+            classification_state: Mutex::new(persisted.classification_state),
+            lifecycle_events: Mutex::new(persisted.lifecycle_events),
+            hsm_state: Mutex::new(persisted.hsm_state),
         })
     }
 
     pub fn workbook_path(&self) -> &std::path::Path {
         std::path::Path::new(&self.manifest.session.workbook_path)
+    }
+
+    fn state_sidecar_path(&self) -> PathBuf {
+        persisted_state_path(self.workbook_path())
+    }
+
+    fn snapshot_persisted_state(&self) -> Result<PersistedServiceState, ToolError> {
+        // Persist all restart-visible state as one snapshot so idempotency, audit,
+        // lifecycle replay, and HSM resume move together. Partial silent resets would
+        // be worse than a hard failure in this accountant-facing workflow.
+        let ingest_state = self
+            .ingest_state
+            .lock()
+            .map_err(|_| ToolError::Internal("ingest lock poisoned".to_string()))?
+            .clone();
+        let classification_state = self
+            .classification_state
+            .lock()
+            .map_err(|_| ToolError::Internal("classification lock poisoned".to_string()))?
+            .clone();
+        let lifecycle_events = self
+            .lifecycle_events
+            .lock()
+            .map_err(|_| ToolError::Internal("events lock poisoned".to_string()))?
+            .clone();
+        let hsm_state = self
+            .hsm_state
+            .lock()
+            .map_err(|_| ToolError::Internal("hsm lock poisoned".to_string()))?
+            .clone();
+        Ok(PersistedServiceState {
+            version: PERSISTED_STATE_VERSION,
+            ingest_state,
+            classification_state,
+            lifecycle_events,
+            hsm_state,
+        })
+    }
+
+    fn persist_state(&self) -> Result<(), ToolError> {
+        let snapshot = self.snapshot_persisted_state()?;
+        persist_state_to_path(&self.state_sidecar_path(), &snapshot)
     }
 
     pub fn list_accounts_tool(
@@ -487,7 +555,10 @@ impl TurboLedgerService {
         if hsm::allowed_next_node(current) == Some(requested) {
             hsm.current = requested;
             hsm.last_valid_checkpoint = hsm::checkpoint_marker(requested);
-            return Ok(hsm::transition_advanced_response(requested));
+            let response = hsm::transition_advanced_response(requested);
+            drop(hsm);
+            self.persist_state()?;
+            return Ok(response);
         }
 
         Ok(hsm::transition_blocked_response(current, requested))
@@ -529,7 +600,10 @@ impl TurboLedgerService {
         }
 
         hsm.current = resume_node;
-        Ok(hsm::resume_response(hsm.current, true, Vec::new()))
+        let response = hsm::resume_response(hsm.current, true, Vec::new());
+        drop(hsm);
+        self.persist_state()?;
+        Ok(response)
     }
 
     pub fn adjust_transaction(
@@ -849,6 +923,7 @@ impl TurboLedgerService {
             Some(tx_row.source_ref.clone()),
             payload,
         )?;
+        self.persist_state()?;
 
         Ok(response)
     }
@@ -920,6 +995,7 @@ impl TurboLedgerTools for TurboLedgerService {
                 payload,
             )?;
         }
+        self.persist_state()?;
 
         let tx_ids = inserted
             .iter()
@@ -1128,6 +1204,8 @@ impl TurboLedgerTools for TurboLedgerService {
                 reason: c.reason,
             });
         }
+        drop(classification);
+        self.persist_state()?;
 
         Ok(ClassifyIngestedResponse {
             classifications: results,
@@ -1541,6 +1619,79 @@ fn now_timestamp() -> String {
         Ok(d) => format!("{}", d.as_secs()),
         Err(_) => "0".to_string(),
     }
+}
+
+fn persisted_state_path(workbook_path: &std::path::Path) -> PathBuf {
+    PathBuf::from(format!("{}.ledgerr-state.json", workbook_path.display()))
+}
+
+fn load_persisted_state(
+    workbook_path: &std::path::Path,
+) -> Result<PersistedServiceState, ToolError> {
+    let sidecar_path = persisted_state_path(workbook_path);
+    if !sidecar_path.exists() {
+        return Ok(PersistedServiceState::default());
+    }
+
+    let bytes = std::fs::read(&sidecar_path).map_err(|e| {
+        ToolError::Internal(format!(
+            "failed to read persisted state '{}': {e}",
+            sidecar_path.display()
+        ))
+    })?;
+    let state: PersistedServiceState = serde_json::from_slice(&bytes).map_err(|e| {
+        ToolError::Internal(format!(
+            "failed to parse persisted state '{}': {e}",
+            sidecar_path.display()
+        ))
+    })?;
+    if state.version != PERSISTED_STATE_VERSION {
+        return Err(ToolError::Internal(format!(
+            "unsupported persisted state version {} in '{}'",
+            state.version,
+            sidecar_path.display()
+        )));
+    }
+    Ok(state)
+}
+
+fn persist_state_to_path(
+    sidecar_path: &std::path::Path,
+    state: &PersistedServiceState,
+) -> Result<(), ToolError> {
+    if let Some(parent) = sidecar_path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            ToolError::Internal(format!(
+                "failed to create persisted state directory '{}': {e}",
+                parent.display()
+            ))
+        })?;
+    }
+    let bytes = serde_json::to_vec_pretty(state)
+        .map_err(|e| ToolError::Internal(format!("failed to serialize persisted state: {e}")))?;
+    // Write to a sibling temp file first, then rename atomically so a mid-write
+    // crash never leaves a truncated/corrupt sidecar that causes startup to fail closed.
+    let tmp_path: std::path::PathBuf = {
+        let mut tmp_os_string = sidecar_path.as_os_str().to_os_string();
+        tmp_os_string.push(".tmp");
+        tmp_os_string.into()
+    };
+    std::fs::write(&tmp_path, &bytes).map_err(|e| {
+        ToolError::Internal(format!(
+            "failed to write persisted state temp file '{}': {e}",
+            tmp_path.display()
+        ))
+    })?;
+    std::fs::rename(&tmp_path, sidecar_path).map_err(|e| {
+        ToolError::Internal(format!(
+            "failed to rename persisted state '{}' to '{}': {e}",
+            tmp_path.display(),
+            sidecar_path.display()
+        ))
+    })
 }
 
 fn to_audit_response(entry: AuditEntry) -> AuditEntryResponse {
