@@ -2582,9 +2582,18 @@ impl TurboLedgerService {
         // Sanitize each component to remove path separators and traversal sequences.
         fn sanitize_component(s: &str) -> Result<String, ToolError> {
             let trimmed = s.trim();
-            if trimmed.contains('/') || trimmed.contains('\\') || trimmed.contains("..") {
+            // Reject any path separator characters or ParentDir components.
+            if trimmed.contains('/') || trimmed.contains('\\') {
                 return Err(ToolError::InvalidInput(format!(
-                    "filename component '{trimmed}' contains unsafe characters"
+                    "filename component '{trimmed}' contains path separator characters"
+                )));
+            }
+            if std::path::Path::new(trimmed)
+                .components()
+                .any(|c| c == std::path::Component::ParentDir)
+            {
+                return Err(ToolError::InvalidInput(format!(
+                    "filename component '{trimmed}' contains path traversal sequences"
                 )));
             }
             Ok(trimmed.to_ascii_uppercase())

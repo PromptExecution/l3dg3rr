@@ -41,20 +41,20 @@ impl Tag {
     }
 
     fn sanitize_body(body: &str) -> String {
-        let mut sanitized = String::new();
+        let mut builder = String::new();
         let mut last_was_hyphen = false;
 
         for c in body.trim().chars() {
             if c.is_ascii_alphanumeric() {
-                sanitized.push(c.to_ascii_lowercase());
+                builder.push(c.to_ascii_lowercase());
                 last_was_hyphen = false;
-            } else if !sanitized.is_empty() && !last_was_hyphen {
-                sanitized.push('-');
+            } else if !builder.is_empty() && !last_was_hyphen {
+                builder.push('-');
                 last_was_hyphen = true;
             }
         }
 
-        let sanitized = sanitized.trim_matches('-').to_string();
+        let sanitized = builder.trim_matches('-').to_string();
         if sanitized.is_empty() {
             "tag".to_string()
         } else {
