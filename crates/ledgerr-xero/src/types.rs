@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct XeroContact {
-    pub contact_i_d: String,
+    #[serde(rename = "ContactID")]
+    pub contact_id: String,
     pub name: String,
     #[serde(default)]
     pub email_address: Option<String>,
@@ -24,7 +25,7 @@ pub struct XeroContact {
 
 impl XeroContact {
     pub fn id(&self) -> &str {
-        &self.contact_i_d
+        &self.contact_id
     }
 }
 
@@ -39,7 +40,8 @@ pub(crate) struct ContactsResponse {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct XeroAccount {
-    pub account_i_d: String,
+    #[serde(rename = "AccountID")]
+    pub account_id: String,
     pub code: Option<String>,
     pub name: String,
     #[serde(rename = "Type")]
@@ -52,7 +54,7 @@ pub struct XeroAccount {
 
 impl XeroAccount {
     pub fn id(&self) -> &str {
-        &self.account_i_d
+        &self.account_id
     }
 }
 
@@ -67,7 +69,8 @@ pub(crate) struct AccountsResponse {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct XeroBankAccount {
-    pub account_i_d: String,
+    #[serde(rename = "AccountID")]
+    pub account_id: String,
     pub name: String,
     pub bank_account_number: Option<String>,
     pub bank_account_type: Option<String>,
@@ -77,7 +80,7 @@ pub struct XeroBankAccount {
 
 impl XeroBankAccount {
     pub fn id(&self) -> &str {
-        &self.account_i_d
+        &self.account_id
     }
 }
 
@@ -86,7 +89,8 @@ impl XeroBankAccount {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct XeroInvoice {
-    pub invoice_i_d: String,
+    #[serde(rename = "InvoiceID")]
+    pub invoice_id: String,
     #[serde(default)]
     pub invoice_number: Option<String>,
     pub contact: XeroContactRef,
@@ -103,14 +107,15 @@ pub struct XeroInvoice {
 
 impl XeroInvoice {
     pub fn id(&self) -> &str {
-        &self.invoice_i_d
+        &self.invoice_id
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct XeroContactRef {
-    pub contact_i_d: String,
+    #[serde(rename = "ContactID")]
+    pub contact_id: String,
     #[serde(default)]
     pub name: Option<String>,
 }
@@ -142,7 +147,7 @@ impl From<&XeroContact> for XeroEntityRef {
     fn from(c: &XeroContact) -> Self {
         Self {
             entity_type: "contact".into(),
-            xero_id: c.contact_i_d.clone(),
+            xero_id: c.contact_id.clone(),
             display_name: c.name.clone(),
         }
     }
@@ -152,7 +157,7 @@ impl From<&XeroBankAccount> for XeroEntityRef {
     fn from(b: &XeroBankAccount) -> Self {
         Self {
             entity_type: "bank_account".into(),
-            xero_id: b.account_i_d.clone(),
+            xero_id: b.account_id.clone(),
             display_name: b.name.clone(),
         }
     }
@@ -162,7 +167,7 @@ impl From<&XeroAccount> for XeroEntityRef {
     fn from(a: &XeroAccount) -> Self {
         Self {
             entity_type: "account".into(),
-            xero_id: a.account_i_d.clone(),
+            xero_id: a.account_id.clone(),
             display_name: a.name.clone(),
         }
     }

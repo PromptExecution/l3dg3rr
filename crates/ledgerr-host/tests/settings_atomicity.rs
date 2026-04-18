@@ -16,9 +16,11 @@ fn atomic_save_replaces_old_file_without_partial_contents() {
     let store = SettingsStore::new(path.clone());
     store.save(&AppSettings::default()).unwrap();
 
-    let mut updated = AppSettings::default();
-    updated.toast_enabled = false;
-    updated.start_minimized_to_tray = true;
+    let updated = AppSettings {
+        toast_enabled: false,
+        start_minimized_to_tray: true,
+        ..AppSettings::default()
+    };
     store.save(&updated).unwrap();
 
     let raw = std::fs::read_to_string(path).unwrap();

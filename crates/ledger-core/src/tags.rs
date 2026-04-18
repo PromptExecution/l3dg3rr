@@ -40,14 +40,40 @@ impl Tag {
         Ok(Self(format!("#{normalized}")))
     }
 
+    fn sanitize_body(body: &str) -> String {
+        let mut sanitized = String::new();
+        let mut last_was_hyphen = false;
+
+        for c in body.trim().chars() {
+            if c.is_ascii_alphanumeric() {
+                sanitized.push(c.to_ascii_lowercase());
+                last_was_hyphen = false;
+            } else if !sanitized.is_empty() && !last_was_hyphen {
+                sanitized.push('-');
+                last_was_hyphen = true;
+            }
+        }
+
+        let sanitized = sanitized.trim_matches('-').to_string();
+        if sanitized.is_empty() {
+            "tag".to_string()
+        } else {
+            sanitized
+        }
+    }
+
     /// Infallible parse that prefixes '#' if missing and normalizes.
     pub fn normalize(raw: &str) -> Self {
-        let s = if raw.starts_with('#') {
-            raw.to_string()
+        let s = raw.trim();
+        let s = if s.starts_with('#') {
+            s.to_string()
         } else {
-            format!("#{raw}")
+            format!("#{s}")
         };
-        Self::new(&s).unwrap_or_else(|_| Self(s.to_ascii_lowercase()))
+        Self::new(&s).unwrap_or_else(|_| {
+            let body = s.strip_prefix('#').unwrap_or(&s);
+            Self(format!("#{}", Self::sanitize_body(body)))
+        })
     }
 
     pub fn as_str(&self) -> &str {

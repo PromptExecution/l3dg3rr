@@ -210,30 +210,36 @@ fn handle_command(
             Ok(false)
         }
         TrayCommand::TestToast => {
-            let settings = store.load()?;
+            let mut settings = store.load()?;
+            let backend = settings.toast_backend_preference;
             let notify_settings = NotificationSettings {
                 enabled: settings.toast_enabled,
-                backend: settings.toast_backend_preference,
+                backend,
                 last_test_result: settings.last_test_result.clone(),
             };
-            let notifier = PowerShellBurntToastNotifier::new(notify_settings);
-            let result = notifier.test("l3dg3rr", "tray test toast");
 
-            let mut settings = settings;
             let mut state = state.lock().expect("tray state poisoned");
-            match result {
-                Ok(test_result) => {
-                    settings.last_test_result = Some(test_result);
-                    settings.toast_backend_preference = NotificationBackend::PowerShell;
-                    store.save(&settings)?;
-                    state.notification_status = if state.toast_enabled {
-                        crate::notify::NotificationStatus::Ready
-                    } else {
-                        crate::notify::NotificationStatus::Disabled
-                    };
+            match backend {
+                NotificationBackend::Noop => {
+                    state.notification_status = crate::notify::NotificationStatus::Disabled;
                 }
-                Err(_) => {
-                    state.notification_status = crate::notify::NotificationStatus::Failed;
+                NotificationBackend::PowerShell | NotificationBackend::Auto => {
+                    let notifier = PowerShellBurntToastNotifier::new(notify_settings);
+                    let result = notifier.test("l3dg3rr", "tray test toast");
+                    match result {
+                        Ok(test_result) => {
+                            settings.last_test_result = Some(test_result);
+                            store.save(&settings)?;
+                            state.notification_status = if state.toast_enabled {
+                                crate::notify::NotificationStatus::Ready
+                            } else {
+                                crate::notify::NotificationStatus::Disabled
+                            };
+                        }
+                        Err(_) => {
+                            state.notification_status = crate::notify::NotificationStatus::Failed;
+                        }
+                    }
                 }
             }
 

@@ -149,7 +149,7 @@ impl XeroAuth {
         let expires_at = Utc::now() + Duration::seconds(expires_in as i64);
 
         let (tenant_id, tenant_name) =
-            fetch_tenant_blocking(&resp.access_token, &http).unwrap_or_default();
+            fetch_tenant_blocking(&resp.access_token, &http)?;
 
         let tokens = XeroTokens {
             access_token: resp.access_token,

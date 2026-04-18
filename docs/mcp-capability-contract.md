@@ -4,7 +4,7 @@ This file is generated from `crates/ledgerr-mcp/src/contract.rs`.
 
 Rust code is the only source of truth for the published MCP surface. If this file drifts from the contract module, tests should fail.
 
-The default catalog is intentionally small: 7 top-level `ledgerr_*` tools. Each tool uses a required `action` field so the major capability families stay visible while related operations are grouped under one top-level command.
+The default catalog is intentionally small: 8 top-level `ledgerr_*` tools. Each tool uses a required `action` field so the major capability families stay visible while related operations are grouped under one top-level command.
 
 ## Published MCP Tools
 
@@ -33,7 +33,7 @@ Canonical trait:
 [TurboLedgerTools in crates/ledgerr-mcp/src/lib.rs](../crates/ledgerr-mcp/src/lib.rs#L289)
 
 Important distinction:
-- The MCP surface is the reduced 7-tool catalog defined in Rust.
+- The MCP surface is the 8-tool catalog defined in Rust.
 - The internal service trait remains more granular and implementation-oriented.
 
 API layering:
