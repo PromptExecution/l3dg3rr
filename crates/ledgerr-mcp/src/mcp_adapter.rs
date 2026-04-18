@@ -23,7 +23,7 @@ use crate::{
 
 pub use crate::contract::{
     AUDIT_TOOL, DOCUMENTS_TOOL, ONTOLOGY_TOOL, RECONCILIATION_TOOL, REVIEW_TOOL, TAX_TOOL,
-    WORKFLOW_TOOL,
+    WORKFLOW_TOOL, XERO_TOOL,
 };
 
 #[allow(clippy::vec_init_then_push)]
@@ -46,6 +46,8 @@ pub fn tool_names() -> Vec<String> {
     features.push("audit");
     #[cfg(feature = "tax")]
     features.push("tax");
+    #[cfg(feature = "xero")]
+    features.push("xero");
 
     if features.is_empty() {
         features.push("core");
@@ -75,6 +77,9 @@ pub fn tool_names_for(features: &[&str]) -> Vec<String> {
     }
     if features.contains(&"ontology") {
         tools.push(ONTOLOGY_TOOL.to_string());
+    }
+    if features.contains(&"xero") {
+        tools.push(XERO_TOOL.to_string());
     }
 
     tools.sort();
@@ -378,6 +383,146 @@ pub fn handle_documents_tool(service: &TurboLedgerService, arguments: &Value) ->
                 }),
             )
         }
+        DocumentsArgs::IngestImage {
+            image_path,
+            doc_type,
+            tags,
+            extract_with_llm,
+        } => {
+            use crate::{IngestImageRequest};
+            match service.ingest_image_tool(IngestImageRequest {
+                image_path,
+                doc_type,
+                tags,
+                extract_with_llm,
+            }) {
+                Ok(r) => json!({
+                    "content": [text_content(json!({
+                        "doc_id": r.doc_id,
+                        "file_name": r.file_name,
+                        "doc_type": r.doc_type,
+                        "tags": r.tags,
+                        "llm_extracted": r.llm_extracted,
+                    }))],
+                    "isError": false
+                }),
+                Err(e) => error_envelope(&e),
+            }
+        }
+        DocumentsArgs::ApplyTags { doc_ref, tags, sync_fs } => {
+            use crate::ApplyTagsRequest;
+            match service.apply_tags_tool(ApplyTagsRequest { doc_ref, tags, sync_fs }) {
+                Ok(r) => json!({
+                    "content": [text_content(json!({"doc_id": r.doc_id, "tags": r.tags}))],
+                    "isError": false
+                }),
+                Err(e) => error_envelope(&e),
+            }
+        }
+        DocumentsArgs::RemoveTags { doc_ref, tags, sync_fs } => {
+            use crate::ApplyTagsRequest;
+            match service.remove_tags_tool(ApplyTagsRequest { doc_ref, tags, sync_fs }) {
+                Ok(r) => json!({
+                    "content": [text_content(json!({"doc_id": r.doc_id, "tags": r.tags}))],
+                    "isError": false
+                }),
+                Err(e) => error_envelope(&e),
+            }
+        }
+        DocumentsArgs::ListTagged { tags, doc_type, directory } => {
+            use crate::ListTaggedRequest;
+            match service.list_tagged_tool(ListTaggedRequest { tags, doc_type, directory }) {
+                Ok(r) => json!({
+                    "content": [text_content(json!({
+                        "documents": r.documents.iter().map(|d| json!({
+                            "doc_id": d.doc_id,
+                            "file_name": d.file_name,
+                            "doc_type": d.doc_type,
+                            "tags": d.tags,
+                            "status": d.status,
+                        })).collect::<Vec<_>>(),
+                        "count": r.documents.len(),
+                    }))],
+                    "isError": false
+                }),
+                Err(e) => error_envelope(&e),
+            }
+        }
+        DocumentsArgs::SyncFsMetadata { directory, recursive } => {
+            use crate::SyncFsMetadataRequest;
+            match service.sync_fs_metadata_tool(SyncFsMetadataRequest { directory, recursive }) {
+                Ok(r) => json!({
+                    "content": [text_content(json!({
+                        "files_scanned": r.files_scanned,
+                        "files_synced": r.files_synced,
+                    }))],
+                    "isError": false
+                }),
+                Err(e) => error_envelope(&e),
+            }
+        }
+        DocumentsArgs::NormalizeFilename { file_path, vendor, account, year_month, doc_type, apply } => {
+            use crate::NormalizeFilenameRequest;
+            match service.normalize_filename_tool(NormalizeFilenameRequest {
+                file_path,
+                vendor,
+                account,
+                year_month,
+                doc_type,
+                apply,
+            }) {
+                Ok(r) => json!({
+                    "content": [text_content(json!({
+                        "proposed_name": r.proposed_name,
+                        "original_name": r.original_name,
+                        "renamed": r.renamed,
+                    }))],
+                    "isError": false
+                }),
+                Err(e) => error_envelope(&e),
+            }
+        }
+    }
+}
+
+pub fn handle_xero_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
+    use contract::{parse_xero, XeroArgs};
+
+    let request = match parse_xero(arguments) {
+        Ok(r) => r,
+        Err(e) => return error_envelope(&e),
+    };
+
+    let result: Result<serde_json::Value, crate::ToolError> = match request {
+        XeroArgs::GetAuthUrl => {
+            service.xero_get_auth_url().map(|url| json!({ "auth_url": url }))
+        }
+        XeroArgs::ExchangeCode { code, state } => {
+            service.xero_exchange_code(code, state)
+        }
+        XeroArgs::FetchContacts => service.xero_fetch_contacts(None),
+        XeroArgs::SearchContacts { query } => service.xero_fetch_contacts(Some(query.as_str())),
+        XeroArgs::FetchAccounts => service.xero_fetch_accounts(),
+        XeroArgs::FetchBankAccounts => service.xero_fetch_bank_accounts(),
+        XeroArgs::FetchInvoices { status } => {
+            service.xero_fetch_invoices(status.as_deref())
+        }
+        XeroArgs::LinkEntity {
+            local_id,
+            xero_entity_type,
+            xero_id,
+            display_name,
+            ontology_path,
+        } => service.xero_link_entity(local_id, xero_entity_type, xero_id, display_name, ontology_path),
+        XeroArgs::SyncCatalog { ontology_path } => service.xero_sync_catalog(ontology_path),
+    };
+
+    match result {
+        Ok(payload) => json!({
+            "content": [text_content(payload)],
+            "isError": false
+        }),
+        Err(e) => error_envelope(&e),
     }
 }
 

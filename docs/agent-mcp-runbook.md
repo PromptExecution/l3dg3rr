@@ -15,6 +15,7 @@ The default published surface is the reduced 7-tool catalog:
 - `ledgerr_audit`
 - `ledgerr_tax`
 - `ledgerr_ontology`
+- `ledgerr_xero`
 
 Each tool requires an `action` argument.
 

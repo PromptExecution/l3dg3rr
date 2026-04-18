@@ -4,13 +4,21 @@ use std::str::FromStr;
 use std::sync::Mutex;
 
 use ledger_core::classify::{ClassificationEngine, FlagStatus, SampleTransaction};
+use ledger_core::document::{DocType, DocumentRecord, DocumentStatus, XeroLink};
 use ledger_core::filename::{FilenameError, StatementFilename};
+use ledger_core::fs_meta::{FsMetadata, MetadataBackend, SidecarBackend};
 use ledger_core::ingest::{deterministic_tx_id, IngestedLedger, TransactionInput};
 use ledger_core::manifest::Manifest;
+use ledger_core::tags::{parse_tags, Tag};
 use ledger_core::workbook::REQUIRED_SHEETS;
 use rust_decimal::Decimal;
 use rust_xlsxwriter::Workbook;
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "xero")]
+use xero_service::XeroService;
+#[cfg(feature = "llm")]
+use ledgerr_llm::{LlmClient, LlmConfig};
 
 pub mod contract;
 pub mod events;
@@ -20,6 +28,7 @@ pub mod ontology;
 pub mod plugin_info;
 pub mod reconciliation;
 pub mod tax_assist;
+pub mod xero_service;
 pub use events::{
     AppendEventResult, EventHistoryFilter, EventHistoryResponse, InMemoryLifecycleEventStore,
     LifecycleEvent, LifecycleEventStore, ReplayProjection,
@@ -439,6 +448,12 @@ pub struct TurboLedgerService {
     classification_state: Mutex<ClassificationState>,
     lifecycle_events: Mutex<InMemoryLifecycleEventStore>,
     hsm_state: Mutex<HsmMachine>,
+    /// In-memory registry: doc_id → DocumentRecord. Persisted as a JSON sidecar.
+    document_registry: Mutex<BTreeMap<String, DocumentRecord>>,
+    #[cfg(feature = "xero")]
+    xero: XeroService,
+    #[cfg(feature = "llm")]
+    llm: Option<LlmClient>,
 }
 
 impl TurboLedgerService {
@@ -446,12 +461,41 @@ impl TurboLedgerService {
         let manifest = Manifest::parse(src).map_err(|e| ToolError::InvalidInput(e.to_string()))?;
         let persisted =
             load_persisted_state(std::path::Path::new(&manifest.session.workbook_path))?;
+
+        // Load document registry from sidecar if present.
+        let registry = load_document_registry(std::path::Path::new(&manifest.session.workbook_path));
+
+        #[cfg(feature = "xero")]
+        let xero = {
+            use ledgerr_xero::XeroConfig;
+            let token_path = std::path::Path::new(&manifest.session.workbook_path)
+                .with_extension("xero-tokens.json");
+            let config = XeroConfig {
+                client_id: std::env::var("XERO_CLIENT_ID").unwrap_or_default(),
+                client_secret: std::env::var("XERO_CLIENT_SECRET").unwrap_or_default(),
+                redirect_port: std::env::var("XERO_REDIRECT_PORT")
+                    .ok()
+                    .and_then(|p| p.parse().ok())
+                    .unwrap_or(8080),
+                scopes: Vec::new(),
+            };
+            XeroService::new(config, token_path)
+        };
+
+        #[cfg(feature = "llm")]
+        let llm = LlmClient::new(LlmConfig::from_env()).ok();
+
         Ok(Self {
             manifest,
             ingest_state: Mutex::new(persisted.ingest_state),
             classification_state: Mutex::new(persisted.classification_state),
             lifecycle_events: Mutex::new(persisted.lifecycle_events),
             hsm_state: Mutex::new(persisted.hsm_state),
+            document_registry: Mutex::new(registry),
+            #[cfg(feature = "xero")]
+            xero,
+            #[cfg(feature = "llm")]
+            llm,
         })
     }
 
@@ -2054,4 +2098,574 @@ fn build_schedule_summary_from_classification(
 
 fn decimal_to_f64(value: Decimal) -> f64 {
     value.to_string().parse::<f64>().unwrap_or(0.0)
+}
+
+// ── Document registry persistence ─────────────────────────────────────────────
+
+fn doc_registry_path(workbook: &std::path::Path) -> PathBuf {
+    workbook.with_extension("docs.json")
+}
+
+fn load_document_registry(workbook: &std::path::Path) -> BTreeMap<String, DocumentRecord> {
+    let path = doc_registry_path(workbook);
+    if !path.exists() {
+        return BTreeMap::new();
+    }
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_default()
+}
+
+fn save_document_registry(
+    workbook: &std::path::Path,
+    registry: &BTreeMap<String, DocumentRecord>,
+) -> Result<(), ToolError> {
+    let path = doc_registry_path(workbook);
+    let json =
+        serde_json::to_string_pretty(registry).map_err(|e| ToolError::Internal(e.to_string()))?;
+    std::fs::write(path, json).map_err(|e| ToolError::Internal(e.to_string()))
+}
+
+// ── New TurboLedgerService methods ────────────────────────────────────────────
+
+/// Request/response types for new FDKMS tools.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IngestImageRequest {
+    pub image_path: String,
+    pub doc_type: Option<String>,
+    pub tags: Vec<String>,
+    pub extract_with_llm: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IngestImageResponse {
+    pub doc_id: String,
+    pub file_name: String,
+    pub doc_type: String,
+    pub tags: Vec<String>,
+    pub llm_extracted: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplyTagsRequest {
+    pub doc_ref: String,
+    pub tags: Vec<String>,
+    pub sync_fs: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplyTagsResponse {
+    pub doc_id: String,
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListTaggedRequest {
+    pub tags: Vec<String>,
+    pub doc_type: Option<String>,
+    pub directory: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListTaggedResponse {
+    pub documents: Vec<DocumentSummary>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DocumentSummary {
+    pub doc_id: String,
+    pub file_name: String,
+    pub doc_type: String,
+    pub tags: Vec<String>,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SyncFsMetadataRequest {
+    pub directory: PathBuf,
+    pub recursive: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SyncFsMetadataResponse {
+    pub files_scanned: usize,
+    pub files_synced: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizeFilenameRequest {
+    pub file_path: String,
+    pub vendor: String,
+    pub account: String,
+    pub year_month: String,
+    pub doc_type: String,
+    pub apply: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizeFilenameResponse {
+    pub proposed_name: String,
+    pub original_name: String,
+    pub renamed: bool,
+}
+
+impl TurboLedgerService {
+    /// Ingest an image document, compute its blake3 ID, apply tags, optionally run LLM extraction.
+    pub fn ingest_image_tool(
+        &self,
+        request: IngestImageRequest,
+    ) -> Result<IngestImageResponse, ToolError> {
+        let path = std::path::Path::new(&request.image_path);
+        let bytes = std::fs::read(path).map_err(|e| ToolError::Internal(e.to_string()))?;
+        let doc_id = ledger_core::document::document_id_from_bytes(&bytes);
+        let doc_type = request
+            .doc_type
+            .as_deref()
+            .map(|s| match s {
+                "receipt" => DocType::Receipt,
+                "invoice" => DocType::Invoice,
+                "bank_statement" => DocType::BankStatement,
+                _ => DocType::from_path(path),
+            })
+            .unwrap_or_else(|| DocType::from_path(path));
+
+        let doc_type_str = format!("{doc_type:?}");
+        let (validated_tags, _) = parse_tags(&request.tags);
+
+        let mut record = DocumentRecord::new(doc_id.clone(), request.image_path.clone(), doc_type);
+        record.status = DocumentStatus::Indexed;
+
+        let mut llm_extracted = false;
+
+        // Apply tags (including auto-tag based on doc type).
+        for tag in &validated_tags {
+            record.add_tag(tag.clone());
+        }
+        if record.doc_type.is_image() && !request.tags.iter().any(|t| t.contains("receipt") || t.contains("invoice")) {
+            if let Ok(t) = Tag::new(ledger_core::tags::TAG_RECEIPT) {
+                record.add_tag(t);
+            }
+        }
+
+        // LLM extraction (requires llm feature).
+        #[cfg(feature = "llm")]
+        if request.extract_with_llm {
+            if let Some(llm) = &self.llm {
+                let mime = record.doc_type.mime_type();
+                if let Ok(extraction) = llm.extract_receipt_bytes(&bytes, mime) {
+                    if let Some(vendor) = &extraction.vendor_name {
+                        record.metadata.insert("vendor_name".into(), serde_json::Value::String(vendor.clone()));
+                    }
+                    if let Some(date) = &extraction.date {
+                        record.metadata.insert("date".into(), serde_json::Value::String(date.clone()));
+                    }
+                    if let Some(total) = extraction.total_amount {
+                        record.metadata.insert("total_amount".into(), serde_json::json!(total.to_string()));
+                    }
+                    for tag_str in &extraction.suggested_tags {
+                        if let Ok(t) = Tag::new(tag_str) {
+                            record.add_tag(t);
+                        }
+                    }
+                    llm_extracted = true;
+                    // Mark OCR complete.
+                    if let Ok(t) = Tag::new(ledger_core::tags::TAG_OCR_COMPLETE) {
+                        record.add_tag(t);
+                    }
+                }
+            }
+        }
+
+        // Write filesystem sidecar.
+        let fs_meta = FsMetadata {
+            doc_id: doc_id.clone(),
+            tags: record.tags.iter().map(|t| t.as_str().to_string()).collect(),
+            status: "indexed".into(),
+            indexed_at: Some(chrono::Utc::now().to_rfc3339()),
+            ..Default::default()
+        };
+        let _ = SidecarBackend.write(path, &fs_meta);
+
+        let tags_out: Vec<String> = record.tags.iter().map(|t| t.as_str().to_string()).collect();
+        let mut registry = self
+            .document_registry
+            .lock()
+            .map_err(|_| ToolError::Internal("document registry lock poisoned".into()))?;
+        registry.insert(doc_id.clone(), record);
+        let _ = save_document_registry(self.workbook_path(), &registry);
+
+        Ok(IngestImageResponse {
+            doc_id,
+            file_name: path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or_default()
+                .to_string(),
+            doc_type: doc_type_str,
+            tags: tags_out,
+            llm_extracted,
+        })
+    }
+
+    /// Apply tags to an existing document in the registry.
+    pub fn apply_tags_tool(
+        &self,
+        request: ApplyTagsRequest,
+    ) -> Result<ApplyTagsResponse, ToolError> {
+        let (new_tags, _) = parse_tags(&request.tags);
+        let mut registry = self
+            .document_registry
+            .lock()
+            .map_err(|_| ToolError::Internal("document registry lock poisoned".into()))?;
+
+        // Accept either a doc_id or a file path as doc_ref.
+        let doc_id = if registry.contains_key(&request.doc_ref) {
+            request.doc_ref.clone()
+        } else {
+            // Try to match by file_name.
+            registry
+                .iter()
+                .find(|(_, r)| r.file_path == request.doc_ref || r.file_name == request.doc_ref)
+                .map(|(id, _)| id.clone())
+                .ok_or_else(|| {
+                    ToolError::InvalidInput(format!("document not found: {}", request.doc_ref))
+                })?
+        };
+
+        let record = registry
+            .get_mut(&doc_id)
+            .ok_or_else(|| ToolError::Internal("registry inconsistency".into()))?;
+
+        for tag in &new_tags {
+            record.add_tag(tag.clone());
+        }
+
+        if request.sync_fs {
+            let fs_meta = FsMetadata {
+                doc_id: doc_id.clone(),
+                tags: record.tags.iter().map(|t| t.as_str().to_string()).collect(),
+                status: format!("{:?}", record.status).to_ascii_lowercase(),
+                ..Default::default()
+            };
+            let _ = SidecarBackend.write(std::path::Path::new(&record.file_path), &fs_meta);
+        }
+
+        let tags_out: Vec<String> = record.tags.iter().map(|t| t.as_str().to_string()).collect();
+        let _ = save_document_registry(self.workbook_path(), &registry);
+
+        Ok(ApplyTagsResponse { doc_id, tags: tags_out })
+    }
+
+    /// Remove tags from a document.
+    pub fn remove_tags_tool(
+        &self,
+        request: ApplyTagsRequest, // same shape; reuse
+    ) -> Result<ApplyTagsResponse, ToolError> {
+        let mut registry = self
+            .document_registry
+            .lock()
+            .map_err(|_| ToolError::Internal("document registry lock poisoned".into()))?;
+
+        let doc_id = if registry.contains_key(&request.doc_ref) {
+            request.doc_ref.clone()
+        } else {
+            registry
+                .iter()
+                .find(|(_, r)| r.file_path == request.doc_ref || r.file_name == request.doc_ref)
+                .map(|(id, _)| id.clone())
+                .ok_or_else(|| {
+                    ToolError::InvalidInput(format!("document not found: {}", request.doc_ref))
+                })?
+        };
+
+        let record = registry
+            .get_mut(&doc_id)
+            .ok_or_else(|| ToolError::Internal("registry inconsistency".into()))?;
+
+        for raw in &request.tags {
+            record.remove_tag(raw);
+        }
+
+        if request.sync_fs {
+            let fs_meta = FsMetadata {
+                doc_id: doc_id.clone(),
+                tags: record.tags.iter().map(|t| t.as_str().to_string()).collect(),
+                status: format!("{:?}", record.status).to_ascii_lowercase(),
+                ..Default::default()
+            };
+            let _ = SidecarBackend.write(std::path::Path::new(&record.file_path), &fs_meta);
+        }
+
+        let tags_out: Vec<String> = record.tags.iter().map(|t| t.as_str().to_string()).collect();
+        let _ = save_document_registry(self.workbook_path(), &registry);
+
+        Ok(ApplyTagsResponse { doc_id, tags: tags_out })
+    }
+
+    /// List documents matching all the given tags.
+    pub fn list_tagged_tool(
+        &self,
+        request: ListTaggedRequest,
+    ) -> Result<ListTaggedResponse, ToolError> {
+        let filter_tags: Vec<String> = request.tags.iter()
+            .map(|t| Tag::normalize(t).as_str().to_string())
+            .collect();
+
+        let registry = self
+            .document_registry
+            .lock()
+            .map_err(|_| ToolError::Internal("document registry lock poisoned".into()))?;
+
+        let documents: Vec<DocumentSummary> = registry
+            .values()
+            .filter(|r| {
+                let doc_tags: Vec<&str> = r.tags.iter().map(|t| t.as_str()).collect();
+                filter_tags.iter().all(|ft| doc_tags.contains(&ft.as_str()))
+            })
+            .filter(|r| {
+                request.doc_type.as_deref().map_or(true, |dt| {
+                    format!("{:?}", r.doc_type).to_ascii_lowercase().contains(dt)
+                })
+            })
+            .map(|r| DocumentSummary {
+                doc_id: r.doc_id.clone(),
+                file_name: r.file_name.clone(),
+                doc_type: format!("{:?}", r.doc_type),
+                tags: r.tags.iter().map(|t| t.as_str().to_string()).collect(),
+                status: format!("{:?}", r.status).to_ascii_lowercase(),
+            })
+            .collect();
+
+        Ok(ListTaggedResponse { documents })
+    }
+
+    /// Scan a directory for sidecar metadata and sync discovered docs into the registry.
+    pub fn sync_fs_metadata_tool(
+        &self,
+        request: SyncFsMetadataRequest,
+    ) -> Result<SyncFsMetadataResponse, ToolError> {
+        let found = ledger_core::fs_meta::scan_directory(&request.directory, request.recursive)
+            .map_err(|e| ToolError::Internal(e.to_string()))?;
+
+        let files_scanned = found.len();
+        let mut files_synced = 0usize;
+
+        let mut registry = self
+            .document_registry
+            .lock()
+            .map_err(|_| ToolError::Internal("document registry lock poisoned".into()))?;
+
+        for (path, meta) in found {
+            if meta.doc_id.is_empty() {
+                continue;
+            }
+            let doc_type = DocType::from_path(&path);
+            let (tags, _) = parse_tags(&meta.tags);
+            let mut record = DocumentRecord::new(
+                meta.doc_id.clone(),
+                path.to_string_lossy().to_string(),
+                doc_type,
+            );
+            record.tags = tags;
+            record.status = DocumentStatus::Indexed;
+            registry.insert(meta.doc_id.clone(), record);
+            files_synced += 1;
+        }
+
+        let _ = save_document_registry(self.workbook_path(), &registry);
+
+        Ok(SyncFsMetadataResponse { files_scanned, files_synced })
+    }
+
+    /// Propose (or apply) a normalized `VENDOR--ACCOUNT--YYYY-MM--DOCTYPE.ext` filename.
+    pub fn normalize_filename_tool(
+        &self,
+        request: NormalizeFilenameRequest,
+    ) -> Result<NormalizeFilenameResponse, ToolError> {
+        let path = std::path::Path::new(&request.file_path);
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("pdf");
+        let original_name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or_default()
+            .to_string();
+
+        let vendor = request.vendor.trim().to_ascii_uppercase();
+        let account = request.account.trim().to_ascii_uppercase();
+        let proposed_name = format!(
+            "{}--{}--{}--{}.{}",
+            vendor, account, request.year_month, request.doc_type, ext
+        );
+
+        let mut renamed = false;
+        if request.apply && path.exists() {
+            let new_path = path.with_file_name(&proposed_name);
+            std::fs::rename(path, &new_path)
+                .map_err(|e| ToolError::Internal(e.to_string()))?;
+            renamed = true;
+        }
+
+        Ok(NormalizeFilenameResponse {
+            proposed_name,
+            original_name,
+            renamed,
+        })
+    }
+
+    // ── Xero tool methods (delegated to XeroService) ──────────────────────────
+
+    #[cfg(feature = "xero")]
+    pub fn xero_get_auth_url(&self) -> Result<String, ToolError> {
+        self.xero.get_auth_url()
+    }
+
+    #[cfg(feature = "xero")]
+    pub fn xero_exchange_code(&self, code: String, state: String) -> Result<serde_json::Value, ToolError> {
+        self.xero.exchange_code(code, state)
+    }
+
+    #[cfg(feature = "xero")]
+    pub fn xero_fetch_contacts(&self, search: Option<&str>) -> Result<serde_json::Value, ToolError> {
+        let refs = self.xero.fetch_contacts(search)?;
+        serde_json::to_value(&refs).map_err(|e| ToolError::Internal(e.to_string()))
+    }
+
+    #[cfg(feature = "xero")]
+    pub fn xero_fetch_accounts(&self) -> Result<serde_json::Value, ToolError> {
+        let refs = self.xero.fetch_accounts()?;
+        serde_json::to_value(&refs).map_err(|e| ToolError::Internal(e.to_string()))
+    }
+
+    #[cfg(feature = "xero")]
+    pub fn xero_fetch_bank_accounts(&self) -> Result<serde_json::Value, ToolError> {
+        let refs = self.xero.fetch_bank_accounts()?;
+        serde_json::to_value(&refs).map_err(|e| ToolError::Internal(e.to_string()))
+    }
+
+    #[cfg(feature = "xero")]
+    pub fn xero_fetch_invoices(&self, status: Option<&str>) -> Result<serde_json::Value, ToolError> {
+        self.xero.fetch_invoices(status)
+    }
+
+    #[cfg(feature = "xero")]
+    pub fn xero_link_entity(
+        &self,
+        local_id: String,
+        xero_entity_type: String,
+        xero_id: String,
+        display_name: String,
+        ontology_path: Option<std::path::PathBuf>,
+    ) -> Result<serde_json::Value, ToolError> {
+        use ledger_core::document::XeroEntityType;
+        let entity_type = match xero_entity_type.as_str() {
+            "contact" => XeroEntityType::Contact,
+            "bank_account" => XeroEntityType::BankAccount,
+            "account" => XeroEntityType::Account,
+            "invoice" => XeroEntityType::Invoice,
+            "bank_transaction" => XeroEntityType::BankTransaction,
+            other => return Err(ToolError::InvalidInput(format!("unknown xero entity type: {other}"))),
+        };
+
+        let link = XeroLink {
+            entity_type,
+            xero_id: xero_id.clone(),
+            display_name: display_name.clone(),
+            linked_at: chrono::Utc::now().to_rfc3339(),
+        };
+
+        let mut registry = self
+            .document_registry
+            .lock()
+            .map_err(|_| ToolError::Internal("document registry lock poisoned".into()))?;
+
+        if let Some(record) = registry.get_mut(&local_id) {
+            record.add_xero_link(link.clone());
+            // Add #xero-linked tag.
+            if let Ok(t) = Tag::new(ledger_core::tags::TAG_XERO_LINKED) {
+                record.add_tag(t);
+            }
+            let _ = save_document_registry(self.workbook_path(), &registry);
+        }
+
+        // Optionally wire into ontology.
+        if let Some(ont_path) = ontology_path {
+            drop(registry); // release lock before ontology I/O
+            let mut store = OntologyStore::load(&ont_path)
+                .unwrap_or_default();
+            let kind = match xero_entity_type.as_str() {
+                "contact" => OntologyEntityKind::XeroContact,
+                "bank_account" => OntologyEntityKind::XeroBankAccount,
+                "invoice" => OntologyEntityKind::XeroInvoice,
+                _ => OntologyEntityKind::Account,
+            };
+            let mut attrs = std::collections::BTreeMap::new();
+            attrs.insert("xero_id".into(), xero_id.clone());
+            attrs.insert("display_name".into(), display_name.clone());
+            attrs.insert("local_id".into(), local_id.clone());
+            let _ = store.upsert_entities(vec![OntologyEntityInput { kind, attrs }]);
+            let _ = store.persist(&ont_path);
+        }
+
+        Ok(serde_json::json!({
+            "linked": true,
+            "local_id": local_id,
+            "xero_entity_type": xero_entity_type,
+            "xero_id": xero_id,
+            "display_name": display_name,
+        }))
+    }
+
+    #[cfg(feature = "xero")]
+    pub fn xero_sync_catalog(&self, ontology_path: std::path::PathBuf) -> Result<serde_json::Value, ToolError> {
+        let mut store = OntologyStore::load(&ontology_path).unwrap_or_default();
+        self.xero.sync_catalog(&mut store, &ontology_path)
+    }
+}
+
+// ── Feature-gated stub methods (no-op when features are disabled) ─────────────
+
+#[cfg(not(feature = "xero"))]
+impl TurboLedgerService {
+    pub fn xero_get_auth_url(&self) -> Result<String, ToolError> {
+        Err(ToolError::Internal("ledgerr-mcp built without 'xero' feature".into()))
+    }
+
+    pub fn xero_exchange_code(&self, _code: String, _state: String) -> Result<serde_json::Value, ToolError> {
+        Err(ToolError::Internal("ledgerr-mcp built without 'xero' feature".into()))
+    }
+
+    pub fn xero_fetch_contacts(&self, _search: Option<&str>) -> Result<serde_json::Value, ToolError> {
+        Err(ToolError::Internal("ledgerr-mcp built without 'xero' feature".into()))
+    }
+
+    pub fn xero_fetch_accounts(&self) -> Result<serde_json::Value, ToolError> {
+        Err(ToolError::Internal("ledgerr-mcp built without 'xero' feature".into()))
+    }
+
+    pub fn xero_fetch_bank_accounts(&self) -> Result<serde_json::Value, ToolError> {
+        Err(ToolError::Internal("ledgerr-mcp built without 'xero' feature".into()))
+    }
+
+    pub fn xero_fetch_invoices(&self, _status: Option<&str>) -> Result<serde_json::Value, ToolError> {
+        Err(ToolError::Internal("ledgerr-mcp built without 'xero' feature".into()))
+    }
+
+    pub fn xero_link_entity(
+        &self,
+        _local_id: String,
+        _xero_entity_type: String,
+        _xero_id: String,
+        _display_name: String,
+        _ontology_path: Option<std::path::PathBuf>,
+    ) -> Result<serde_json::Value, ToolError> {
+        Err(ToolError::Internal("ledgerr-mcp built without 'xero' feature".into()))
+    }
+
+    pub fn xero_sync_catalog(&self, _ontology_path: std::path::PathBuf) -> Result<serde_json::Value, ToolError> {
+        Err(ToolError::Internal("ledgerr-mcp built without 'xero' feature".into()))
+    }
 }
