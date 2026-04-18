@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "crates/ledger-core",
+  "crates/ledgerr-host",
   "crates/ledgerr-mcp",
   "crates/ledgerr-xero",
   "crates/ledgerr-llm",
@@ -24,6 +25,7 @@ chrono = { version = "0.4", features = ["serde"] }
 rust_decimal = { version = "1.41.0", features = ["serde"] }
 blake3 = "1.8.3"
 tracing = "0.1"
+tempfile = "3"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

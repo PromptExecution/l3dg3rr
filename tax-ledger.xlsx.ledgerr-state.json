@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "ingest_state": {
+    "seen": [
+      "bee66d5102b7b859b1801e447a9eb558f492220f2c58d25cb7c609d6fbaab5bf"
+    ],
+    "projection_rows": [
+      {
+        "tx_id": "bee66d5102b7b859b1801e447a9eb558f492220f2c58d25cb7c609d6fbaab5bf",
+        "account_id": "WF-BH-CHK",
+        "date": "2023-01-15",
+        "amount": "-42.11",
+        "description": "Coffee Shop",
+        "source_ref": "/tmp/l3dg3rr-outcome-flow-161024-1776478923653/WF--BH-CHK--2023-01--statement.rkyv"
+      }
+    ]
+  },
+  "classification_state": {
+    "tx_rows": {
+      "bee66d5102b7b859b1801e447a9eb558f492220f2c58d25cb7c609d6fbaab5bf": {
+        "account_id": "WF-BH-CHK",
+        "date": "2023-01-15",
+        "amount": "-42.11",
+        "description": "Coffee Shop",
+        "source_ref": "/tmp/l3dg3rr-outcome-flow-161024-1776478923653/WF--BH-CHK--2023-01--statement.rkyv"
+      }
+    },
+    "classifications": {},
+    "audit_log": [],
+    "engine": {
+      "flags": []
+    }
+  },
+  "lifecycle_events": {
+    "events": [
+      {
+        "event_id": "e61271c3f04787914eb7010617e6095102272d5b15230a4b467d072f8ebe83bf",
+        "sequence": 1,
+        "event_type": "ingest",
+        "tx_id": "bee66d5102b7b859b1801e447a9eb558f492220f2c58d25cb7c609d6fbaab5bf",
+        "document_ref": "/tmp/l3dg3rr-outcome-flow-161024-1776478923653/WF--BH-CHK--2023-01--statement.rkyv",
+        "occurred_at": "2023-01-15",
+        "payload": {
+          "account_id": "WF-BH-CHK",
+          "amount": "-42.11",
+          "date": "2023-01-15",
+          "description": "Coffee Shop",
+          "inserted": "true"
+        },
+        "identity_inputs": {
+          "document_ref": "/tmp/l3dg3rr-outcome-flow-161024-1776478923653/WF--BH-CHK--2023-01--statement.rkyv",
+          "event_type": "ingest",
+          "payload_hash": "3adffb306b027f734a5a2a44270cb479130c948731aacffd0fe695c70f557b1c",
+          "tx_id": "bee66d5102b7b859b1801e447a9eb558f492220f2c58d25cb7c609d6fbaab5bf"
+        }
+      }
+    ],
+    "next_sequence": 1
+  },
+  "hsm_state": {
+    "current": {
+      "state": "Ingest",
+      "substate": "Pending"
+    },
+    "last_valid_checkpoint": "ingest:pending:advanced"
+  }
+}
