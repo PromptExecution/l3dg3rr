@@ -4,19 +4,20 @@ This file is generated from `crates/ledgerr-mcp/src/contract.rs`.
 
 Rust code is the only source of truth for the published MCP surface. If this file drifts from the contract module, tests should fail.
 
-The default catalog is intentionally small: 7 top-level `ledgerr_*` tools. Each tool uses a required `action` field so the major capability families stay visible while related operations are grouped under one top-level command.
+The default catalog is intentionally small: 8 top-level `ledgerr_*` tools. Each tool uses a required `action` field so the major capability families stay visible while related operations are grouped under one top-level command.
 
 ## Published MCP Tools
 
 | Tool | Purpose | Common actions |
 |---|---|---|
-| `ledgerr_documents` | document intake, routing, manifest/account discovery, raw context retrieval | `list_accounts`, `pipeline_status`, `validate_filename`, `ingest_pdf`, `ingest_rows`, `get_raw_context`, `document_inventory` |
+| `ledgerr_documents` | document intake (PDF, image, CSV), tagging, filesystem metadata sync | `list_accounts`, `pipeline_status`, `validate_filename`, `ingest_pdf`, `ingest_image`, `ingest_rows`, `get_raw_context`, `document_inventory`, `apply_tags`, `remove_tags`, `list_tagged`, `sync_fs_metadata`, `normalize_filename` |
 | `ledgerr_review` | classification and human-review workflows | `run_rule`, `classify_ingested`, `query_flags`, `classify_transaction`, `reconcile_excel_classification` |
 | `ledgerr_reconciliation` | staged totals/postings guardrails | `validate`, `reconcile`, `commit` |
 | `ledgerr_workflow` | lifecycle/HSM orchestration plus relocated plugin ops | `status`, `transition`, `resume`, `plugin_info` |
 | `ledgerr_audit` | append-only event and audit-log views | `event_history`, `event_replay`, `query_audit_log` |
 | `ledgerr_tax` | tax summaries, evidence, ambiguity review, workbook export | `assist`, `evidence_chain`, `ambiguity_review`, `schedule_summary`, `export_workbook` |
 | `ledgerr_ontology` | ontology query/export/write operations | `query_path`, `export_snapshot`, `upsert_entities`, `upsert_edges` |
+| `ledgerr_xero` | Xero accounting integration: contacts, accounts, bank accounts, entity linking | `get_auth_url`, `exchange_code`, `fetch_contacts`, `search_contacts`, `fetch_accounts`, `fetch_bank_accounts`, `fetch_invoices`, `link_entity`, `sync_catalog` |
 
 The concrete parser, action enums, field aliases, and JSON Schemas all live in [crates/ledgerr-mcp/src/contract.rs](../crates/ledgerr-mcp/src/contract.rs).
 
@@ -32,7 +33,7 @@ Canonical trait:
 [TurboLedgerTools in crates/ledgerr-mcp/src/lib.rs](../crates/ledgerr-mcp/src/lib.rs#L289)
 
 Important distinction:
-- The MCP surface is the reduced 7-tool catalog defined in Rust.
+- The MCP surface is the 8-tool catalog defined in Rust.
 - The internal service trait remains more granular and implementation-oriented.
 
 API layering:

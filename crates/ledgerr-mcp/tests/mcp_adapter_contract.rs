@@ -5,7 +5,7 @@ use ledger_core::ingest::TransactionInput;
 fn doc_01_mcp_boundary_tool_catalog_exposes_reduced_top_level_surface() {
     let tools = ledgerr_mcp::mcp_adapter::tool_names();
 
-    assert_eq!(tools.len(), 7);
+    assert_eq!(tools.len(), 8);
     assert!(tools.contains(&"ledgerr_documents".to_string()));
     assert!(tools.contains(&"ledgerr_review".to_string()));
     assert!(tools.contains(&"ledgerr_reconciliation".to_string()));
@@ -13,6 +13,7 @@ fn doc_01_mcp_boundary_tool_catalog_exposes_reduced_top_level_surface() {
     assert!(tools.contains(&"ledgerr_audit".to_string()));
     assert!(tools.contains(&"ledgerr_tax".to_string()));
     assert!(tools.contains(&"ledgerr_ontology".to_string()));
+    assert!(tools.contains(&"ledgerr_xero".to_string()));
     // MCP lifecycle methods (tools/list, tools/call) are JSON-RPC methods, not tools —
     // they must NOT appear in the tool catalog per MCP spec.
     assert!(!tools.contains(&"tools/list".to_string()));

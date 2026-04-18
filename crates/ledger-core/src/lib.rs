@@ -1,6 +1,9 @@
 pub mod classify;
+pub mod document;
 pub mod filename;
+pub mod fs_meta;
 pub mod ingest;
 pub mod journal;
 pub mod manifest;
+pub mod tags;
 pub mod workbook;

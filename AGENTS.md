@@ -3,6 +3,25 @@
 This file is the persistent operator manual for future agents.  
 For product scope and status, read `README.md` first, then use this file for execution rules and MCP usage patterns.
 
+### Current Direction (2026-04-18)
+
+Near-term product direction is shifting from pure MCP/server work toward a local desktop operator host around `l3dg3rr`.
+
+Current planning assumptions:
+- `l3dg3rr` should become the Rust host/control plane for agent execution, policy, approvals, audit, notifications, and credential access.
+- Agent orchestration may run in a sidecar runtime (for example LangChain/LangGraph or another agent SDK), but secrets and process supervision should remain owned by `l3dg3rr`.
+- Xero is already part of the visible `ledgerr_*` capability direction; future work should treat it as an in-flight supervised capability, not a greenfield speculative add-on.
+- Xero access should be mediated through supervised MCP worker processes/tools, not by giving raw credentials directly to the model or relying on `.env` as the long-term secret model.
+- Windows 11 desktop support matters: toast/app notifications, tray/menubar control surface, and persistent settings are first-class operator features.
+- Slint is the preferred UI shell for the desktop window, but tray/docked menubar icon integration may use a separate Rust crate such as `tray-icon` while Slint remains the main UI/event-loop host.
+
+Desktop control-plane milestones currently in scope:
+- persistent notification settings (`enabled/disabled`, backend health, last test result),
+- tray icon with quick actions (`toast enabled`, `test toast`, `status`, `show window`, `quit`),
+- notifier abstraction with a practical Windows fallback path first and native Windows notifications next,
+- credential abstraction with Windows Credential Manager for long-lived secrets,
+- audit-friendly event flow from agent/tool execution to UI and notifications.
+
 ### Purpose (non-duplicate)
 
 `AGENTS.md` is intentionally operational. It should not restate the full product brief from the `## Project` section below.
@@ -81,6 +100,24 @@ assert_eq!(updated.category, "OfficeSupplies");
 - Keep status/state outputs concise and obvious for small models; favor explicit fields over implicit behavior.
 - Before adding new custom infrastructure, confirm an existing crate/tool already solves it acceptably.
 - Distill durable session lessons back into this file when they affect future agent quality.
+
+### Execution Loop (Successive Generations)
+
+Future agents should follow this working loop unless the user directs otherwise:
+- branch first before substantial edits;
+- break work into explicit tasks and keep them small enough to verify;
+- use sub-agents for bounded parallel discovery or independent validation when that reduces context load;
+- add or update tests with the change whenever behavior, contracts, or workflows move;
+- independently validate tests rather than assuming correctness from inspection;
+- loop on fixes until tests pass;
+- check in with the user after each meaningful milestone or architecture decision;
+- memoize stable next steps, constraints, and unresolved risks back into this file when they matter for later sessions;
+- repeat until the user is satisfied.
+
+Practical interpretation:
+- prefer one agent/sub-agent for implementation and another for targeted verification when the user explicitly wants delegation or parallel work;
+- do not treat green tests as the only completion signal if the UX, notification path, tray behavior, or host integration still lacks a real validation path;
+- when desktop/host features are being designed, verify the smallest executable slice first (for example, a real toast test before larger UI work).
 
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project

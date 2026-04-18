@@ -1,0 +1,29 @@
+[package]
+name = "ledgerr-xero"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+reqwest = { workspace = true }
+rust_decimal = { workspace = true }
+chrono = { workspace = true }
+blake3 = { workspace = true }
+tracing = { workspace = true }
+
+# PKCE helpers — sha256 for code_challenge, base64url for encoding
+sha2 = "0.10"
+base64 = "0.22"
+rand = "0.9"
+
+# URL encoding for auth URL construction
+url = "2"
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

@@ -6,13 +6,17 @@ license.workspace = true
 
 [dependencies]
 blake3 = "1.8.3"
+chrono = { workspace = true }
 ledger-core = { version = "=1.4.0", path = "../ledger-core" }
+ledgerr-xero = { version = "=1.4.0", path = "../ledgerr-xero", optional = true }
+ledgerr-llm = { version = "=1.4.0", path = "../ledgerr-llm", optional = true }
 rust_decimal = { version = "1.41.0", features = ["serde"] }
 rust_xlsxwriter = { workspace = true }
 schemars = { version = "0.8", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
+tracing = { workspace = true }
 
 # plugin_info — always available (cross-platform system metadata)
 sysinfo = { version = "0.33", default-features = false, features = ["system"] }
@@ -26,7 +30,7 @@ semver = { version = "1", optional = true }
 winreg = "0.52"
 
 [features]
-default = ["core", "events", "reconciliation", "hsm", "ontology", "classification", "audit", "tax"]
+default = ["core", "events", "reconciliation", "hsm", "ontology", "classification", "audit", "tax", "xero", "llm"]
 core = []
 events = ["core"]
 reconciliation = ["core"]
@@ -35,7 +39,9 @@ ontology = ["core"]
 classification = ["core"]
 audit = ["core"]
 tax = ["core"]
-full = ["core", "events", "reconciliation", "hsm", "ontology", "classification", "audit", "tax"]
+xero = ["core", "dep:ledgerr-xero"]
+llm = ["core", "dep:ledgerr-llm"]
+full = ["core", "events", "reconciliation", "hsm", "ontology", "classification", "audit", "tax", "xero", "llm"]
 self-update = ["dep:reqwest", "dep:semver"]
 
 [dev-dependencies]

@@ -16,3 +16,6 @@ prd.md
 # Local environment secrets
 .env
 .env.*
+
+# Generated local state sidecars (should not be committed)
+*.ledgerr-state.json

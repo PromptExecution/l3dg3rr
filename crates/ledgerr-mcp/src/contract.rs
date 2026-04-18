@@ -8,7 +8,7 @@
 //! - Drift between parser, schema, and docs is a bug and should fail tests.
 //!
 //! Hidden compatibility aliases may continue to parse legacy shapes elsewhere,
-//! but the advertised 7-tool catalog must stay defined here.
+//! but the advertised 8-tool catalog must stay defined here.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -29,6 +29,7 @@ pub const WORKFLOW_TOOL: &str = "ledgerr_workflow";
 pub const AUDIT_TOOL: &str = "ledgerr_audit";
 pub const TAX_TOOL: &str = "ledgerr_tax";
 pub const ONTOLOGY_TOOL: &str = "ledgerr_ontology";
+pub const XERO_TOOL: &str = "ledgerr_xero";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ToolContractSpec {
@@ -37,18 +38,24 @@ pub struct ToolContractSpec {
     pub actions: &'static [&'static str],
 }
 
-pub const PUBLISHED_TOOLS: [ToolContractSpec; 7] = [
+pub const PUBLISHED_TOOLS: [ToolContractSpec; 8] = [
     ToolContractSpec {
         name: DOCUMENTS_TOOL,
-        purpose: "document intake, routing, manifest/account discovery, raw context retrieval",
+        purpose: "document intake (PDF, image, CSV), tagging, filesystem metadata sync",
         actions: &[
             "list_accounts",
             "pipeline_status",
             "validate_filename",
             "ingest_pdf",
+            "ingest_image",
             "ingest_rows",
             "get_raw_context",
             "document_inventory",
+            "apply_tags",
+            "remove_tags",
+            "list_tagged",
+            "sync_fs_metadata",
+            "normalize_filename",
         ],
     },
     ToolContractSpec {
@@ -96,6 +103,21 @@ pub const PUBLISHED_TOOLS: [ToolContractSpec; 7] = [
             "export_snapshot",
             "upsert_entities",
             "upsert_edges",
+        ],
+    },
+    ToolContractSpec {
+        name: XERO_TOOL,
+        purpose: "Xero accounting integration: contacts, accounts, bank accounts, entity linking",
+        actions: &[
+            "get_auth_url",
+            "exchange_code",
+            "fetch_contacts",
+            "search_contacts",
+            "fetch_accounts",
+            "fetch_bank_accounts",
+            "fetch_invoices",
+            "link_entity",
+            "sync_catalog",
         ],
     },
 ];
@@ -206,6 +228,10 @@ pub enum OntologyEntityKindInput {
     Transaction,
     TaxCategory,
     EvidenceReference,
+    XeroContact,
+    XeroBankAccount,
+    XeroInvoice,
+    WorkflowTag,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -254,6 +280,62 @@ pub enum DocumentsArgs {
         journal_path: PathBuf,
         workbook_path: PathBuf,
         rows: Vec<TransportRow>,
+    },
+    IngestImage {
+        /// Absolute path to the image file (JPEG, PNG, WEBP, TIFF, GIF).
+        image_path: String,
+        /// Override doc type: "receipt", "invoice", "bank_statement", or "other".
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        doc_type: Option<String>,
+        /// Pre-applied workflow tags (e.g. ["#receipt", "#pending-review"]).
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        tags: Vec<String>,
+        /// If set, run LLM extraction and store result in document metadata.
+        #[serde(default)]
+        extract_with_llm: bool,
+    },
+    ApplyTags {
+        /// Document ID (blake3 hash) or file path.
+        doc_ref: String,
+        tags: Vec<String>,
+        /// If true, also write tags to filesystem metadata alongside the file.
+        #[serde(default)]
+        sync_fs: bool,
+    },
+    RemoveTags {
+        doc_ref: String,
+        tags: Vec<String>,
+        #[serde(default)]
+        sync_fs: bool,
+    },
+    ListTagged {
+        /// Filter to documents that have ALL of these tags.
+        tags: Vec<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        doc_type: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        directory: Option<PathBuf>,
+    },
+    SyncFsMetadata {
+        /// Root directory to scan for sidecar metadata files.
+        directory: PathBuf,
+        #[serde(default)]
+        recursive: bool,
+    },
+    NormalizeFilename {
+        /// Current file path.
+        file_path: String,
+        /// Desired vendor slug (e.g. "AMEX").
+        vendor: String,
+        /// Account ID (e.g. "BH-CARD").
+        account: String,
+        /// Statement month as YYYY-MM.
+        year_month: String,
+        /// Document type suffix (e.g. "statement", "receipt").
+        doc_type: String,
+        /// If true, actually rename the file; otherwise return the proposed name only.
+        #[serde(default)]
+        apply: bool,
     },
     DocumentInventory {
         directory: PathBuf,
@@ -412,6 +494,41 @@ pub enum OntologyArgs {
     },
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
+pub enum XeroArgs {
+    GetAuthUrl,
+    ExchangeCode {
+        code: String,
+        state: String,
+    },
+    FetchContacts,
+    SearchContacts {
+        query: String,
+    },
+    FetchAccounts,
+    FetchBankAccounts,
+    FetchInvoices {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        status: Option<String>,
+    },
+    LinkEntity {
+        /// Local document ID or transaction ID to link.
+        local_id: String,
+        /// "contact", "bank_account", "account", "invoice"
+        xero_entity_type: String,
+        xero_id: String,
+        display_name: String,
+        /// If set, also write link into the ontology at this path.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        ontology_path: Option<PathBuf>,
+    },
+    SyncCatalog {
+        /// Write discovered Xero entities into the ontology store.
+        ontology_path: PathBuf,
+    },
+}
+
 pub fn parse_documents(arguments: &Value) -> Result<DocumentsArgs, ToolError> {
     parse_args(arguments)
 }
@@ -440,6 +557,10 @@ pub fn parse_ontology(arguments: &Value) -> Result<OntologyArgs, ToolError> {
     parse_args(arguments)
 }
 
+pub fn parse_xero(arguments: &Value) -> Result<XeroArgs, ToolError> {
+    parse_args(arguments)
+}
+
 fn parse_args<T>(arguments: &Value) -> Result<T, ToolError>
 where
     T: for<'de> Deserialize<'de>,
@@ -457,6 +578,7 @@ pub fn tool_input_schema(name: &str) -> Value {
         AUDIT_TOOL => root_schema_to_value(schema_for!(AuditArgs)),
         TAX_TOOL => root_schema_to_value(schema_for!(TaxArgs)),
         ONTOLOGY_TOOL => root_schema_to_value(schema_for!(OntologyArgs)),
+        XERO_TOOL => root_schema_to_value(schema_for!(XeroArgs)),
         _ => json!({ "type": "object" }),
     }
 }
@@ -473,7 +595,7 @@ pub fn generated_capability_contract_markdown() -> String {
 Rust code is the only source of truth for the published MCP surface. If this file drifts from the contract module, tests should fail.\n\n",
     );
     doc.push_str(
-        "The default catalog is intentionally small: 7 top-level `ledgerr_*` tools. Each tool uses a required `action` field so the major capability families stay visible while related operations are grouped under one top-level command.\n\n",
+        "The default catalog is intentionally small: 8 top-level `ledgerr_*` tools. Each tool uses a required `action` field so the major capability families stay visible while related operations are grouped under one top-level command.\n\n",
     );
     doc.push_str("## Published MCP Tools\n\n");
     doc.push_str("| Tool | Purpose | Common actions |\n|---|---|---|\n");
@@ -500,7 +622,7 @@ The server still accepts older `l3dg3rr_*` and proxy-style call names as hidden 
     doc.push_str(
         "## Internal Service API\n\n\
 Canonical trait:\n[TurboLedgerTools in crates/ledgerr-mcp/src/lib.rs](../crates/ledgerr-mcp/src/lib.rs#L289)\n\n\
-Important distinction:\n- The MCP surface is the reduced 7-tool catalog defined in Rust.\n- The internal service trait remains more granular and implementation-oriented.\n\n\
+Important distinction:\n- The MCP surface is the 8-tool catalog defined in Rust.\n- The internal service trait remains more granular and implementation-oriented.\n\n\
 API layering:\n1. `ledgerr-mcp-server` (stdio transport)\n2. `contract` (published tool families, action enums, generated schema/doc artifacts)\n3. `mcp_adapter` (dispatch + envelope shaping)\n4. `TurboLedgerService` (domain logic, guardrails, state/event/HSM ops)\n5. `ledger-core` (ingest, filename validation, classification primitives)\n\n",
     );
     doc.push_str("## Example Flow\n\n");
@@ -543,7 +665,7 @@ pub fn generated_agent_runbook_markdown() -> String {
 This file is generated from `crates/ledgerr-mcp/src/contract.rs`.\n\n\
 Agent workflows must use `initialize`, `notifications/initialized`, `tools/list`, and `tools/call` over stdio.\n\n\
 ## Runtime Model\n\n\
-The default published surface is the reduced 7-tool catalog:\n\n{}\n\
+The default published surface is the 8-tool catalog:\n\n{}\n\
 Each tool requires an `action` argument.\n\n\
 ## Bootstrap\n\n\
 From repo root:\n\n```bash\ncargo build -p ledgerr-mcp --bin ledgerr-mcp-server\n```\n\n\

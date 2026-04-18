@@ -14,6 +14,12 @@ pub enum OntologyEntityKind {
     Transaction,
     TaxCategory,
     EvidenceReference,
+    // Xero-linked entity kinds
+    XeroContact,
+    XeroBankAccount,
+    XeroInvoice,
+    // Tagging
+    WorkflowTag,
 }
 
 impl OntologyEntityKind {
@@ -25,6 +31,10 @@ impl OntologyEntityKind {
             Self::Transaction => "transaction",
             Self::TaxCategory => "tax_category",
             Self::EvidenceReference => "evidence_reference",
+            Self::XeroContact => "xero_contact",
+            Self::XeroBankAccount => "xero_bank_account",
+            Self::XeroInvoice => "xero_invoice",
+            Self::WorkflowTag => "workflow_tag",
         }
     }
 }
