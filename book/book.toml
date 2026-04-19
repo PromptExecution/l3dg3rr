@@ -1,44 +1,17 @@
 [book]
 authors = ["l3dg3rr"]
 language = "en"
-multilingual = false
 src = "src"
 title = "l3dg3rr Ledger Documentation"
 
 [build]
-build-msrv = "1.88"
-
-[preprocessor.mdbook-embed]
-maximumEmbedDepth = 2
-
-[preprocessor.mathjax]
 
 [preprocessor.links]
 
 [output.html]
-additional-js = []
-additional-css = []
-default-theme = "light"
 edit-url-template = "https://github.com/PromptExecution/l3dg3rr/edit/main/book/src/{path}#L{line}"
 git-repository-icon = "fa-book"
 git-repository-url = "https://github.com/PromptExecution/l3dg3rr"
-google-analytics = ""
-language = "en"
-prefediting = []
-theme = "rusted"
 enable-git-edit-link = true
 
-[output.html.playground]
-editable = false
-fill-attributes = false
-run-url = ""
-
-[output.latex]
-latex-theme = ["book"]
-
-[output.mdbook-mermaid]
-skip-fold-levels = 0
-
 [output.linkcheck]
-analyze-inlinks = false
-builder = "nitpicky"
