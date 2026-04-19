@@ -36,7 +36,10 @@ pub struct Package {
     #[serde(rename = "fileSha256", skip_serializing_if = "Option::is_none")]
     pub file_sha256: Option<String>,
     pub transport: Transport,
-    #[serde(rename = "environmentVariables", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "environmentVariables",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub environment_variables: Option<Vec<EnvVar>>,
 }
 

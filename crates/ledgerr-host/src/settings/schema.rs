@@ -34,6 +34,37 @@ impl Default for ShowNotificationsFor {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChatSettings {
+    #[serde(default = "default_chat_endpoint")]
+    pub endpoint_url: String,
+    #[serde(default)]
+    pub api_key: String,
+    #[serde(default)]
+    pub model: String,
+    #[serde(default = "default_chat_system_prompt")]
+    pub system_prompt: String,
+}
+
+impl Default for ChatSettings {
+    fn default() -> Self {
+        Self {
+            endpoint_url: default_chat_endpoint(),
+            api_key: String::new(),
+            model: String::new(),
+            system_prompt: default_chat_system_prompt(),
+        }
+    }
+}
+
+fn default_chat_endpoint() -> String {
+    "https://api.openai.com/v1/chat/completions".to_string()
+}
+
+fn default_chat_system_prompt() -> String {
+    "You are a concise assistant inside the l3dg3rr operator tray.".to_string()
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppSettings {
     #[serde(default)]
     pub schema_version: SettingsSchemaVersion,
@@ -43,6 +74,8 @@ pub struct AppSettings {
     pub window_visible_on_start: bool,
     #[serde(default)]
     pub show_notifications_for: ShowNotificationsFor,
+    #[serde(default)]
+    pub chat: ChatSettings,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_test_result: Option<NotificationTestResult>,
 }
@@ -56,6 +89,7 @@ impl Default for AppSettings {
             start_minimized_to_tray: false,
             window_visible_on_start: true,
             show_notifications_for: ShowNotificationsFor::default(),
+            chat: ChatSettings::default(),
             last_test_result: None,
         }
     }

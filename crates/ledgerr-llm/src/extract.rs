@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct ReceiptExtraction {
     pub vendor_name: Option<String>,
-    pub date: Option<String>,        // YYYY-MM-DD
+    pub date: Option<String>, // YYYY-MM-DD
     pub total_amount: Option<Decimal>,
-    pub currency: Option<String>,    // ISO-4217 code
+    pub currency: Option<String>, // ISO-4217 code
     pub subtotal: Option<Decimal>,
     pub tax_amount: Option<Decimal>,
     pub line_items: Vec<ReceiptLineItem>,

@@ -24,7 +24,11 @@ pub struct BundleArtifact {
 
 impl McpbBundler {
     pub fn new(manifest: McpbManifest, binary_path: PathBuf, output_path: PathBuf) -> Self {
-        Self { manifest, binary_path, output_path }
+        Self {
+            manifest,
+            binary_path,
+            output_path,
+        }
     }
 
     /// Assemble a deterministic `.mcpb` ZIP bundle.
@@ -37,7 +41,9 @@ impl McpbBundler {
         self.manifest.validate()?;
 
         if !self.binary_path.exists() {
-            return Err(McpbError::BinaryNotFound { path: self.binary_path.clone() });
+            return Err(McpbError::BinaryNotFound {
+                path: self.binary_path.clone(),
+            });
         }
 
         if let Some(parent) = self.output_path.parent() {
@@ -78,6 +84,10 @@ impl McpbBundler {
         let sha256 = hex::encode(hasher.finalize());
         let size_bytes = bytes.len() as u64;
 
-        Ok(BundleArtifact { path: self.output_path.clone(), sha256, size_bytes })
+        Ok(BundleArtifact {
+            path: self.output_path.clone(),
+            sha256,
+            size_bytes,
+        })
     }
 }

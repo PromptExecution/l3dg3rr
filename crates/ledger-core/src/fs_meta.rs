@@ -169,9 +169,13 @@ fn scan_dir_inner(
                 Some(m)
             } else {
                 #[cfg(target_os = "linux")]
-                { xattr_backend.read(&path)? }
+                {
+                    xattr_backend.read(&path)?
+                }
                 #[cfg(not(target_os = "linux"))]
-                { None }
+                {
+                    None
+                }
             };
             if let Some(m) = meta {
                 results.push((path, m));

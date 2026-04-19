@@ -1,5 +1,5 @@
 use ledgerr_host::notify::{NotificationBackend, NotificationStatus, NotificationTestResult};
-use ledgerr_host::settings::{AppSettings, SettingsStore};
+use ledgerr_host::settings::{AppSettings, ChatSettings, SettingsStore};
 
 #[test]
 fn load_defaults_when_file_missing() {
@@ -20,6 +20,12 @@ fn save_then_reload_roundtrips_settings() {
     let settings = AppSettings {
         toast_enabled: false,
         window_visible_on_start: false,
+        chat: ChatSettings {
+            endpoint_url: "https://example.test/v1/chat/completions".into(),
+            api_key: "secret".into(),
+            model: "gpt-test".into(),
+            system_prompt: "Be concise.".into(),
+        },
         last_test_result: Some(NotificationTestResult {
             status: NotificationStatus::Ready,
             timestamp: None,
@@ -55,4 +61,31 @@ fn toggle_toast_enabled_persists_across_fresh_store_instance() {
     let fresh_store = SettingsStore::new(path);
     let reloaded = fresh_store.load().unwrap();
     assert!(!reloaded.toast_enabled);
+}
+
+#[test]
+fn legacy_json_without_chat_block_uses_default_chat_settings() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("settings.json");
+    std::fs::write(
+        &path,
+        r#"{
+  "schema_version": "v1",
+  "toast_enabled": true,
+  "toast_backend_preference": "powershell",
+  "start_minimized_to_tray": false,
+  "window_visible_on_start": true,
+  "show_notifications_for": {
+    "approval_required": true,
+    "transaction_submitted": true,
+    "run_failed": true,
+    "run_completed": false
+  }
+}"#,
+    )
+    .unwrap();
+
+    let store = SettingsStore::new(path);
+    let settings = store.load().unwrap();
+    assert_eq!(settings.chat, ChatSettings::default());
 }

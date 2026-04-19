@@ -102,7 +102,10 @@ impl XeroClient {
         let status = resp.status().as_u16();
         if status >= 400 {
             let body = resp.text().unwrap_or_default();
-            return Err(XeroError::ApiError { status, message: body });
+            return Err(XeroError::ApiError {
+                status,
+                message: body,
+            });
         }
 
         Ok(resp.json()?)
@@ -135,8 +138,7 @@ impl XeroClient {
     }
 
     pub fn get_bank_accounts(&mut self) -> XeroResult<Vec<XeroBankAccount>> {
-        let resp: AccountsResponse =
-            self.get("Accounts", Some(&[("where", "Type==\"BANK\"")]))?;
+        let resp: AccountsResponse = self.get("Accounts", Some(&[("where", "Type==\"BANK\"")]))?;
         Ok(resp
             .accounts
             .into_iter()

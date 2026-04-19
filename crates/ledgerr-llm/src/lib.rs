@@ -35,8 +35,7 @@ impl LlmConfig {
     pub fn from_env() -> Self {
         Self {
             api_key: std::env::var("OPENAI_API_KEY").unwrap_or_default(),
-            model: std::env::var("LEDGERR_LLM_MODEL")
-                .unwrap_or_else(|_| "gpt-4o".into()),
+            model: std::env::var("LEDGERR_LLM_MODEL").unwrap_or_else(|_| "gpt-4o".into()),
             base_url: std::env::var("LEDGERR_LLM_BASE_URL").ok(),
             temperature: 0.0,
         }
@@ -58,12 +57,19 @@ pub struct LlmClient {
 
 impl LlmClient {
     pub fn new(config: LlmConfig) -> LlmResult<Self> {
-        let base = config.base_url.as_deref().unwrap_or("https://api.openai.com");
+        let base = config
+            .base_url
+            .as_deref()
+            .unwrap_or("https://api.openai.com");
         let chat_url = format!("{base}/v1/chat/completions");
         let http = reqwest::blocking::Client::builder()
             .user_agent(concat!("ledgerr/", env!("CARGO_PKG_VERSION")))
             .build()?;
-        Ok(Self { config, http, chat_url })
+        Ok(Self {
+            config,
+            http,
+            chat_url,
+        })
     }
 
     // ── Vision ────────────────────────────────────────────────────────────────
@@ -75,7 +81,11 @@ impl LlmClient {
         parse_extraction(&raw)
     }
 
-    pub fn extract_receipt_bytes(&self, bytes: &[u8], mime_type: &str) -> LlmResult<ReceiptExtraction> {
+    pub fn extract_receipt_bytes(
+        &self,
+        bytes: &[u8],
+        mime_type: &str,
+    ) -> LlmResult<ReceiptExtraction> {
         validate_image_size(bytes)?;
         let b64 = B64.encode(bytes);
         let content = vision_user_content(&b64, mime_type, "Extract receipt data.");
@@ -208,8 +218,7 @@ pub fn parse_extraction<T: serde::de::DeserializeOwned>(raw: &str) -> LlmResult<
         .trim_start_matches("```")
         .trim_end_matches("```")
         .trim();
-    serde_json::from_str(cleaned)
-        .map_err(|e| LlmError::ParseError(format!("{e}: {cleaned}")))
+    serde_json::from_str(cleaned).map_err(|e| LlmError::ParseError(format!("{e}: {cleaned}")))
 }
 
 #[cfg(test)]

@@ -2,6 +2,16 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.5.0 - 2026-04-19
+#### Features
+- ship the Windows desktop host further toward an operator control plane with richer tray state, persisted tray settings, and a basic Slint chat window backed by `rig-core`
+- expose more host operational state and notification settings directly through the tray menu and persisted settings surface
+#### Refactoring
+- remove the mistaken `mistralrs` dependency from the host path and standardize the tray chat client on `rig-core` for OpenAI-compatible and local API backends
+#### Tooling
+- harden `Justfile` Cocogitto recipes with an `ensure-cog` guard so `just v`, `just validate`, `just changelog`, and `just release` self-check the binary before use
+
+- - -
 ## v1.4.0 - 2026-04-17
 #### Features
 - (**plugin-info**) add l3dg3rr_plugin_info MCP tool with Windows self-update - (16d070c) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*

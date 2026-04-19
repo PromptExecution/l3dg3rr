@@ -26,6 +26,14 @@ Desktop control-plane milestones currently in scope:
 
 `AGENTS.md` is intentionally operational. It should not restate the full product brief from the `## Project` section below.
 
+### Capability / Usage Notes
+
+- Treat `Justfile` as the canonical source of build, test, run, and host-launch commands.
+- When a command changes, update `Justfile` first and then reference the recipe name here instead of copying the shell line.
+- Prefer `just ...` recipes over ad hoc shell invocations for repeatable work, especially for Windows-host builds and tray validation.
+- Keep capability and usage notes concise and action-oriented: say what exists, how to invoke it, and what not to assume.
+- If a workflow depends on a repo capability, document the recipe name, not an inline transcript of the implementation.
+
 ### MCP Capability Training (Concrete)
 
 Use `TurboLedgerService` in `crates/ledgerr-mcp/src/lib.rs` as the canonical contract.
@@ -100,6 +108,8 @@ assert_eq!(updated.category, "OfficeSupplies");
 - Keep status/state outputs concise and obvious for small models; favor explicit fields over implicit behavior.
 - Before adding new custom infrastructure, confirm an existing crate/tool already solves it acceptably.
 - Distill durable session lessons back into this file when they affect future agent quality.
+- Keep concerns separated within every `AGENTS.md`: product direction, capability usage, and workflow rules should each live in their own short subsection.
+- Avoid mixing build commands into policy sections; route those details to `Justfile` so one file remains the executable build contract.
 
 ### Execution Loop (Successive Generations)
 

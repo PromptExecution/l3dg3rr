@@ -58,6 +58,9 @@ fn initializes_workbook_with_required_sheet_names() {
     let names = workbook.sheet_names().to_vec();
 
     for required in REQUIRED_SHEETS {
-        assert!(names.iter().any(|name| name == required), "missing {required}");
+        assert!(
+            names.iter().any(|name| name == required),
+            "missing {required}"
+        );
     }
 }

@@ -1,6 +1,9 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 set dotenv-load := true
 
+# Canonical build/test/run recipes live here. If a workflow needs a command,
+# add or update the relevant `just` recipe and reference it from AGENTS.md.
+
 mcp-build:
     cargo build -p ledgerr-mcp --bin ledgerr-mcp-server
 
@@ -12,6 +15,19 @@ mcp-start-release:
 
 mcp-stop:
     pkill -f ledgerr-mcp-server || true
+
+# Build the Windows host binaries from WSL via PowerShell. This is the canonical
+# path for `host-tray.exe` and `host-window.exe`.
+wsl2-pwsh-build:
+    powershell.exe -NoProfile -Command '$env:PATH = "C:\Users\wendy\.cargo\bin;C:\msys64\mingw64\bin;" + $env:PATH; Set-Location "C:\Users\wendy\l3dg3rr"; cargo build -p ledgerr-host --bin host-tray --bin host-window'
+
+# Rebuild and launch the tray host on Windows.
+wsl2-pwsh-run-tray:
+    powershell.exe -NoProfile -Command '$env:PATH = "C:\Users\wendy\.cargo\bin;C:\msys64\mingw64\bin;" + $env:PATH; Set-Location "C:\Users\wendy\l3dg3rr"; cargo build -p ledgerr-host --bin host-tray | Out-Null; Get-Process host-tray -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Milliseconds 250; Start-Process -FilePath "C:\Users\wendy\l3dg3rr\target\debug\host-tray.exe" -WorkingDirectory "C:\Users\wendy\l3dg3rr"'
+
+# Rebuild and launch the separate Slint host window on Windows.
+wsl2-pwsh-run-window:
+    powershell.exe -NoProfile -Command '$env:PATH = "C:\Users\wendy\.cargo\bin;C:\msys64\mingw64\bin;" + $env:PATH; Set-Location "C:\Users\wendy\l3dg3rr"; cargo build -p ledgerr-host --bin host-window | Out-Null; Start-Process -FilePath "C:\Users\wendy\l3dg3rr\target\debug\host-window.exe" -WorkingDirectory "C:\Users\wendy\l3dg3rr"'
 
 # Pull and run the MCP server from GHCR using podman (stdio transport)
 # Usage: just mcp-podman-run        — latest image on main
@@ -167,10 +183,15 @@ publish-registry tag artifact-url sha256:
 
 # ─── Cocogitto release recipe (major|minor|patch, defaults to patch) ──────────
 
+[private]
+ensure-cog:
+    @PATH="${HOME}/.cargo/bin:${PATH}" bash -eu -o pipefail -c 'if command -v cog >/dev/null 2>&1; then echo "Using existing cog"; else echo "cog not found; installing cocogitto..."; cargo install cocogitto; fi'
+
 # Cocogitto release recipe (major|minor|patch, defaults to patch)
-release version="patch":
+release version="patch": ensure-cog
     #!/bin/bash
     set -euo pipefail
+    export PATH="${HOME}/.cargo/bin:${PATH}"
     case "{{version}}" in
         major|minor|patch) ;;
         *) echo "Invalid version: {{version}} (use major, minor, or patch)" && exit 1 ;;
@@ -185,16 +206,16 @@ release version="patch":
     git push --follow-tags
 
 # Show current version
-v:
-    @cog get-version
+v: ensure-cog
+    @PATH="${HOME}/.cargo/bin:${PATH}" cog get-version
 
 # Validate commits
-validate:
-    @cog check
+validate: ensure-cog
+    @PATH="${HOME}/.cargo/bin:${PATH}" cog check
 
 # Show changelog
-changelog:
-    @cog changelog
+changelog: ensure-cog
+    @PATH="${HOME}/.cargo/bin:${PATH}" cog changelog
 
 # Show release stats
 stats:

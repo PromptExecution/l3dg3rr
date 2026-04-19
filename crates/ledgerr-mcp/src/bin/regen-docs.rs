@@ -21,8 +21,20 @@ fn write(root: &PathBuf, rel: &str, content: &str) {
 
 fn main() {
     let root = repo_root();
-    write(&root, "docs/mcp-capability-contract.md", &contract::generated_capability_contract_markdown());
-    write(&root, "docs/agent-mcp-runbook.md", &contract::generated_agent_runbook_markdown());
-    write(&root, "scripts/mcp_cli_demo.sh", &contract::generated_mcp_cli_demo_script());
+    write(
+        &root,
+        "docs/mcp-capability-contract.md",
+        &contract::generated_capability_contract_markdown(),
+    );
+    write(
+        &root,
+        "docs/agent-mcp-runbook.md",
+        &contract::generated_agent_runbook_markdown(),
+    );
+    write(
+        &root,
+        "scripts/mcp_cli_demo.sh",
+        &contract::generated_mcp_cli_demo_script(),
+    );
     println!("done");
 }

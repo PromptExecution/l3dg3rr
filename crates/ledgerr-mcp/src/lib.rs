@@ -15,10 +15,10 @@ use rust_decimal::Decimal;
 use rust_xlsxwriter::Workbook;
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "xero")]
-use xero_service::XeroService;
 #[cfg(feature = "llm")]
 use ledgerr_llm::{LlmClient, LlmConfig};
+#[cfg(feature = "xero")]
+use xero_service::XeroService;
 
 pub mod contract;
 pub mod events;
@@ -463,7 +463,8 @@ impl TurboLedgerService {
             load_persisted_state(std::path::Path::new(&manifest.session.workbook_path))?;
 
         // Load document registry from sidecar if present.
-        let registry = load_document_registry(std::path::Path::new(&manifest.session.workbook_path));
+        let registry =
+            load_document_registry(std::path::Path::new(&manifest.session.workbook_path));
 
         #[cfg(feature = "xero")]
         let xero = {
@@ -1443,7 +1444,13 @@ impl TurboLedgerTools for TurboLedgerService {
             let resolved_flags = classification
                 .engine
                 .query_flags(active_year as i32, FlagStatus::Resolved);
-            (tx_rows, classifications, audit_log, open_flags, resolved_flags)
+            (
+                tx_rows,
+                classifications,
+                audit_log,
+                open_flags,
+                resolved_flags,
+            )
         };
 
         // Workbook export is an artifact projection, not a mutable source of truth.
@@ -2242,7 +2249,12 @@ impl TurboLedgerService {
         for tag in &validated_tags {
             record.add_tag(tag.clone());
         }
-        if record.doc_type.is_image() && !request.tags.iter().any(|t| t.contains("receipt") || t.contains("invoice")) {
+        if record.doc_type.is_image()
+            && !request
+                .tags
+                .iter()
+                .any(|t| t.contains("receipt") || t.contains("invoice"))
+        {
             if let Ok(t) = Tag::new(ledger_core::tags::TAG_RECEIPT) {
                 record.add_tag(t);
             }
@@ -2255,13 +2267,20 @@ impl TurboLedgerService {
                 let mime = record.doc_type.mime_type();
                 if let Ok(extraction) = llm.extract_receipt_bytes(&bytes, mime) {
                     if let Some(vendor) = &extraction.vendor_name {
-                        record.metadata.insert("vendor_name".into(), serde_json::Value::String(vendor.clone()));
+                        record.metadata.insert(
+                            "vendor_name".into(),
+                            serde_json::Value::String(vendor.clone()),
+                        );
                     }
                     if let Some(date) = &extraction.date {
-                        record.metadata.insert("date".into(), serde_json::Value::String(date.clone()));
+                        record
+                            .metadata
+                            .insert("date".into(), serde_json::Value::String(date.clone()));
                     }
                     if let Some(total) = extraction.total_amount {
-                        record.metadata.insert("total_amount".into(), serde_json::json!(total.to_string()));
+                        record
+                            .metadata
+                            .insert("total_amount".into(), serde_json::json!(total.to_string()));
                     }
                     for tag_str in &extraction.suggested_tags {
                         if let Ok(t) = Tag::new(tag_str) {
@@ -2354,7 +2373,10 @@ impl TurboLedgerService {
         let tags_out: Vec<String> = record.tags.iter().map(|t| t.as_str().to_string()).collect();
         let _ = save_document_registry(self.workbook_path(), &registry);
 
-        Ok(ApplyTagsResponse { doc_id, tags: tags_out })
+        Ok(ApplyTagsResponse {
+            doc_id,
+            tags: tags_out,
+        })
     }
 
     /// Remove tags from a document.
@@ -2400,7 +2422,10 @@ impl TurboLedgerService {
         let tags_out: Vec<String> = record.tags.iter().map(|t| t.as_str().to_string()).collect();
         let _ = save_document_registry(self.workbook_path(), &registry);
 
-        Ok(ApplyTagsResponse { doc_id, tags: tags_out })
+        Ok(ApplyTagsResponse {
+            doc_id,
+            tags: tags_out,
+        })
     }
 
     /// List documents matching all the given tags.
@@ -2408,7 +2433,9 @@ impl TurboLedgerService {
         &self,
         request: ListTaggedRequest,
     ) -> Result<ListTaggedResponse, ToolError> {
-        let filter_tags: Vec<String> = request.tags.iter()
+        let filter_tags: Vec<String> = request
+            .tags
+            .iter()
             .map(|t| Tag::normalize(t).as_str().to_string())
             .collect();
 
@@ -2425,7 +2452,9 @@ impl TurboLedgerService {
             })
             .filter(|r| {
                 request.doc_type.as_deref().map_or(true, |dt| {
-                    format!("{:?}", r.doc_type).to_ascii_lowercase().contains(dt)
+                    format!("{:?}", r.doc_type)
+                        .to_ascii_lowercase()
+                        .contains(dt)
                 })
             })
             .map(|r| DocumentSummary {
@@ -2475,7 +2504,10 @@ impl TurboLedgerService {
 
         let _ = save_document_registry(self.workbook_path(), &registry);
 
-        Ok(SyncFsMetadataResponse { files_scanned, files_synced })
+        Ok(SyncFsMetadataResponse {
+            files_scanned,
+            files_synced,
+        })
     }
 
     /// Propose (or apply) a normalized `VENDOR--ACCOUNT--YYYY-MM--DOCTYPE.ext` filename.
@@ -2484,10 +2516,7 @@ impl TurboLedgerService {
         request: NormalizeFilenameRequest,
     ) -> Result<NormalizeFilenameResponse, ToolError> {
         let path = std::path::Path::new(&request.file_path);
-        let ext = path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("pdf");
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("pdf");
         let original_name = path
             .file_name()
             .and_then(|n| n.to_str())
@@ -2504,8 +2533,7 @@ impl TurboLedgerService {
         let mut renamed = false;
         if request.apply && path.exists() {
             let new_path = path.with_file_name(&proposed_name);
-            std::fs::rename(path, &new_path)
-                .map_err(|e| ToolError::Internal(e.to_string()))?;
+            std::fs::rename(path, &new_path).map_err(|e| ToolError::Internal(e.to_string()))?;
             renamed = true;
         }
 
@@ -2524,12 +2552,19 @@ impl TurboLedgerService {
     }
 
     #[cfg(feature = "xero")]
-    pub fn xero_exchange_code(&self, code: String, state: String) -> Result<serde_json::Value, ToolError> {
+    pub fn xero_exchange_code(
+        &self,
+        code: String,
+        state: String,
+    ) -> Result<serde_json::Value, ToolError> {
         self.xero.exchange_code(code, state)
     }
 
     #[cfg(feature = "xero")]
-    pub fn xero_fetch_contacts(&self, search: Option<&str>) -> Result<serde_json::Value, ToolError> {
+    pub fn xero_fetch_contacts(
+        &self,
+        search: Option<&str>,
+    ) -> Result<serde_json::Value, ToolError> {
         let refs = self.xero.fetch_contacts(search)?;
         serde_json::to_value(&refs).map_err(|e| ToolError::Internal(e.to_string()))
     }
@@ -2547,7 +2582,10 @@ impl TurboLedgerService {
     }
 
     #[cfg(feature = "xero")]
-    pub fn xero_fetch_invoices(&self, status: Option<&str>) -> Result<serde_json::Value, ToolError> {
+    pub fn xero_fetch_invoices(
+        &self,
+        status: Option<&str>,
+    ) -> Result<serde_json::Value, ToolError> {
         self.xero.fetch_invoices(status)
     }
 
@@ -2567,7 +2605,11 @@ impl TurboLedgerService {
             "account" => XeroEntityType::Account,
             "invoice" => XeroEntityType::Invoice,
             "bank_transaction" => XeroEntityType::BankTransaction,
-            other => return Err(ToolError::InvalidInput(format!("unknown xero entity type: {other}"))),
+            other => {
+                return Err(ToolError::InvalidInput(format!(
+                    "unknown xero entity type: {other}"
+                )))
+            }
         };
 
         let link = XeroLink {
@@ -2594,8 +2636,7 @@ impl TurboLedgerService {
         // Optionally wire into ontology.
         if let Some(ont_path) = ontology_path {
             drop(registry); // release lock before ontology I/O
-            let mut store = OntologyStore::load(&ont_path)
-                .unwrap_or_default();
+            let mut store = OntologyStore::load(&ont_path).unwrap_or_default();
             let kind = match xero_entity_type.as_str() {
                 "contact" => OntologyEntityKind::XeroContact,
                 "bank_account" => OntologyEntityKind::XeroBankAccount,
@@ -2620,7 +2661,10 @@ impl TurboLedgerService {
     }
 
     #[cfg(feature = "xero")]
-    pub fn xero_sync_catalog(&self, ontology_path: std::path::PathBuf) -> Result<serde_json::Value, ToolError> {
+    pub fn xero_sync_catalog(
+        &self,
+        ontology_path: std::path::PathBuf,
+    ) -> Result<serde_json::Value, ToolError> {
         let mut store = OntologyStore::load(&ontology_path).unwrap_or_default();
         self.xero.sync_catalog(&mut store, &ontology_path)
     }
@@ -2631,27 +2675,49 @@ impl TurboLedgerService {
 #[cfg(not(feature = "xero"))]
 impl TurboLedgerService {
     pub fn xero_get_auth_url(&self) -> Result<String, ToolError> {
-        Err(ToolError::Internal("ledgerr-mcp built without 'xero' feature".into()))
+        Err(ToolError::Internal(
+            "ledgerr-mcp built without 'xero' feature".into(),
+        ))
     }
 
-    pub fn xero_exchange_code(&self, _code: String, _state: String) -> Result<serde_json::Value, ToolError> {
-        Err(ToolError::Internal("ledgerr-mcp built without 'xero' feature".into()))
+    pub fn xero_exchange_code(
+        &self,
+        _code: String,
+        _state: String,
+    ) -> Result<serde_json::Value, ToolError> {
+        Err(ToolError::Internal(
+            "ledgerr-mcp built without 'xero' feature".into(),
+        ))
     }
 
-    pub fn xero_fetch_contacts(&self, _search: Option<&str>) -> Result<serde_json::Value, ToolError> {
-        Err(ToolError::Internal("ledgerr-mcp built without 'xero' feature".into()))
+    pub fn xero_fetch_contacts(
+        &self,
+        _search: Option<&str>,
+    ) -> Result<serde_json::Value, ToolError> {
+        Err(ToolError::Internal(
+            "ledgerr-mcp built without 'xero' feature".into(),
+        ))
     }
 
     pub fn xero_fetch_accounts(&self) -> Result<serde_json::Value, ToolError> {
-        Err(ToolError::Internal("ledgerr-mcp built without 'xero' feature".into()))
+        Err(ToolError::Internal(
+            "ledgerr-mcp built without 'xero' feature".into(),
+        ))
     }
 
     pub fn xero_fetch_bank_accounts(&self) -> Result<serde_json::Value, ToolError> {
-        Err(ToolError::Internal("ledgerr-mcp built without 'xero' feature".into()))
+        Err(ToolError::Internal(
+            "ledgerr-mcp built without 'xero' feature".into(),
+        ))
     }
 
-    pub fn xero_fetch_invoices(&self, _status: Option<&str>) -> Result<serde_json::Value, ToolError> {
-        Err(ToolError::Internal("ledgerr-mcp built without 'xero' feature".into()))
+    pub fn xero_fetch_invoices(
+        &self,
+        _status: Option<&str>,
+    ) -> Result<serde_json::Value, ToolError> {
+        Err(ToolError::Internal(
+            "ledgerr-mcp built without 'xero' feature".into(),
+        ))
     }
 
     pub fn xero_link_entity(
@@ -2662,10 +2728,17 @@ impl TurboLedgerService {
         _display_name: String,
         _ontology_path: Option<std::path::PathBuf>,
     ) -> Result<serde_json::Value, ToolError> {
-        Err(ToolError::Internal("ledgerr-mcp built without 'xero' feature".into()))
+        Err(ToolError::Internal(
+            "ledgerr-mcp built without 'xero' feature".into(),
+        ))
     }
 
-    pub fn xero_sync_catalog(&self, _ontology_path: std::path::PathBuf) -> Result<serde_json::Value, ToolError> {
-        Err(ToolError::Internal("ledgerr-mcp built without 'xero' feature".into()))
+    pub fn xero_sync_catalog(
+        &self,
+        _ontology_path: std::path::PathBuf,
+    ) -> Result<serde_json::Value, ToolError> {
+        Err(ToolError::Internal(
+            "ledgerr-mcp built without 'xero' feature".into(),
+        ))
     }
 }

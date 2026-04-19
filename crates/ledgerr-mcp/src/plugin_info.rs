@@ -84,7 +84,11 @@ pub fn log_event(event: &str, detail: Option<&str>, old_ver: Option<&str>, new_v
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+    {
         let _ = f.write_all(line.as_bytes());
     }
 }
@@ -174,9 +178,7 @@ pub fn check_version() -> (String, String, bool, Option<String>) {
 
 #[cfg(feature = "self-update")]
 fn fetch_latest_release() -> Result<ReleaseInfo, String> {
-    let url = format!(
-        "https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
-    );
+    let url = format!("https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest");
     let client = reqwest::blocking::Client::builder()
         .user_agent("ledgerr-mcp-self-update/1.0")
         .timeout(std::time::Duration::from_secs(10))
@@ -198,9 +200,12 @@ fn fetch_latest_release() -> Result<ReleaseInfo, String> {
     let download_url = body["assets"]
         .as_array()
         .and_then(|assets| {
-            assets
-                .iter()
-                .find(|a| a["name"].as_str().map(|n| n.ends_with(".exe")).unwrap_or(false))
+            assets.iter().find(|a| {
+                a["name"]
+                    .as_str()
+                    .map(|n| n.ends_with(".exe"))
+                    .unwrap_or(false)
+            })
         })
         .and_then(|a| a["browser_download_url"].as_str())
         .map(|s| s.to_string());
@@ -304,7 +309,12 @@ pub fn perform_upgrade(download_url: &str, latest_version: &str) -> Value {
         log_event("upgrade_download_error", Some(&e), None, None);
         return json!({ "error": "download failed", "detail": e });
     }
-    log_event("upgrade_downloaded", Some(&new_path.display().to_string()), None, None);
+    log_event(
+        "upgrade_downloaded",
+        Some(&new_path.display().to_string()),
+        None,
+        None,
+    );
 
     // Step 2: strip Zone.Identifier ADS (Mark of the Web) so SmartScreen won't block execution.
     strip_zone_identifier(&new_path);
@@ -334,7 +344,12 @@ pub fn perform_upgrade(download_url: &str, latest_version: &str) -> Value {
         let _ = std::fs::remove_file(&new_path);
         return json!({ "error": "could not rename current binary to .old.exe", "detail": e.to_string() });
     }
-    log_event("upgrade_renamed_old", Some(&old_path.display().to_string()), None, None);
+    log_event(
+        "upgrade_renamed_old",
+        Some(&old_path.display().to_string()),
+        None,
+        None,
+    );
 
     // Step 5: rename .new.exe → current exe name.
     if let Err(e) = std::fs::rename(&new_path, &exe_path) {

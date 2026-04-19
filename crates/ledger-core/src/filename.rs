@@ -71,8 +71,12 @@ fn parse_year_month(input: &str) -> Result<(u16, u8), FilenameError> {
         return Err(FilenameError::InvalidMonth);
     }
 
-    let year_num = year.parse::<u16>().map_err(|_| FilenameError::InvalidYear)?;
-    let month_num = month.parse::<u8>().map_err(|_| FilenameError::InvalidMonth)?;
+    let year_num = year
+        .parse::<u16>()
+        .map_err(|_| FilenameError::InvalidYear)?;
+    let month_num = month
+        .parse::<u8>()
+        .map_err(|_| FilenameError::InvalidMonth)?;
     if !(1..=12).contains(&month_num) {
         return Err(FilenameError::InvalidMonth);
     }

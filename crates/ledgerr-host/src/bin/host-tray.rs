@@ -2,9 +2,8 @@
 
 #[cfg(windows)]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let store = ledgerr_host::settings::SettingsStore::new(
-        ledgerr_host::settings::default_settings_path(),
-    );
+    let store =
+        ledgerr_host::settings::SettingsStore::new(ledgerr_host::settings::default_settings_path());
     ledgerr_host::tray::runtime::run(store)
 }
 

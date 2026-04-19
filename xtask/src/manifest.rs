@@ -26,10 +26,14 @@ impl McpbManifest {
             return Err(McpbError::InvalidManifest("version is empty".into()));
         }
         if self.manifest_version.is_empty() {
-            return Err(McpbError::InvalidManifest("manifest_version is empty".into()));
+            return Err(McpbError::InvalidManifest(
+                "manifest_version is empty".into(),
+            ));
         }
         if self.server.entry_point.is_empty() {
-            return Err(McpbError::InvalidManifest("server.entry_point is empty".into()));
+            return Err(McpbError::InvalidManifest(
+                "server.entry_point is empty".into(),
+            ));
         }
         Ok(())
     }

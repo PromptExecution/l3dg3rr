@@ -106,16 +106,17 @@ struct ParsedRequest {
     posting_sum: Decimal,
 }
 
-fn parse_request_decimals(request: &ReconciliationStageRequest) -> Result<ParsedRequest, ToolError> {
+fn parse_request_decimals(
+    request: &ReconciliationStageRequest,
+) -> Result<ParsedRequest, ToolError> {
     let source_total = parse_decimal_field("source_total", &request.source_total)?;
     let extracted_total = parse_decimal_field("extracted_total", &request.extracted_total)?;
-    let posting_sum = request
-        .posting_amounts
-        .iter()
-        .enumerate()
-        .try_fold(Decimal::ZERO, |acc, (index, amount)| {
+    let posting_sum = request.posting_amounts.iter().enumerate().try_fold(
+        Decimal::ZERO,
+        |acc, (index, amount)| {
             parse_decimal_field(&format!("posting_amounts[{index}]"), amount).map(|v| acc + v)
-        })?;
+        },
+    )?;
 
     Ok(ParsedRequest {
         source_total,
@@ -125,7 +126,8 @@ fn parse_request_decimals(request: &ReconciliationStageRequest) -> Result<Parsed
 }
 
 fn parse_decimal_field(field: &str, value: &str) -> Result<Decimal, ToolError> {
-    Decimal::from_str(value).map_err(|_| ToolError::InvalidInput(format!("{field} must be a decimal")))
+    Decimal::from_str(value)
+        .map_err(|_| ToolError::InvalidInput(format!("{field} must be a decimal")))
 }
 
 fn blocked_response(

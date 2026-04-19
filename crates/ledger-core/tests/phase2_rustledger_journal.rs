@@ -36,7 +36,9 @@ fn ingest_to_journal_is_replay_safe() {
 
     let mut ledger = IngestedLedger::default();
 
-    let first = ledger.ingest_to_journal(std::slice::from_ref(&tx), &journal_path).unwrap();
+    let first = ledger
+        .ingest_to_journal(std::slice::from_ref(&tx), &journal_path)
+        .unwrap();
     let second = ledger.ingest_to_journal(&[tx], &journal_path).unwrap();
 
     assert_eq!(first.len(), 1);

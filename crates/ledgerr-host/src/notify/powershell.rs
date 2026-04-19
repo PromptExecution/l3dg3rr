@@ -20,9 +20,7 @@ impl PowerShellBurntToastNotifier {
     pub fn build_script(title: &str, body: &str) -> String {
         let title = escape_powershell_single_quoted(title);
         let body = escape_powershell_single_quoted(body);
-        format!(
-            "Import-Module BurntToast; New-BurntToastNotification -Text '{title}', '{body}'"
-        )
+        format!("Import-Module BurntToast; New-BurntToastNotification -Text '{title}', '{body}'")
     }
 
     fn run_script(&self, script: &str) -> Result<(), NotifyError> {

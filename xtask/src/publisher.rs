@@ -11,7 +11,10 @@ pub struct GitHubPublisher {
 
 impl GitHubPublisher {
     pub fn new(release_tag: impl Into<String>) -> Self {
-        Self { release_tag: release_tag.into(), repo: None }
+        Self {
+            release_tag: release_tag.into(),
+            repo: None,
+        }
     }
 
     pub fn with_repo(mut self, repo: impl Into<String>) -> Self {
@@ -28,9 +31,9 @@ impl GitHubPublisher {
             cmd.args(["-R", repo]);
         }
 
-        let output = cmd.output().map_err(|e| {
-            McpbError::PublishFailed(format!("gh CLI not found: {e}"))
-        })?;
+        let output = cmd
+            .output()
+            .map_err(|e| McpbError::PublishFailed(format!("gh CLI not found: {e}")))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -91,9 +94,11 @@ impl McpRegistryPublisher {
         let output = Command::new("mcp-publisher")
             .args(["publish", tmp.to_str().unwrap_or("mcp-server-publish.json")])
             .output()
-            .map_err(|e| McpbError::PublishFailed(
-                format!("mcp-publisher not available (install from MCP Registry releases): {e}")
-            ))?;
+            .map_err(|e| {
+                McpbError::PublishFailed(format!(
+                    "mcp-publisher not available (install from MCP Registry releases): {e}"
+                ))
+            })?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);

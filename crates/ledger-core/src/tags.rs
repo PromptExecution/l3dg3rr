@@ -7,7 +7,9 @@ pub enum TagError {
     MissingHash(String),
     #[error("tag is empty after the '#'")]
     Empty,
-    #[error("tag contains invalid characters (only lowercase letters, digits, hyphens allowed): {0}")]
+    #[error(
+        "tag contains invalid characters (only lowercase letters, digits, hyphens allowed): {0}"
+    )]
     InvalidChars(String),
 }
 

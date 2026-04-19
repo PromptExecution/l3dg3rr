@@ -15,9 +15,9 @@ pub fn verify_bundle(path: &Path) -> Result<McpbManifest, McpbError> {
 
     let mut manifest_bytes = Vec::new();
     {
-        let mut entry = archive.by_name("manifest.json").map_err(|_| {
-            McpbError::InvalidManifest("missing manifest.json entry".into())
-        })?;
+        let mut entry = archive
+            .by_name("manifest.json")
+            .map_err(|_| McpbError::InvalidManifest("missing manifest.json entry".into()))?;
         entry.read_to_end(&mut manifest_bytes)?;
     }
 

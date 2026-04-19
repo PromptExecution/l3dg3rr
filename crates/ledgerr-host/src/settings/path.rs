@@ -30,6 +30,9 @@ mod tests {
     #[test]
     fn fallback_path_has_settings_file_name() {
         let path = default_settings_path();
-        assert_eq!(path.file_name().and_then(|n| n.to_str()), Some("settings.json"));
+        assert_eq!(
+            path.file_name().and_then(|n| n.to_str()),
+            Some("settings.json")
+        );
     }
 }

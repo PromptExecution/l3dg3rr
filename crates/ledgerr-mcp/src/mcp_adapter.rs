@@ -389,7 +389,7 @@ pub fn handle_documents_tool(service: &TurboLedgerService, arguments: &Value) ->
             tags,
             extract_with_llm,
         } => {
-            use crate::{IngestImageRequest};
+            use crate::IngestImageRequest;
             match service.ingest_image_tool(IngestImageRequest {
                 image_path,
                 doc_type,
@@ -409,9 +409,17 @@ pub fn handle_documents_tool(service: &TurboLedgerService, arguments: &Value) ->
                 Err(e) => error_envelope(&e),
             }
         }
-        DocumentsArgs::ApplyTags { doc_ref, tags, sync_fs } => {
+        DocumentsArgs::ApplyTags {
+            doc_ref,
+            tags,
+            sync_fs,
+        } => {
             use crate::ApplyTagsRequest;
-            match service.apply_tags_tool(ApplyTagsRequest { doc_ref, tags, sync_fs }) {
+            match service.apply_tags_tool(ApplyTagsRequest {
+                doc_ref,
+                tags,
+                sync_fs,
+            }) {
                 Ok(r) => json!({
                     "content": [text_content(json!({"doc_id": r.doc_id, "tags": r.tags}))],
                     "isError": false
@@ -419,9 +427,17 @@ pub fn handle_documents_tool(service: &TurboLedgerService, arguments: &Value) ->
                 Err(e) => error_envelope(&e),
             }
         }
-        DocumentsArgs::RemoveTags { doc_ref, tags, sync_fs } => {
+        DocumentsArgs::RemoveTags {
+            doc_ref,
+            tags,
+            sync_fs,
+        } => {
             use crate::ApplyTagsRequest;
-            match service.remove_tags_tool(ApplyTagsRequest { doc_ref, tags, sync_fs }) {
+            match service.remove_tags_tool(ApplyTagsRequest {
+                doc_ref,
+                tags,
+                sync_fs,
+            }) {
                 Ok(r) => json!({
                     "content": [text_content(json!({"doc_id": r.doc_id, "tags": r.tags}))],
                     "isError": false
@@ -429,9 +445,17 @@ pub fn handle_documents_tool(service: &TurboLedgerService, arguments: &Value) ->
                 Err(e) => error_envelope(&e),
             }
         }
-        DocumentsArgs::ListTagged { tags, doc_type, directory } => {
+        DocumentsArgs::ListTagged {
+            tags,
+            doc_type,
+            directory,
+        } => {
             use crate::ListTaggedRequest;
-            match service.list_tagged_tool(ListTaggedRequest { tags, doc_type, directory }) {
+            match service.list_tagged_tool(ListTaggedRequest {
+                tags,
+                doc_type,
+                directory,
+            }) {
                 Ok(r) => json!({
                     "content": [text_content(json!({
                         "documents": r.documents.iter().map(|d| json!({
@@ -448,9 +472,15 @@ pub fn handle_documents_tool(service: &TurboLedgerService, arguments: &Value) ->
                 Err(e) => error_envelope(&e),
             }
         }
-        DocumentsArgs::SyncFsMetadata { directory, recursive } => {
+        DocumentsArgs::SyncFsMetadata {
+            directory,
+            recursive,
+        } => {
             use crate::SyncFsMetadataRequest;
-            match service.sync_fs_metadata_tool(SyncFsMetadataRequest { directory, recursive }) {
+            match service.sync_fs_metadata_tool(SyncFsMetadataRequest {
+                directory,
+                recursive,
+            }) {
                 Ok(r) => json!({
                     "content": [text_content(json!({
                         "files_scanned": r.files_scanned,
@@ -461,7 +491,14 @@ pub fn handle_documents_tool(service: &TurboLedgerService, arguments: &Value) ->
                 Err(e) => error_envelope(&e),
             }
         }
-        DocumentsArgs::NormalizeFilename { file_path, vendor, account, year_month, doc_type, apply } => {
+        DocumentsArgs::NormalizeFilename {
+            file_path,
+            vendor,
+            account,
+            year_month,
+            doc_type,
+            apply,
+        } => {
             use crate::NormalizeFilenameRequest;
             match service.normalize_filename_tool(NormalizeFilenameRequest {
                 file_path,
@@ -494,26 +531,28 @@ pub fn handle_xero_tool(service: &TurboLedgerService, arguments: &Value) -> Valu
     };
 
     let result: Result<serde_json::Value, crate::ToolError> = match request {
-        XeroArgs::GetAuthUrl => {
-            service.xero_get_auth_url().map(|url| json!({ "auth_url": url }))
-        }
-        XeroArgs::ExchangeCode { code, state } => {
-            service.xero_exchange_code(code, state)
-        }
+        XeroArgs::GetAuthUrl => service
+            .xero_get_auth_url()
+            .map(|url| json!({ "auth_url": url })),
+        XeroArgs::ExchangeCode { code, state } => service.xero_exchange_code(code, state),
         XeroArgs::FetchContacts => service.xero_fetch_contacts(None),
         XeroArgs::SearchContacts { query } => service.xero_fetch_contacts(Some(query.as_str())),
         XeroArgs::FetchAccounts => service.xero_fetch_accounts(),
         XeroArgs::FetchBankAccounts => service.xero_fetch_bank_accounts(),
-        XeroArgs::FetchInvoices { status } => {
-            service.xero_fetch_invoices(status.as_deref())
-        }
+        XeroArgs::FetchInvoices { status } => service.xero_fetch_invoices(status.as_deref()),
         XeroArgs::LinkEntity {
             local_id,
             xero_entity_type,
             xero_id,
             display_name,
             ontology_path,
-        } => service.xero_link_entity(local_id, xero_entity_type, xero_id, display_name, ontology_path),
+        } => service.xero_link_entity(
+            local_id,
+            xero_entity_type,
+            xero_id,
+            display_name,
+            ontology_path,
+        ),
         XeroArgs::SyncCatalog { ontology_path } => service.xero_sync_catalog(ontology_path),
     };
 

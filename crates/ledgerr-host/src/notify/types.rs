@@ -28,10 +28,7 @@ pub enum NotificationEvent {
     ToolFailed { tool_name: String, message: String },
     TransactionSubmitted { reference: String },
     RunCompleted,
-    Test {
-        title: String,
-        body: String,
-    },
+    Test { title: String, body: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

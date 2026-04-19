@@ -127,11 +127,7 @@ pub struct DocumentRecord {
 }
 
 impl DocumentRecord {
-    pub fn new(
-        doc_id: impl Into<String>,
-        file_path: impl Into<String>,
-        doc_type: DocType,
-    ) -> Self {
+    pub fn new(doc_id: impl Into<String>, file_path: impl Into<String>, doc_type: DocType) -> Self {
         let file_path = file_path.into();
         let file_name = Path::new(&file_path)
             .file_name()
@@ -191,10 +187,19 @@ mod tests {
 
     #[test]
     fn doc_type_from_extension() {
-        assert_eq!(DocType::from_path(Path::new("receipt.jpg")), DocType::ImageJpeg);
+        assert_eq!(
+            DocType::from_path(Path::new("receipt.jpg")),
+            DocType::ImageJpeg
+        );
         assert_eq!(DocType::from_path(Path::new("statement.pdf")), DocType::Pdf);
-        assert_eq!(DocType::from_path(Path::new("data.csv")), DocType::SpreadsheetCsv);
-        assert_eq!(DocType::from_path(Path::new("unknown.bin")), DocType::Other("bin".into()));
+        assert_eq!(
+            DocType::from_path(Path::new("data.csv")),
+            DocType::SpreadsheetCsv
+        );
+        assert_eq!(
+            DocType::from_path(Path::new("unknown.bin")),
+            DocType::Other("bin".into())
+        );
     }
 
     #[test]
