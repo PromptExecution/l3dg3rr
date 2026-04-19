@@ -359,14 +359,6 @@ fn handle_command(
             sync_state(state, &settings, tray);
             Ok(false)
         }
-        TrayCommand::ToggleStartMinimizedToTray(enabled) => {
-            let mut settings = store.load()?;
-            settings.start_minimized_to_tray = enabled;
-            store.save(&settings)?;
-
-            sync_state(state, &settings, tray);
-            Ok(false)
-        }
         TrayCommand::ToggleWindowVisibleOnStart(enabled) => {
             let mut settings = store.load()?;
             settings.window_visible_on_start = enabled;

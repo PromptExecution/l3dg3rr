@@ -1,6 +1,6 @@
 /// Regenerates docs/ and scripts/ files from the Rust contract source.
 /// Run: cargo run -p ledgerr-mcp --bin regen-docs
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use ledgerr_mcp::contract;
 
@@ -13,7 +13,7 @@ fn repo_root() -> PathBuf {
         .to_path_buf()
 }
 
-fn write(root: &PathBuf, rel: &str, content: &str) {
+fn write(root: &Path, rel: &str, content: &str) {
     let path = root.join(rel);
     std::fs::write(&path, content).unwrap_or_else(|e| panic!("write {rel}: {e}"));
     println!("wrote {rel}");

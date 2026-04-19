@@ -2118,10 +2118,19 @@ fn load_document_registry(workbook: &std::path::Path) -> BTreeMap<String, Docume
     if !path.exists() {
         return BTreeMap::new();
     }
-    std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|raw| serde_json::from_str(&raw).ok())
-        .unwrap_or_default()
+    match std::fs::read_to_string(&path) {
+        Err(e) => {
+            tracing::warn!(path = %path.display(), err = %e, "failed to read document registry; starting empty");
+            BTreeMap::new()
+        }
+        Ok(raw) => match serde_json::from_str(&raw) {
+            Ok(registry) => registry,
+            Err(e) => {
+                tracing::warn!(path = %path.display(), err = %e, "failed to parse document registry; starting empty");
+                BTreeMap::new()
+            }
+        },
+    }
 }
 
 fn save_document_registry(
@@ -2223,7 +2232,46 @@ impl TurboLedgerService {
         &self,
         request: IngestImageRequest,
     ) -> Result<IngestImageResponse, ToolError> {
-        let path = std::path::Path::new(&request.image_path);
+        // Apply the same path traversal guardrails as ingest_pdf.
+        let allowed_base = self
+            .workbook_path()
+            .parent()
+            .ok_or_else(|| {
+                ToolError::InvalidInput("workbook_path must have a parent directory".to_string())
+            })?
+            .to_path_buf();
+
+        let raw_path = std::path::Path::new(&request.image_path);
+        let resolved = if raw_path.is_absolute() {
+            if raw_path
+                .components()
+                .any(|c| c == std::path::Component::ParentDir)
+            {
+                return Err(ToolError::InvalidInput(format!(
+                    "image_path '{}' contains path traversal components",
+                    request.image_path
+                )));
+            }
+            if !raw_path.starts_with(&allowed_base) {
+                return Err(ToolError::InvalidInput(format!(
+                    "image_path '{}' resolves outside the allowed directory",
+                    request.image_path
+                )));
+            }
+            raw_path.to_path_buf()
+        } else {
+            if raw_path
+                .components()
+                .any(|c| c == std::path::Component::ParentDir)
+            {
+                return Err(ToolError::InvalidInput(format!(
+                    "image_path '{}' contains path traversal components",
+                    request.image_path
+                )));
+            }
+            allowed_base.join(raw_path)
+        };
+        let path = resolved.as_path();
         let bytes = std::fs::read(path).map_err(|e| ToolError::Internal(e.to_string()))?;
         let doc_id = ledger_core::document::document_id_from_bytes(&bytes);
         let doc_type = request
@@ -2293,7 +2341,17 @@ impl TurboLedgerService {
                         record.add_tag(t);
                     }
                 }
+            } else {
+                return Err(ToolError::InvalidInput(
+                    "extract_with_llm requested but LLM backend is not configured".into(),
+                ));
             }
+        }
+        #[cfg(not(feature = "llm"))]
+        if request.extract_with_llm {
+            return Err(ToolError::InvalidInput(
+                "extract_with_llm requested but this build does not include the llm feature".into(),
+            ));
         }
 
         // Write filesystem sidecar.
@@ -2304,7 +2362,9 @@ impl TurboLedgerService {
             indexed_at: Some(chrono::Utc::now().to_rfc3339()),
             ..Default::default()
         };
-        let _ = SidecarBackend.write(path, &fs_meta);
+        if let Err(e) = SidecarBackend.write(path, &fs_meta) {
+            tracing::warn!(path = %path.display(), err = %e, "failed to write fs metadata sidecar");
+        }
 
         let tags_out: Vec<String> = record.tags.iter().map(|t| t.as_str().to_string()).collect();
         let mut registry = self
@@ -2312,7 +2372,7 @@ impl TurboLedgerService {
             .lock()
             .map_err(|_| ToolError::Internal("document registry lock poisoned".into()))?;
         registry.insert(doc_id.clone(), record);
-        let _ = save_document_registry(self.workbook_path(), &registry);
+        save_document_registry(self.workbook_path(), &registry)?;
 
         Ok(IngestImageResponse {
             doc_id,
@@ -2420,7 +2480,7 @@ impl TurboLedgerService {
         }
 
         let tags_out: Vec<String> = record.tags.iter().map(|t| t.as_str().to_string()).collect();
-        let _ = save_document_registry(self.workbook_path(), &registry);
+        save_document_registry(self.workbook_path(), &registry)?;
 
         Ok(ApplyTagsResponse {
             doc_id,
@@ -2451,10 +2511,14 @@ impl TurboLedgerService {
                 filter_tags.iter().all(|ft| doc_tags.contains(&ft.as_str()))
             })
             .filter(|r| {
-                request.doc_type.as_deref().map_or(true, |dt| {
-                    format!("{:?}", r.doc_type)
-                        .to_ascii_lowercase()
-                        .contains(dt)
+                request.doc_type.as_deref().is_none_or(|dt| {
+                    format!("{:?}", r.doc_type).to_ascii_lowercase().contains(dt)
+                })
+            })
+            .filter(|r| {
+                // If a directory filter was provided, only include records under that directory.
+                request.directory.as_deref().is_none_or(|dir| {
+                    std::path::Path::new(&r.file_path).starts_with(dir)
                 })
             })
             .map(|r| DocumentSummary {
@@ -2474,7 +2538,37 @@ impl TurboLedgerService {
         &self,
         request: SyncFsMetadataRequest,
     ) -> Result<SyncFsMetadataResponse, ToolError> {
-        let found = ledger_core::fs_meta::scan_directory(&request.directory, request.recursive)
+        // Constrain to workbook_path.parent() to prevent arbitrary directory traversal.
+        let allowed_base = self
+            .workbook_path()
+            .parent()
+            .ok_or_else(|| {
+                ToolError::InvalidInput("workbook_path must have a parent directory".to_string())
+            })?
+            .to_path_buf();
+
+        let scan_dir = &request.directory;
+        if scan_dir
+            .components()
+            .any(|c| c == std::path::Component::ParentDir)
+        {
+            return Err(ToolError::InvalidInput(
+                "directory contains path traversal components".into(),
+            ));
+        }
+        let resolved_dir = if scan_dir.is_absolute() {
+            if !scan_dir.starts_with(&allowed_base) {
+                return Err(ToolError::InvalidInput(format!(
+                    "directory '{}' resolves outside the allowed base",
+                    scan_dir.display()
+                )));
+            }
+            scan_dir.clone()
+        } else {
+            allowed_base.join(scan_dir)
+        };
+
+        let found = ledger_core::fs_meta::scan_directory(&resolved_dir, request.recursive)
             .map_err(|e| ToolError::Internal(e.to_string()))?;
 
         let files_scanned = found.len();
@@ -2502,7 +2596,7 @@ impl TurboLedgerService {
             files_synced += 1;
         }
 
-        let _ = save_document_registry(self.workbook_path(), &registry);
+        save_document_registry(self.workbook_path(), &registry)?;
 
         Ok(SyncFsMetadataResponse {
             files_scanned,
@@ -2515,19 +2609,85 @@ impl TurboLedgerService {
         &self,
         request: NormalizeFilenameRequest,
     ) -> Result<NormalizeFilenameResponse, ToolError> {
-        let path = std::path::Path::new(&request.file_path);
-        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("pdf");
+        // Sanitize each component to remove path separators and traversal sequences.
+        fn sanitize_component(s: &str) -> Result<String, ToolError> {
+            let trimmed = s.trim();
+            // Reject any path separator characters or ParentDir components.
+            if trimmed.contains('/') || trimmed.contains('\\') {
+                return Err(ToolError::InvalidInput(format!(
+                    "filename component '{trimmed}' contains path separator characters"
+                )));
+            }
+            if std::path::Path::new(trimmed)
+                .components()
+                .any(|c| c == std::path::Component::ParentDir)
+            {
+                return Err(ToolError::InvalidInput(format!(
+                    "filename component '{trimmed}' contains path traversal sequences"
+                )));
+            }
+            Ok(trimmed.to_ascii_uppercase())
+        }
+
+        let vendor = sanitize_component(&request.vendor)?;
+        let account = sanitize_component(&request.account)?;
+        let year_month = sanitize_component(&request.year_month)?;
+        let doc_type_part = sanitize_component(&request.doc_type)?;
+
+        // Constrain file_path to workbook_path.parent().
+        let allowed_base = self
+            .workbook_path()
+            .parent()
+            .ok_or_else(|| {
+                ToolError::InvalidInput("workbook_path must have a parent directory".to_string())
+            })?
+            .to_path_buf();
+
+        let raw_path = std::path::Path::new(&request.file_path);
+        let resolved_path = if raw_path.is_absolute() {
+            if raw_path
+                .components()
+                .any(|c| c == std::path::Component::ParentDir)
+            {
+                return Err(ToolError::InvalidInput(format!(
+                    "file_path '{}' contains path traversal components",
+                    request.file_path
+                )));
+            }
+            if !raw_path.starts_with(&allowed_base) {
+                return Err(ToolError::InvalidInput(format!(
+                    "file_path '{}' resolves outside the allowed directory",
+                    request.file_path
+                )));
+            }
+            raw_path.to_path_buf()
+        } else {
+            if raw_path
+                .components()
+                .any(|c| c == std::path::Component::ParentDir)
+            {
+                return Err(ToolError::InvalidInput(format!(
+                    "file_path '{}' contains path traversal components",
+                    request.file_path
+                )));
+            }
+            allowed_base.join(raw_path)
+        };
+        let path = resolved_path.as_path();
+
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("pdf");
         let original_name = path
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or_default()
             .to_string();
 
-        let vendor = request.vendor.trim().to_ascii_uppercase();
-        let account = request.account.trim().to_ascii_uppercase();
         let proposed_name = format!(
             "{}--{}--{}--{}.{}",
-            vendor, account, request.year_month, request.doc_type, ext
+            vendor, account, year_month, doc_type_part, ext
         );
 
         let mut renamed = false;

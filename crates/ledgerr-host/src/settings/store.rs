@@ -49,6 +49,15 @@ impl SettingsStore {
         temp_file.write_all(&json)?;
         temp_file.flush()?;
         drop(temp_file);
+
+        // On Windows, `std::fs::rename` does not overwrite an existing destination,
+        // so we remove the destination first if it exists to keep the swap atomic
+        // enough for single-user local operation.
+        #[cfg(windows)]
+        if self.path.exists() {
+            std::fs::remove_file(&self.path)?;
+        }
+
         std::fs::rename(temp_path, &self.path)?;
         Ok(())
     }

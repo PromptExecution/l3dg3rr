@@ -595,7 +595,7 @@ pub fn generated_capability_contract_markdown() -> String {
 Rust code is the only source of truth for the published MCP surface. If this file drifts from the contract module, tests should fail.\n\n",
     );
     doc.push_str(
-        "The default catalog is intentionally small: 7 top-level `ledgerr_*` tools. Each tool uses a required `action` field so the major capability families stay visible while related operations are grouped under one top-level command.\n\n",
+        "The default catalog is intentionally small: 8 top-level `ledgerr_*` tools. Each tool uses a required `action` field so the major capability families stay visible while related operations are grouped under one top-level command.\n\n",
     );
     doc.push_str("## Published MCP Tools\n\n");
     doc.push_str("| Tool | Purpose | Common actions |\n|---|---|---|\n");
@@ -622,7 +622,7 @@ The server still accepts older `l3dg3rr_*` and proxy-style call names as hidden 
     doc.push_str(
         "## Internal Service API\n\n\
 Canonical trait:\n[TurboLedgerTools in crates/ledgerr-mcp/src/lib.rs](../crates/ledgerr-mcp/src/lib.rs#L289)\n\n\
-Important distinction:\n- The MCP surface is the reduced 7-tool catalog defined in Rust.\n- The internal service trait remains more granular and implementation-oriented.\n\n\
+Important distinction:\n- The MCP surface is the 8-tool catalog defined in Rust.\n- The internal service trait remains more granular and implementation-oriented.\n\n\
 API layering:\n1. `ledgerr-mcp-server` (stdio transport)\n2. `contract` (published tool families, action enums, generated schema/doc artifacts)\n3. `mcp_adapter` (dispatch + envelope shaping)\n4. `TurboLedgerService` (domain logic, guardrails, state/event/HSM ops)\n5. `ledger-core` (ingest, filename validation, classification primitives)\n\n",
     );
     doc.push_str("## Example Flow\n\n");
@@ -665,7 +665,7 @@ pub fn generated_agent_runbook_markdown() -> String {
 This file is generated from `crates/ledgerr-mcp/src/contract.rs`.\n\n\
 Agent workflows must use `initialize`, `notifications/initialized`, `tools/list`, and `tools/call` over stdio.\n\n\
 ## Runtime Model\n\n\
-The default published surface is the reduced 7-tool catalog:\n\n{}\n\
+The default published surface is the 8-tool catalog:\n\n{}\n\
 Each tool requires an `action` argument.\n\n\
 ## Bootstrap\n\n\
 From repo root:\n\n```bash\ncargo build -p ledgerr-mcp --bin ledgerr-mcp-server\n```\n\n\

@@ -119,7 +119,9 @@ impl XeroClient {
     }
 
     pub fn search_contacts(&mut self, query: &str) -> XeroResult<Vec<XeroContact>> {
-        let where_clause = format!("Name.Contains(\"{query}\")");
+        // Escape double-quotes in the query to prevent filter expression injection.
+        let escaped = query.replace('"', "\\\"");
+        let where_clause = format!("Name.Contains(\"{escaped}\")");
         let resp: ContactsResponse =
             self.get("Contacts", Some(&[("where", where_clause.as_str())]))?;
         Ok(resp.contacts)
@@ -143,7 +145,7 @@ impl XeroClient {
             .accounts
             .into_iter()
             .map(|a| XeroBankAccount {
-                account_i_d: a.account_i_d,
+                account_id: a.account_id,
                 name: a.name,
                 bank_account_number: None,
                 bank_account_type: Some(a.account_type),

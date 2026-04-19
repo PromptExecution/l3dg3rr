@@ -2,16 +2,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::notify::{NotificationBackend, NotificationTestResult};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SettingsSchemaVersion {
+    #[default]
     V1,
-}
-
-impl Default for SettingsSchemaVersion {
-    fn default() -> Self {
-        Self::V1
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

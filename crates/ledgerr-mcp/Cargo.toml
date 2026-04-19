@@ -16,7 +16,6 @@ schemars = { version = "0.8", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
-tokio = { workspace = true, optional = true }
 tracing = { workspace = true }
 
 # plugin_info — always available (cross-platform system metadata)
@@ -40,8 +39,8 @@ ontology = ["core"]
 classification = ["core"]
 audit = ["core"]
 tax = ["core"]
-xero = ["core", "dep:ledgerr-xero", "dep:tokio"]
-llm = ["core", "dep:ledgerr-llm", "dep:tokio"]
+xero = ["core", "dep:ledgerr-xero"]
+llm = ["core", "dep:ledgerr-llm"]
 full = ["core", "events", "reconciliation", "hsm", "ontology", "classification", "audit", "tax", "xero", "llm"]
 self-update = ["dep:reqwest", "dep:semver"]
 

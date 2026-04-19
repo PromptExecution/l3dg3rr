@@ -50,26 +50,33 @@ impl XeroService {
 
     pub fn get_auth_url(&self) -> Result<String, ToolError> {
         let config = self.config.clone();
-        let mut client = XeroClient::new(config, self.token_path.clone())
-            .map_err(|e| ToolError::Internal(e.to_string()))?;
-        client
-            .get_auth_url()
-            .map_err(|e| ToolError::Internal(e.to_string()))
-    }
-
-    pub fn exchange_code(&self, code: String, state: String) -> Result<Value, ToolError> {
-        let config = self.config.clone();
         let mut new_client = XeroClient::new(config, self.token_path.clone())
             .map_err(|e| ToolError::Internal(e.to_string()))?;
-        let tenant = new_client
-            .exchange_code(code, state)
+        let url = new_client
+            .get_auth_url()
             .map_err(|e| ToolError::Internal(e.to_string()))?;
 
+        // Store the client so the pending PKCE state is available for exchange_code().
         let mut guard = self
             .client
             .lock()
             .map_err(|_| ToolError::Internal("lock poisoned".into()))?;
         *guard = Some(new_client);
+
+        Ok(url)
+    }
+
+    pub fn exchange_code(&self, code: String, state: String) -> Result<Value, ToolError> {
+        let mut guard = self
+            .client
+            .lock()
+            .map_err(|_| ToolError::Internal("lock poisoned".into()))?;
+        let client = guard
+            .as_mut()
+            .ok_or_else(|| ToolError::Internal("No pending auth flow; call get_auth_url first".into()))?;
+        let tenant = client
+            .exchange_code(code, state)
+            .map_err(|e| ToolError::Internal(e.to_string()))?;
 
         info!(tenant_id = %tenant.tenant_id, "Xero authenticated");
         Ok(json!({
