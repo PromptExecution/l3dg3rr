@@ -26,6 +26,11 @@ rust_decimal = { version = "1.41.0", features = ["serde"] }
 blake3 = "1.8.3"
 tracing = "0.1"
 tempfile = "3"
+z3 = "0.8" # Optional - comment out if native Z3 libs not available
+kasuari = "0.4"
+statig = "0.4"
+anyhow = "1"
+ledger-core = { path = "crates/ledger-core" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

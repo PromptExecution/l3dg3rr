@@ -300,6 +300,15 @@ Treat this as a standing operational gate, not a one-time migration task.
   - Persist ingest idempotency state, transaction row cache, audit log, lifecycle event history, and HSM checkpoint together as one snapshot.
   - Keep the workbook as the human/accountant artifact; do not overload it as the only machine recovery mechanism for agent queues and replay state.
   - If the sidecar exists but cannot be parsed or its version is unsupported, fail closed instead of silently resetting state.
+- 2026-04-19: P1 validation framework adds verb-centric pipeline with carry-forward confidence model.
+  - Disposition (Unrecoverable/Recoverable/Advisory) on every Issue for clear signal on what action to take.
+  - MetaCtx.accumulated_confidence compounds multiplicatively across stages.
+  - LegalSolver verifies transactions against tax rules (AU GST Act s38-190, US Schedule C).
+  - VendorConstraintSet evaluates data plausibility using Kasuari strengths.
+  - WorkflowToml is single source of truth — compiles to Mermaid diagram for operator and Rhai FSM for execution.
+  - VerbDef captures reversibility and access criteria (Commit/Reverse require Tray approval).
+  - Multi-model verification loop: LLM proposes, second model reviews, operator approves.
+  - Multi-jurisdiction: US/AU/UK with rules keyed by Jurisdiction.
 
 
 

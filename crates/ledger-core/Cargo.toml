@@ -11,8 +11,16 @@ toml = "0.8"
 rust_xlsxwriter = { workspace = true }
 calamine = "0.34"
 thiserror = "2"
-blake3 = "1"
+blake3 = "1.8.3"
 rhai = "1.24.0"
+z3 = { workspace = true }
+kasuari = { workspace = true }
+statig = { workspace = true }
+anyhow = "1"
+petgraph = "0.6"
+fdg-sim = "0.9"
+glam = "0.27"
+femtovg = "0.9"
 
 # filesystem metadata — xattr on Linux; sidecar fallback is pure std
 [target.'cfg(target_os = "linux")'.dependencies]
