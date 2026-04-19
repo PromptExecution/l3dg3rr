@@ -12,7 +12,7 @@ The system implements a 6-layer visualization stack:
 | 1 | layout.rs | ForceLayout with Fruchterman-Reingold solver |
 | 2 | layout.rs | Isometric projection (iso_project) |
 | 3 | render.rs | GraphRenderer for screen coordinates |
-| 4 | slint_viz.rs | SlintGraphView with Arc<RwLock> |
+| 4 | slint_viz.rs | SlintGraphView with thread-safe layout |
 | 5 | host-window.rs | GraphView Slint component |
 
 ## Source Documentation

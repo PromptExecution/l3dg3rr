@@ -6,12 +6,9 @@ title = "l3dg3rr Ledger Documentation"
 
 [build]
 
-[preprocessor.links]
-
 [output.html]
 edit-url-template = "https://github.com/PromptExecution/l3dg3rr/edit/main/book/src/{path}#L{line}"
-git-repository-icon = "fa-book"
 git-repository-url = "https://github.com/PromptExecution/l3dg3rr"
-enable-git-edit-link = true
 
 [output.linkcheck]
+optional = true
