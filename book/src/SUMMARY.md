@@ -1,6 +1,7 @@
 # Summary
 
 - [Introduction](./intro.md)
+- [Theory of Operation](./theory.md)
 - [Graph Data Model](./graph.md)
 - [Force Layout](./layout.md)
 - [Isometric Projection](./iso.md)

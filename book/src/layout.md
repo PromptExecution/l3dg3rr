@@ -28,11 +28,11 @@ Runs one iteration of the force-directed layout algorithm, updating node positio
 - Attraction along edges
 - Center gravity to keep the graph bounded
 
-### position(node_idx: usize) -> Option<Vec3>
+### position(node_idx: usize) -> Option&lt;Vec3&gt;
 
 Returns the 3D position of a node by index.
 
-### all_positions() -> &HashMap<usize, Vec3>
+### all_positions() -> &HashMap&lt;usize, Vec3&gt;
 
 Returns all node positions.
 
