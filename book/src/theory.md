@@ -18,6 +18,21 @@ This chapter documents the novel architecture patterns that power l3dg3rr's AI a
 ### Concept
 
 Traditional tool use in LLM agents treats tools as stateless functions that transform inputs to outputs. The **Novel Theory of Tool (NTTP)** pattern instead treats tools as **stateful instruction executors** with:
+```rhai
+// Rhai patterns auto-parse to Mermaid
+fn ingest() -> validate
+fn validate() -> classify
+fn classify() -> reconcile
+fn reconcile() -> commit
+```
+
+Conditional flow:
+```rhai
+if confidence > 0.8 -> commit
+if confidence > 0.5 -> reconcile  
+if confidence <= 0.5 -> review
+if review == approved -> classify
+```
 
 1. **Composable instruction streams** - Tools accept not just data, but *instructions* that modify their behavior
 2. **Idempotent re-execution** - Tools can be safely re-run with the same inputs, producing deterministic outputs
