@@ -227,20 +227,22 @@ stats:
 
 # Build mdbook documentation locally (requires: cargo install mdbook mdbook-mermaid)
 docgen:
-    @command -v mdbook >/dev/null || { echo "error: mdbook not found — run: cargo install mdbook mdbook-mermaid"; exit 1; }
-    mdbook build book
+    @if [ ! -x ~/.cargo/bin/mdbook ]; then echo "error: mdbook not found — run: cargo install mdbook mdbook-mermaid"; exit 1; fi
+    @if [ ! -x ~/.cargo/bin/mdbook-mermaid ]; then echo "error: mdbook-mermaid not found — run: cargo install mdbook-mermaid"; exit 1; fi
+    PATH="$HOME/.cargo/bin:$PATH" ~/.cargo/bin/mdbook build book
     @echo "Docs built in book/book/ — serve with: npx serve book/book"
 
 # Verify docs build, mermaid diagrams render, and cross-references valid (CI integration test)
 docgen-check:
-    @command -v mdbook >/dev/null || { echo "error: mdbook not found — run: cargo install mdbook mdbook-mermaid"; exit 1; }
-    mdbook build book
+    @if [ ! -x ~/.cargo/bin/mdbook ]; then echo "error: mdbook not found — run: cargo install mdbook mdbook-mermaid"; exit 1; fi
+    @if [ ! -x ~/.cargo/bin/mdbook-mermaid ]; then echo "error: mdbook-mermaid not found — run: cargo install mdbook-mermaid"; exit 1; fi
+    PATH="$HOME/.cargo/bin:$PATH" ~/.cargo/bin/mdbook build book
     @echo "Checking for rendered SVG diagrams..."
     @grep -q '<svg' book/book/theory.html && echo "✓ theory.html has SVG diagrams" || { echo "error: no SVG in theory.html"; exit 1; }
     @grep -q '<svg' book/book/pipeline.html && echo "✓ pipeline.html has SVG diagrams" || { echo "error: no SVG in pipeline.html"; exit 1; }
     @grep -q '<svg' book/book/visualize.html && echo "✓ visualize.html has SVG diagrams" || { echo "error: no SVG in visualize.html"; exit 1; }
     @echo "Verifying cross-references..."
-    @grep -q '\[Graph Data Model\](./graph.md)' book/book/intro.html && echo "✓ intro.html references graph.md" || exit 1
-    @grep -q '\[Pipeline](./pipeline.md)' book/book/validation.html && echo "✓ validation.html references pipeline.md" || exit 1
-    @grep -q '\[Validation](./validation.md)' book/book/pipeline.html && echo "✓ pipeline.html references validation.md" || exit 1
+    @grep -q 'href="./graph.html"' book/book/intro.html && echo "✓ intro.html references graph.html" || exit 1
+    @grep -q 'href="./validation.html"' book/book/pipeline.html && echo "✓ pipeline.html references validation.html" || exit 1
+    @grep -q 'href="./pipeline.html"' book/book/validation.html && echo "✓ validation.html references pipeline.html" || exit 1
     @echo "All documentation diagrams validated!"
