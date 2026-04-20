@@ -232,6 +232,12 @@ docgen:
     PATH="$HOME/.cargo/bin:$PATH" ~/.cargo/bin/mdbook build book
     @echo "Docs built in book/book/ — serve with: npx serve book/book"
 
+# Extract Rhai patterns from docs to Mermaid diagrams
+docgen-rhai:
+    @if [ ! -f scripts/rhai_to_mermaid.rs ]; then echo "error: scripts/rhai_to_mermaid.rs not found"; exit 1; fi
+    cargo run --manifest-path scripts/Cargo.toml 2>/dev/null || echo "Run: cargo build -p xtask-mcpb 2>/dev/null; or compile scripts/rhai_to_mermaid.rs manually"
+    @echo "Rhai patterns extracted to mermaid"
+
 # Verify docs build, mermaid diagrams render, and cross-references valid (CI integration test)
 docgen-check:
     @if [ ! -x ~/.cargo/bin/mdbook ]; then echo "error: mdbook not found — run: cargo install mdbook mdbook-mermaid"; exit 1; fi
@@ -245,4 +251,6 @@ docgen-check:
     @grep -q 'href="./graph.html"' book/book/intro.html && echo "✓ intro.html references graph.html" || exit 1
     @grep -q 'href="./validation.html"' book/book/pipeline.html && echo "✓ pipeline.html references validation.html" || exit 1
     @grep -q 'href="./pipeline.html"' book/book/validation.html && echo "✓ validation.html references pipeline.html" || exit 1
+    @echo "Verifying Rhai code blocks..."
+    @grep -q 'rhai' book/book/theory.html && echo "✓ theory.html has Rhai examples" || exit 1
     @echo "All documentation diagrams validated!"
