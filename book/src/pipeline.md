@@ -2,6 +2,13 @@
 
 The pipeline module implements a type-state pattern for the document processing workflow.
 
+## Related Chapters
+
+- [Validation](./validation.md) - Disposition and confidence types
+- [Visualization](./visualize.md) - PipelineGraph rendering
+- [Workflow](./workflow.md) - TOML DSL compilation
+- [Verify](./verify.md) - Multi-model verification
+
 ## State Types
 
 - **Ingested**: Document has been parsed

@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-9adcb753.js";
+            window.path_to_searchindex_js = "searchindex-c80b5533.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-dd41f5d9.js"></script>
@@ -188,15 +188,17 @@
 <tr><th>Layer</th><th>Module</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td>0</td><td>graph.rs</td><td>NodeData, EdgeData, pipeline node/edge vectors</td></tr>
-<tr><td>1</td><td>layout.rs</td><td>ForceLayout with Fruchterman-Reingold solver</td></tr>
-<tr><td>2</td><td>layout.rs</td><td>Isometric projection (iso_project)</td></tr>
-<tr><td>3</td><td>render.rs</td><td>GraphRenderer for screen coordinates</td></tr>
-<tr><td>4</td><td>slint_viz.rs</td><td>SlintGraphView with thread-safe layout</td></tr>
+<tr><td>0</td><td><a href="#graph-data-model">graph</a></td><td>NodeData, EdgeData, pipeline node/edge vectors</td></tr>
+<tr><td>1</td><td><a href="#force-layout">layout</a></td><td>ForceLayout with Fruchterman-Reingold solver</td></tr>
+<tr><td>2</td><td><a href="#isometric-projection">layout</a></td><td>Isometric projection (iso_project)</td></tr>
+<tr><td>3</td><td><a href="#renderer">render</a></td><td>GraphRenderer for screen coordinates</td></tr>
+<tr><td>4</td><td><a href="#slint-visualization">slint_viz</a></td><td>SlintGraphView with thread-safe layout</td></tr>
 <tr><td>5</td><td>host-window.rs</td><td>GraphView Slint component</td></tr>
 </tbody>
 </table>
 </div>
+<h2 id="theory"><a class="header" href="#theory">Theory</a></h2>
+<p>See <a href="#theory-of-operation">Theory of Operation</a> for the Novel Theory of Tool pattern and executable documentation.</p>
 <h2 id="source-documentation"><a class="header" href="#source-documentation">Source Documentation</a></h2>
 <p>This book is auto-generated from Rustdoc comments in the source code.</p>
 <pre><code class="language-bash">cargo doc --workspace --no-deps
@@ -205,6 +207,17 @@ mdbook build
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="theory-of-operation"><a class="header" href="#theory-of-operation">Theory of Operation</a></h1>
 <p>This chapter documents the novel architecture patterns that power l3dg3rr’s AI agent governance system.</p>
+<h2 id="related-chapters"><a class="header" href="#related-chapters">Related Chapters</a></h2>
+<ul>
+<li><a href="#graph-data-model">Graph Data Model</a> - Node and edge definitions</li>
+<li><a href="#force-layout">Force Layout</a> - Force-directed positioning</li>
+<li><a href="#isometric-projection">Isometric Projection</a> - 3D to 2D mapping</li>
+<li><a href="#pipeline">Pipeline</a> - Type-state workflow</li>
+<li><a href="#validation">Validation</a> - Confidence accumulation</li>
+<li><a href="#visualization">Visualization</a> - Mermaid/HTML export</li>
+<li><a href="#legal-verification">Legal Verification</a> - Tax rule verification</li>
+<li><a href="#constraints">Constraints</a> - Kasuari constraints</li>
+</ul>
 <h2 id="the-novel-theory-of-tool-pattern"><a class="header" href="#the-novel-theory-of-tool-pattern">The Novel Theory of Tool Pattern</a></h2>
 <h3 id="concept"><a class="header" href="#concept">Concept</a></h3>
 <p>Traditional tool use in LLM agents treats tools as stateless functions that transform inputs to outputs. The <strong>Novel Theory of Tool (NTTP)</strong> pattern instead treats tools as <strong>stateful instruction executors</strong> with:</p>
@@ -595,7 +608,15 @@ assert_eq!(updated.category, "OfficeSupplies");
 }
 <span class="boring">}</span></code></pre>
 <ul>
-<li><strong>weight</strong>: Edge strength for layout calculations</li>
+<li>
+<p><strong>weight</strong>: Edge strength for layout calculations</p>
+</li>
+<li>
+<p><a href="#force-layout">Layout</a>: ForceLayout for positioning nodes</p>
+</li>
+<li>
+<p><a href="#visualization">Visualization</a>: PipelineGraph for rendering</p>
+</li>
 </ul>
 <h2 id="functions"><a class="header" href="#functions">Functions</a></h2>
 <h3 id="create_pipeline_nodes"><a class="header" href="#create_pipeline_nodes">create_pipeline_nodes</a></h3>
@@ -643,6 +664,7 @@ assert_eq!(updated.category, "OfficeSupplies");
 <h3 id="all_positions---hashmapusize-vec3"><a class="header" href="#all_positions---hashmapusize-vec3">all_positions() -&gt; &amp;HashMap&lt;usize, Vec3&gt;</a></h3>
 <p>Returns all node positions.</p>
 <h2 id="usage"><a class="header" href="#usage">Usage</a></h2>
+<p>See <a href="#graph-data-model">Graph</a> for node creation and <a href="#isometric-projection">Iso</a> for projection details.</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>let mut layout = ForceLayout::for_pipeline();
@@ -741,6 +763,13 @@ let pos = view.screen_position(0);
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="pipeline"><a class="header" href="#pipeline">Pipeline</a></h1>
 <p>The pipeline module implements a type-state pattern for the document processing workflow.</p>
+<h2 id="related-chapters-1"><a class="header" href="#related-chapters-1">Related Chapters</a></h2>
+<ul>
+<li><a href="#validation">Validation</a> - Disposition and confidence types</li>
+<li><a href="#visualization">Visualization</a> - PipelineGraph rendering</li>
+<li><a href="#workflow">Workflow</a> - TOML DSL compilation</li>
+<li><a href="#verification-1">Verify</a> - Multi-model verification</li>
+</ul>
 <h2 id="state-types"><a class="header" href="#state-types">State Types</a></h2>
 <ul>
 <li><strong>Ingested</strong>: Document has been parsed</li>
@@ -774,6 +803,13 @@ impl PipelineState&lt;Validating&gt; {
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="validation"><a class="header" href="#validation">Validation</a></h1>
 <p>The validation module provides the core type system for pipeline stage results.</p>
+<h2 id="related-chapters-2"><a class="header" href="#related-chapters-2">Related Chapters</a></h2>
+<ul>
+<li><a href="#pipeline">Pipeline</a> - State machine integration</li>
+<li><a href="#constraints">Constraints</a> - Kasuari constraint types</li>
+<li><a href="#verification-1">Verify</a> - Multi-model confidence calculation</li>
+<li><a href="#legal-verification">Legal Verification</a> - Tax rule disposition</li>
+</ul>
 <h2 id="disposition"><a class="header" href="#disposition">Disposition</a></h2>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -972,6 +1008,13 @@ event = "validate"
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="visualization"><a class="header" href="#visualization">Visualization</a></h1>
 <p>The visualize module generates Mermaid diagrams and HTML exports for pipeline state.</p>
+<h2 id="related-chapters-3"><a class="header" href="#related-chapters-3">Related Chapters</a></h2>
+<ul>
+<li><a href="#pipeline">Pipeline</a> - State definitions</li>
+<li><a href="#force-layout">Layout</a> - Position calculations</li>
+<li><a href="#renderer">Render</a> - Screen coordinate mapping</li>
+<li><a href="#slint-visualization">Slint Viz</a> - Slint integration</li>
+</ul>
 <h2 id="pipelinegraph"><a class="header" href="#pipelinegraph">PipelineGraph</a></h2>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {

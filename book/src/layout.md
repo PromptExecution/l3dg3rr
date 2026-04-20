@@ -38,6 +38,8 @@ Returns all node positions.
 
 ## Usage
 
+See [Graph](./graph.md) for node creation and [Iso](./iso.md) for projection details.
+
 ```rust
 let mut layout = ForceLayout::for_pipeline();
 for _ in 0..100 {

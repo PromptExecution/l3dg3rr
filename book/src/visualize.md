@@ -2,6 +2,13 @@
 
 The visualize module generates Mermaid diagrams and HTML exports for pipeline state.
 
+## Related Chapters
+
+- [Pipeline](./pipeline.md) - State definitions
+- [Layout](./layout.md) - Position calculations
+- [Render](./render.md) - Screen coordinate mapping
+- [Slint Viz](./slint_viz.md) - Slint integration
+
 ## PipelineGraph
 
 ```rust

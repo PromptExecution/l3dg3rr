@@ -26,6 +26,9 @@ pub struct EdgeData {
 
 - **weight**: Edge strength for layout calculations
 
+- [Layout](./layout.md): ForceLayout for positioning nodes
+- [Visualization](./visualize.md): PipelineGraph for rendering
+
 ## Functions
 
 ### create_pipeline_nodes

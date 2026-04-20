@@ -2,6 +2,17 @@
 
 This chapter documents the novel architecture patterns that power l3dg3rr's AI agent governance system.
 
+## Related Chapters
+
+- [Graph Data Model](./graph.md) - Node and edge definitions
+- [Force Layout](./layout.md) - Force-directed positioning
+- [Isometric Projection](./iso.md) - 3D to 2D mapping
+- [Pipeline](./pipeline.md) - Type-state workflow
+- [Validation](./validation.md) - Confidence accumulation
+- [Visualization](./visualize.md) - Mermaid/HTML export
+- [Legal Verification](./legal.md) - Tax rule verification
+- [Constraints](./constraints.md) - Kasuari constraints
+
 ## The Novel Theory of Tool Pattern
 
 ### Concept

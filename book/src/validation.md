@@ -2,6 +2,13 @@
 
 The validation module provides the core type system for pipeline stage results.
 
+## Related Chapters
+
+- [Pipeline](./pipeline.md) - State machine integration
+- [Constraints](./constraints.md) - Kasuari constraint types
+- [Verify](./verify.md) - Multi-model confidence calculation
+- [Legal Verification](./legal.md) - Tax rule disposition
+
 ## Disposition
 
 ```rust
