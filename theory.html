@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-943908f1.js";
+            window.path_to_searchindex_js = "searchindex-2687c903.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-dd41f5d9.js"></script>
@@ -196,6 +196,18 @@
 <h2 id="the-novel-theory-of-tool-pattern"><a class="header" href="#the-novel-theory-of-tool-pattern">The Novel Theory of Tool Pattern</a></h2>
 <h3 id="concept"><a class="header" href="#concept">Concept</a></h3>
 <p>Traditional tool use in LLM agents treats tools as stateless functions that transform inputs to outputs. The <strong>Novel Theory of Tool (NTTP)</strong> pattern instead treats tools as <strong>stateful instruction executors</strong> with:</p>
+<pre><code class="language-rhai">// Rhai patterns auto-parse to Mermaid
+fn ingest() -&gt; validate
+fn validate() -&gt; classify
+fn classify() -&gt; reconcile
+fn reconcile() -&gt; commit
+</code></pre>
+<p>Conditional flow:</p>
+<pre><code class="language-rhai">if confidence &gt; 0.8 -&gt; commit
+if confidence &gt; 0.5 -&gt; reconcile  
+if confidence &lt;= 0.5 -&gt; review
+if review == approved -&gt; classify
+</code></pre>
 <ol>
 <li><strong>Composable instruction streams</strong> - Tools accept not just data, but <em>instructions</em> that modify their behavior</li>
 <li><strong>Idempotent re-execution</strong> - Tools can be safely re-run with the same inputs, producing deterministic outputs</li>
