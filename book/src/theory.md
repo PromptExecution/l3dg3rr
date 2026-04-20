@@ -62,63 +62,72 @@ for (idx, _) in nodes.iter().enumerate() {
 
 ## System Architecture Diagram
 
+```mermaid
+flowchart TB
+    subgraph OPERATOR["OPERATOR"]
+        H["Human Accountant"]
+    end
+
+    subgraph HOST["SLINT DESKTOP HOST"]
+        T["Tray Icon"]
+        W["Window UI"]
+        N["Toast Notifier"]
+        C["Credential Manager"]
+        G["SlintGraph View"]
+    end
+
+    subgraph CORE["LEDGER-CORE"]
+        P["Pipeline HSM"]
+        V["Validation"]
+        L["Legal Solver"]
+        K["Constraints"]
+    end
+
+    subgraph MCP["MCP ADAPTER"]
+        D["ledgerr_documents"]
+        R["ledgerr_review"]
+        Cc["ledgerr_reconciliation"]
+    end
+
+    H --> HOST
+    T --> G
+    W --> G
+    N --> G
+    C --> G
+    HOST --> CORE
+    CORE --> MCP
+    P --> V
+    P --> L
+    P --> K
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         OPERATOR (Human Accountant)                     │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                     SLINT DESKTOP HOST (Rust)                          │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐   │
-│  │ Tray Icon   │  │ Window UI   │  │ Toast       │  │ Credential  │   │
-│  │ (quick      │  │ (Slint      │  │ Notifier    │  │ Manager     │   │
-│  │  actions)   │  │  Isometric) │  │ (Windows)   │  │ (Win32)     │   │
-│  └─────────────┘  └──────┬──────┘  └─────────────┘  └─────────────┘   │
-│                          │                                               │
-│                   ┌──────▼──────┐                                        │
-│                   │ SlintGraph  │                                        │
-│                   │ View        │                                        │
-│                   │ (Arc<RwLock │                                        │
-│                   │  ForceLayout│                                        │
-│                   └──────┬──────┘                                        │
-└──────────────────────────┼──────────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                      LEDGER-CORE (Business Logic)                      │
-│                                                                          │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                    PIPELINE (Type-State HSM)                     │   │
-│  │  ┌─────────┐    ┌───────────┐    ┌────────────┐    ┌─────────┐  │   │
-│  │  │Ingested │───▶│Validating │───▶│Classifying │───▶│Committed│  │   │
-│  │  └─────────┘    └─────┬─────┘    └────────────┘    └─────────┘  │   │
-│  └───────────────────────┼───────────────────────────────────────────┘   │
-│                          │                                                │
-│         ┌────────────────┼────────────────┐                              │
-│         ▼                ▼                ▼                              │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                      │
-│  │ Validation  │  │ Legal       │  │ Constraints │                      │
-│  │ (Kasuari)   │  │ (Z3 Solver) │  │ (Kasuari)   │                      │
-│  └─────────────┘  └─────────────┘  └─────────────┘                      │
-└──────────────────────────────────────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         MCP ADAPTER (Protocol)                          │
-│                                                                          │
-│   ledgerr_documents  │  ledgerr_review  │  ledgerr_reconciliation       │
-│   ledgerr_workflow   │  ledgerr_audit   │  ledgerr_tax                  │
-│   ledgerr_ontology   │                                                   │
-└──────────────────────────────────────────────────────────────────────────┘
-                           │
-            ┌──────────────┴──────────────┐
-            ▼                              ▼
-     ┌─────────────┐              ┌─────────────┐
-     │ Claude Code │              │ Xero API    │
-     │ (LLM Agent) │              │ (External)  │
-     └─────────────┘              └─────────────┘
+
+## Pipeline Flow Diagram
+
+```mermaid
+stateDiagram-v2
+    [*] --> Ingested
+    Ingested --> Validating: validate
+    Validating --> Classifying: classify
+    Classifying --> Reconciling: reconcile
+    Reconciling --> Committed: commit
+    Committed --> [*]
+
+    Validating --> NeedsReview: low_confidence
+    NeedsReview --> Classifying: approved
 ```
+
+## LLM Verification Pattern
+
+```mermaid
+sequenceDiagram
+    participant P as Proposer LLM
+    participant S as Decision Store
+    participant R as Reviewer LLM
+    
+    P->>S: propose(category, confidence)
+    S->>R: review(proposal)
+    R-->>S: verdict(agreed, evidence)
+    S-->>P: result(confidence, issues)
 
 ## Executable LLM Pipeline Integration
 
@@ -177,6 +186,31 @@ fn run_pipeline(document_path: &str) -> Result<PipelineState<Committed>, Issue> 
 ## Isometric Visualization (Executable)
 
 ### 3D Force Layout to 2D Screen
+
+```mermaid
+flowchart LR
+    subgraph Input["3D Force Layout"]
+        F1["Node A"]
+        F2["Node B"]
+        F3["Node C"]
+    end
+    
+    subgraph Transform["Isometric Projection"]
+        I["x' = (x-z) * 0.866<br/>y' = (x+z) * 0.5 - y"]
+    end
+    
+    subgraph Output["2D Screen"]
+        S1["(400, 300)"]
+        S2["(450, 280)"]
+        S3["(420, 320)"]
+    end
+    
+    F1 --> I --> S1
+    F2 --> I --> S2
+    F3 --> I --> S3
+```
+
+### State Visualization Mapping
 
 ```rust
 use ledger_core::{graph::*, layout::*, render::*};
@@ -337,6 +371,15 @@ fn compute_tx_id(account: &str, date: &str, amount: f64, desc: &str) -> String {
 let id1 = compute_tx_id("WF-BH-CHK", "2024-01-15", 150.00, "Office Depot");
 let id2 = compute_tx_id("WF-BH-CHK", "2024-01-15", 150.00, "Office Depot");
 assert_eq!(id1, id2); // Idempotent!
+```
+
+### Content-Hash Flow
+
+```mermaid
+flowchart LR
+    I1["account|date|amount|desc"] --> B["blake3"]
+    B --> H["64-char hex"]
+    H --> DB["tx_id stored"]
 ```
 
 ## Workflow DSL Compilation (Executable)

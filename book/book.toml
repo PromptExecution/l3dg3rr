@@ -4,7 +4,7 @@ language = "en"
 src = "src"
 title = "l3dg3rr Ledger Documentation"
 
-[build]
+[preprocessor.mermaid]
 
 [output.html]
 edit-url-template = "https://github.com/PromptExecution/l3dg3rr/edit/main/book/src/{path}#L{line}"
