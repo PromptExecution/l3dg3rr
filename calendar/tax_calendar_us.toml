@@ -1,0 +1,94 @@
+[calendar]
+name = "US Expat Tax Calendar"
+jurisdiction = "US"
+description = "Key US federal tax deadlines for expat filers (Form 1040, FBAR, FATCA)"
+
+[[event]]
+id = "us_q1_estimate"
+description = "Q1 Estimated Tax Payment due (IRC §6654) — April 15"
+recurrence = { type = "Annual", month = 4, day = 15 }
+operation = { type = "CheckTaxDeadline", deadline_id = "us_q1_estimate" }
+jurisdiction = "US"
+enabled = true
+tags = ["estimated_tax", "quarterly", "schedule_c"]
+
+[[event]]
+id = "us_q2_estimate"
+description = "Q2 Estimated Tax Payment due — June 15 (IRC §6654)"
+recurrence = { type = "Annual", month = 6, day = 15 }
+operation = { type = "CheckTaxDeadline", deadline_id = "us_q2_estimate" }
+jurisdiction = "US"
+enabled = true
+tags = ["estimated_tax", "quarterly"]
+
+[[event]]
+id = "us_q3_estimate"
+description = "Q3 Estimated Tax Payment due — September 15 (IRC §6654)"
+recurrence = { type = "Annual", month = 9, day = 15 }
+operation = { type = "CheckTaxDeadline", deadline_id = "us_q3_estimate" }
+jurisdiction = "US"
+enabled = true
+tags = ["estimated_tax", "quarterly"]
+
+[[event]]
+id = "us_q4_estimate"
+description = "Q4 Estimated Tax Payment due — January 15 following year (IRC §6654)"
+recurrence = { type = "Annual", month = 1, day = 15 }
+operation = { type = "CheckTaxDeadline", deadline_id = "us_q4_estimate" }
+jurisdiction = "US"
+enabled = true
+tags = ["estimated_tax", "quarterly"]
+
+[[event]]
+id = "us_tax_return"
+description = "Form 1040 filing deadline (April 15; automatic 2-month extension for expats to June 15)"
+recurrence = { type = "Annual", month = 4, day = 15 }
+operation = { type = "GenerateAuditTrail", year = 0 }
+jurisdiction = "US"
+enabled = true
+tags = ["annual_return", "form_1040"]
+
+[[event]]
+id = "us_extension_deadline"
+description = "Extended Form 1040 deadline — October 15 (Form 4868)"
+recurrence = { type = "Annual", month = 10, day = 15 }
+operation = { type = "GenerateAuditTrail", year = 0 }
+jurisdiction = "US"
+enabled = true
+tags = ["annual_return", "extension", "form_4868"]
+
+[[event]]
+id = "fbar_deadline"
+description = "FinCEN Form 114 (FBAR) deadline — April 15 with auto-extension to October 15 (31 USC §5314)"
+recurrence = { type = "Annual", month = 4, day = 15 }
+operation = { type = "CheckTaxDeadline", deadline_id = "fbar_deadline" }
+jurisdiction = "US"
+enabled = true
+tags = ["fbar", "foreign_accounts", "fincen_114"]
+
+[[event]]
+id = "fatca_8938"
+description = "Form 8938 FATCA filing with return — April 15 (IRC §6038D)"
+recurrence = { type = "Annual", month = 4, day = 15 }
+operation = { type = "CheckTaxDeadline", deadline_id = "fatca_8938" }
+jurisdiction = "US"
+enabled = true
+tags = ["fatca", "form_8938", "foreign_assets"]
+
+[[event]]
+id = "monthly_statement_ingest"
+description = "Monthly: ingest new bank statements on the 1st"
+recurrence = { type = "Monthly", day_of_month = 1 }
+operation = { type = "IngestStatement", source_glob = "samples/**/*.pdf" }
+jurisdiction = "US"
+enabled = true
+tags = ["automation", "ingest", "recurring"]
+
+[[event]]
+id = "monthly_classify"
+description = "Monthly: run classification waterfall on new transactions"
+recurrence = { type = "Monthly", day_of_month = 2 }
+operation = { type = "ClassifyTransactions", rule_dir = "rules" }
+jurisdiction = "US"
+enabled = true
+tags = ["automation", "classification", "recurring"]

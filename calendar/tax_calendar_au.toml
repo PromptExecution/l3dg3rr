@@ -1,0 +1,94 @@
+[calendar]
+name = "AU Expat Tax Calendar"
+jurisdiction = "AU"
+description = "Key Australian tax deadlines for individual filers and expats (BAS, ITAA 1997, CGT, super)"
+
+[[event]]
+id = "au_bas_q1"
+description = "BAS GST Q1 lodgement due — October 28 (July–September quarter)"
+recurrence = { type = "Annual", month = 10, day = 28 }
+operation = { type = "CheckTaxDeadline", deadline_id = "au_bas_q1" }
+jurisdiction = "AU"
+enabled = true
+tags = ["bas", "gst", "quarterly", "q1"]
+
+[[event]]
+id = "au_bas_q2"
+description = "BAS GST Q2 lodgement due — February 28 (October–December quarter)"
+recurrence = { type = "Annual", month = 2, day = 28 }
+operation = { type = "CheckTaxDeadline", deadline_id = "au_bas_q2" }
+jurisdiction = "AU"
+enabled = true
+tags = ["bas", "gst", "quarterly", "q2"]
+
+[[event]]
+id = "au_bas_q3"
+description = "BAS GST Q3 lodgement due — April 28 (January–March quarter)"
+recurrence = { type = "Annual", month = 4, day = 28 }
+operation = { type = "CheckTaxDeadline", deadline_id = "au_bas_q3" }
+jurisdiction = "AU"
+enabled = true
+tags = ["bas", "gst", "quarterly", "q3"]
+
+[[event]]
+id = "au_bas_q4"
+description = "BAS GST Q4 lodgement due — July 28 (April–June quarter)"
+recurrence = { type = "Annual", month = 7, day = 28 }
+operation = { type = "CheckTaxDeadline", deadline_id = "au_bas_q4" }
+jurisdiction = "AU"
+enabled = true
+tags = ["bas", "gst", "quarterly", "q4"]
+
+[[event]]
+id = "au_tax_return"
+description = "Individual income tax return lodgement deadline — October 31 (ITAA 1997)"
+recurrence = { type = "Annual", month = 10, day = 31 }
+operation = { type = "GenerateAuditTrail", year = 0 }
+jurisdiction = "AU"
+enabled = true
+tags = ["annual_return", "individual", "itaa_1997"]
+
+[[event]]
+id = "au_tax_agent_extension"
+description = "Extended lodgement deadline via registered tax agent — May 15 following year (ATO Tax Agent lodgement program)"
+recurrence = { type = "Annual", month = 5, day = 15 }
+operation = { type = "GenerateAuditTrail", year = 0 }
+jurisdiction = "AU"
+enabled = true
+tags = ["annual_return", "extension", "tax_agent"]
+
+[[event]]
+id = "au_super_contribution"
+description = "Concessional superannuation contribution deadline — June 30 (ITAA 1997 s.290-180 concessional cap)"
+recurrence = { type = "Annual", month = 6, day = 30 }
+operation = { type = "CheckTaxDeadline", deadline_id = "au_super_contribution" }
+jurisdiction = "AU"
+enabled = true
+tags = ["superannuation", "concessional", "s290-180", "itaa_1997"]
+
+[[event]]
+id = "au_cgt_review"
+description = "Annual CGT discount asset review — June 30 (ITAA 1997 s.115-A; review assets held >12 months for 50% CGT discount eligibility)"
+recurrence = { type = "Annual", month = 6, day = 30 }
+operation = { type = "CheckTaxDeadline", deadline_id = "au_cgt_review" }
+jurisdiction = "AU"
+enabled = true
+tags = ["cgt", "capital_gains", "s115-a", "itaa_1997", "discount_method"]
+
+[[event]]
+id = "monthly_statement_ingest"
+description = "Monthly: ingest new bank statements on the 1st"
+recurrence = { type = "Monthly", day_of_month = 1 }
+operation = { type = "IngestStatement", source_glob = "samples/**/*.pdf" }
+jurisdiction = "AU"
+enabled = true
+tags = ["automation", "ingest", "recurring"]
+
+[[event]]
+id = "monthly_classify"
+description = "Monthly: run classification waterfall on new transactions"
+recurrence = { type = "Monthly", day_of_month = 2 }
+operation = { type = "ClassifyTransactions", rule_dir = "rules" }
+jurisdiction = "AU"
+enabled = true
+tags = ["automation", "classification", "recurring"]
