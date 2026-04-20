@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-9c93cb70.js";
+            window.path_to_searchindex_js = "searchindex-5b86dceb.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-f15e6ca1.js"></script>
@@ -181,6 +181,28 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="renderer"><a class="header" href="#renderer">Renderer</a></h1>
+<p>The render module provides screen coordinate mapping for the visualization.</p>
+<h2 id="graphrenderer"><a class="header" href="#graphrenderer">GraphRenderer</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct GraphRenderer {
+    pub width: u32,
+    pub height: u32,
+    pub scale: f32,
+    pub origin: Vec2,
+}
+<span class="boring">}</span></code></pre>
+<h2 id="methods"><a class="header" href="#methods">Methods</a></h2>
+<h3 id="newwidth-u32-height-u32"><a class="header" href="#newwidth-u32-height-u32">new(width: u32, height: u32)</a></h3>
+<p>Creates a renderer with the specified canvas dimensions.</p>
+<h3 id="screen_positionx-f32-y-f32-z-f32---vec2"><a class="header" href="#screen_positionx-f32-y-f32-z-f32---vec2">screen_position(x: f32, y: f32, z: f32) -&gt; Vec2</a></h3>
+<p>Converts 3D coordinates to 2D screen position using isometric projection.</p>
+<h2 id="usage"><a class="header" href="#usage">Usage</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let renderer = GraphRenderer::new(800, 600);
+let screen = renderer.screen_position(100.0, 0.0, 50.0);
+<span class="boring">}</span></code></pre>
 
                     </main>
 

@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-9c93cb70.js";
+            window.path_to_searchindex_js = "searchindex-5b86dceb.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-f15e6ca1.js"></script>
@@ -181,6 +181,42 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="force-layout"><a class="header" href="#force-layout">Force Layout</a></h1>
+<p>The layout module implements force-directed graph layout using a custom Fruchterman-Reingold algorithm.</p>
+<h2 id="forcelayout"><a class="header" href="#forcelayout">ForceLayout</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct ForceLayout {
+    positions: HashMap&lt;usize, Vec3&gt;,
+    velocities: HashMap&lt;usize, Vec3&gt;,
+}
+<span class="boring">}</span></code></pre>
+<h2 id="methods"><a class="header" href="#methods">Methods</a></h2>
+<h3 id="new"><a class="header" href="#new">new()</a></h3>
+<p>Creates an empty force layout.</p>
+<h3 id="for_pipeline"><a class="header" href="#for_pipeline">for_pipeline()</a></h3>
+<p>Creates a force layout initialized with the standard pipeline nodes arranged in a circle.</p>
+<h3 id="tick"><a class="header" href="#tick">tick()</a></h3>
+<p>Runs one iteration of the force-directed layout algorithm, updating node positions based on:</p>
+<ul>
+<li>Repulsion between all nodes</li>
+<li>Attraction along edges</li>
+<li>Center gravity to keep the graph bounded</li>
+</ul>
+<h3 id="positionnode_idx-usize---option"><a class="header" href="#positionnode_idx-usize---option">position(node_idx: usize) -&gt; Option<vec3></vec3></a></h3>
+<p>Returns the 3D position of a node by index.</p>
+<h3 id="all_positions---hashmapusize-vec3"><a class="header" href="#all_positions---hashmapusize-vec3">all_positions() -&gt; &amp;HashMap&lt;usize, Vec3&gt;</a></h3>
+<p>Returns all node positions.</p>
+<h2 id="usage"><a class="header" href="#usage">Usage</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let mut layout = ForceLayout::for_pipeline();
+for _ in 0..100 {
+    layout.tick();
+}
+for (idx, pos) in layout.all_positions() {
+    println!("Node {}: {:?}", idx, pos);
+}
+<span class="boring">}</span></code></pre>
 
                     </main>
 

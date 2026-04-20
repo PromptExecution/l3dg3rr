@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-9c93cb70.js";
+            window.path_to_searchindex_js = "searchindex-5b86dceb.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-f15e6ca1.js"></script>
@@ -181,6 +181,38 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="validation"><a class="header" href="#validation">Validation</a></h1>
+<p>The validation module provides the core type system for pipeline stage results.</p>
+<h2 id="disposition"><a class="header" href="#disposition">Disposition</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub enum Disposition {
+    Unrecoverable,  // Fatal error, cannot proceed
+    Recoverable,    // Error that can be fixed
+    Advisory,       // Warning or suggestion
+}
+<span class="boring">}</span></code></pre>
+<h2 id="issue"><a class="header" href="#issue">Issue</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct Issue {
+    pub disposition: Disposition,
+    pub message: String,
+    pub source: IssueSource,
+}
+<span class="boring">}</span></code></pre>
+<h2 id="metactx"><a class="header" href="#metactx">MetaCtx</a></h2>
+<p>Metadata context that accumulates through pipeline stages:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct MetaCtx {
+    pub accumulated_confidence: f32,  // Compounded from all stages
+    pub stage_history: Vec&lt;StageResult&gt;,
+    // ...
+}
+<span class="boring">}</span></code></pre>
+<p>Confidence compounds multiplicatively: <code>next.confidence = current.confidence * stage.confidence</code></p>
+<h2 id="stageresult"><a class="header" href="#stageresult">StageResult</a></h2>
+<p>Captures the outcome of a pipeline stage with issues and confidence score.</p>
 
                     </main>
 

@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-9c93cb70.js";
+            window.path_to_searchindex_js = "searchindex-5b86dceb.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-f15e6ca1.js"></script>
@@ -181,6 +181,37 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="slint-visualization"><a class="header" href="#slint-visualization">Slint Visualization</a></h1>
+<p>The slint_viz module integrates the graph visualization with Slint UI framework.</p>
+<h2 id="slintgraphview"><a class="header" href="#slintgraphview">SlintGraphView</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct SlintGraphView {
+    pub renderer: GraphRenderer,
+    pub layout: Arc&lt;RwLock&lt;ForceLayout&gt;&gt;,
+}
+<span class="boring">}</span></code></pre>
+<h2 id="features"><a class="header" href="#features">Features</a></h2>
+<ul>
+<li>Thread-safe layout using <code>Arc&lt;RwLock&lt;ForceLayout&gt;&gt;</code></li>
+<li>Animation support via timer-driven tick updates</li>
+<li>Real-time position updates for Slint binding</li>
+</ul>
+<h2 id="methods"><a class="header" href="#methods">Methods</a></h2>
+<h3 id="newwidth-u32-height-u32"><a class="header" href="#newwidth-u32-height-u32">new(width: u32, height: u32)</a></h3>
+<p>Creates a new Slint-integrated graph view.</p>
+<h3 id="tick"><a class="header" href="#tick">tick()</a></h3>
+<p>Advances the force layout by one iteration. Thread-safe.</p>
+<h3 id="screen_positionnode_idx-usize---optionf32-f32"><a class="header" href="#screen_positionnode_idx-usize---optionf32-f32">screen_position(node_idx: usize) -&gt; Option&lt;(f32, f32)&gt;</a></h3>
+<p>Returns the screen position for a node.</p>
+<h2 id="integration"><a class="header" href="#integration">Integration</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let view = SlintGraphView::new(800, 600);
+
+// In animation loop:
+view.tick();
+let pos = view.screen_position(0);
+<span class="boring">}</span></code></pre>
 
                     </main>
 

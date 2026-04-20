@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-9c93cb70.js";
+            window.path_to_searchindex_js = "searchindex-5b86dceb.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-f15e6ca1.js"></script>
@@ -181,6 +181,34 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="verification"><a class="header" href="#verification">Verification</a></h1>
+<p>The verify module implements multi-model verification for quality assurance.</p>
+<h2 id="multi-model-verification"><a class="header" href="#multi-model-verification">Multi-Model Verification</a></h2>
+<p>The system uses a two-model approach:</p>
+<ol>
+<li><strong>Proposer</strong>: Primary model generates the classification/decision</li>
+<li><strong>Reviewer</strong>: Second model reviews and validates the proposal</li>
+</ol>
+<h2 id="verifier"><a class="header" href="#verifier">Verifier</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct Verifier {
+    proposer: ModelClient,
+    reviewer: ModelClient,
+}
+<span class="boring">}</span></code></pre>
+<h2 id="process"><a class="header" href="#process">Process</a></h2>
+<ol>
+<li>Proposer generates a candidate classification</li>
+<li>Reviewer evaluates the candidate against constraints</li>
+<li>If reviewer rejects, human review is flagged</li>
+<li>Confidence score reflects agreement between models</li>
+</ol>
+<h2 id="usage"><a class="header" href="#usage">Usage</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let verifier = Verifier::new(model_a, model_b);
+let result = verifier.verify(&amp;transaction, Proposal::Classify);
+<span class="boring">}</span></code></pre>
 
                     </main>
 

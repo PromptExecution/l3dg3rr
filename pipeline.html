@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-9c93cb70.js";
+            window.path_to_searchindex_js = "searchindex-5b86dceb.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-f15e6ca1.js"></script>
@@ -181,6 +181,37 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="pipeline"><a class="header" href="#pipeline">Pipeline</a></h1>
+<p>The pipeline module implements a type-state pattern for the document processing workflow.</p>
+<h2 id="state-types"><a class="header" href="#state-types">State Types</a></h2>
+<ul>
+<li><strong>Ingested</strong>: Document has been parsed</li>
+<li><strong>Validating</strong>: Checking data integrity</li>
+<li><strong>Classifying</strong>: Categorizing transactions</li>
+<li><strong>Reconciling</strong>: Matching against external data</li>
+<li><strong>Committed</strong>: Finalized andauditable</li>
+</ul>
+<h2 id="type-state-pattern"><a class="header" href="#type-state-pattern">Type-State Pattern</a></h2>
+<p>The pipeline uses Rust’s type system to enforce state transitions at compile time:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct PipelineState&lt;S&gt; { /* ... */ }
+
+impl PipelineState&lt;Ingested&gt; {
+    pub fn validate(self) -&gt; PipelineState&lt;Validating&gt; { ... }
+}
+
+impl PipelineState&lt;Validating&gt; {
+    pub fn classify(self, category: String) -&gt; PipelineState&lt;Classified&gt; { ... }
+}
+<span class="boring">}</span></code></pre>
+<p>This ensures invalid state transitions are caught at compile time.</p>
+<h2 id="statig-integration"><a class="header" href="#statig-integration">Statig Integration</a></h2>
+<p>The pipeline uses <code>statig</code> for hierarchical state machine (HSM) implementation with:</p>
+<ul>
+<li>Superstates for grouping related states</li>
+<li>State-local storage for context</li>
+<li>Async-first design</li>
+</ul>
 
                     </main>
 

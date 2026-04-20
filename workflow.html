@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-9c93cb70.js";
+            window.path_to_searchindex_js = "searchindex-5b86dceb.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-f15e6ca1.js"></script>
@@ -181,6 +181,59 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="workflow"><a class="header" href="#workflow">Workflow</a></h1>
+<p>The workflow module provides a TOML-based DSL for defining pipeline stages and transitions.</p>
+<h2 id="workflowtoml"><a class="header" href="#workflowtoml">WorkflowToml</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct WorkflowToml {
+    pub version: String,
+    pub state: Vec&lt;StateDef&gt;,
+    pub transitions: Vec&lt;TransitionDef&gt;,
+}
+<span class="boring">}</span></code></pre>
+<h2 id="statedef"><a class="header" href="#statedef">StateDef</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct StateDef {
+    pub id: String,
+    pub description: String,
+    pub verbs: Vec&lt;VerbDef&gt;,
+}
+<span class="boring">}</span></code></pre>
+<h2 id="transitiondef"><a class="header" href="#transitiondef">TransitionDef</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct TransitionDef {
+    pub from: String,
+    pub to: String,
+    pub event: String,
+    pub guard: Option&lt;String&gt;,
+}
+<span class="boring">}</span></code></pre>
+<h2 id="compilation"><a class="header" href="#compilation">Compilation</a></h2>
+<p>The workflow DSL compiles to:</p>
+<ul>
+<li><strong>Mermaid</strong>: Visual diagram generation</li>
+<li><strong>Rhai</strong>: Runtime execution FSM</li>
+<li><strong>Rust enum</strong>: Compile-time type safety</li>
+</ul>
+<h2 id="example"><a class="header" href="#example">Example</a></h2>
+<pre><code class="language-toml">[workflow]
+version = "1.0"
+
+[[state]]
+id = "Ingested"
+description = "Document parsed"
+
+[[state]]
+id = "Validating"
+description = "Checking integrity"
+
+[[transition]]
+from = "Ingested"
+to = "Validating"
+event = "validate"
+</code></pre>
 
                     </main>
 
