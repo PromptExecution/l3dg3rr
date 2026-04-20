@@ -10,39 +10,17 @@ Document ingestion converts raw PDF statements into structured, auditable transa
 
 ## Ingestion Pipeline Diagram
 
-```mermaid
-flowchart TD
-    subgraph SOURCE["Source Documents"]
-        PDF["PDF Statement\n✅ Blake3 hash-ID"]
-        NAME["Filename Routing\n✅ VENDOR--ACCT--YYYY-MM--DOCTYPE"]
-    end
-
-    subgraph SIDECAR["reqif-opa-mcp Python Sidecar\n📋 bridge not yet wired"]
-        DOCLING["extract_docling_document\n📋 Docling 2.78 call"]
-        GRAPH["build DocumentGraph\n📋 DocumentNode assembly"]
-        CANDIDATES["derive RequirementCandidates\n📋 heuristic extraction"]
-        OPA["OPA policy gate\n📋 policy evaluation"]
-        REQIF_OUT["emit_reqif_xml\n📋 ReqIF baseline output"]
-    end
-
-    subgraph RUST["Rust Core"]
-        DESERIALIZE["ReqIfCandidate deserialization\n📋 NDJSON from sidecar"]
-        REGISTRY["RuleRegistry population\n📋 load_from_dir stub"]
-        CLASSIFY["classify_waterfall\n📋 multi-rule orchestration stub"]
-        WORKBOOK["Workbook commit\n✅ rust_xlsxwriter"]
-    end
-
-    PDF --> NAME
-    NAME --> DOCLING
-    NAME --> WORKBOOK
-    DOCLING --> GRAPH
-    GRAPH --> CANDIDATES
-    CANDIDATES --> OPA
-    OPA --> REQIF_OUT
-    REQIF_OUT --> DESERIALIZE
-    DESERIALIZE --> REGISTRY
-    REGISTRY --> CLASSIFY
-    CLASSIFY --> WORKBOOK
+```rhai
+fn pdf_statement() -> filename_routing
+fn filename_routing() -> blake3_ingest
+fn filename_routing() -> docling_extract
+fn docling_extract() -> document_graph
+fn document_graph() -> requirement_candidates
+fn requirement_candidates() -> opa_gate
+fn opa_gate() -> reqif_baseline
+fn reqif_baseline() -> rule_registry
+fn rule_registry() -> classify_waterfall
+fn classify_waterfall() -> workbook_commit
 ```
 
 ## Ingestion Flow (Rhai DSL)

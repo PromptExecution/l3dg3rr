@@ -1,0 +1,129 @@
+.rhai-diagram-shell {
+    border: 1px solid var(--searchbar-border-color, #d0d7de);
+    border-radius: 10px;
+    margin: 1rem 0 1.5rem;
+    overflow: hidden;
+    background: var(--bg, #ffffff);
+}
+
+.rhai-diagram-toolbar {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--searchbar-border-color, #d0d7de);
+    background: var(--table-header-bg, rgba(127, 127, 127, 0.08));
+}
+
+.rhai-diagram-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.rhai-diagram-button {
+    border: 1px solid var(--searchbar-border-color, #d0d7de);
+    border-radius: 6px;
+    padding: 0.35rem 0.7rem;
+    background: var(--sidebar-bg, #f6f8fa);
+    color: inherit;
+    cursor: pointer;
+}
+
+.rhai-diagram-button:hover {
+    filter: brightness(0.98);
+}
+
+.rhai-diagram-status {
+    font-size: 0.9rem;
+    opacity: 0.8;
+}
+
+.rhai-diagram-body {
+    display: grid;
+    grid-template-columns: minmax(18rem, 1fr) minmax(18rem, 1fr);
+}
+
+.rhai-diagram-editor {
+    min-height: 18rem;
+    padding: 1rem;
+    border: 0;
+    border-right: 1px solid var(--searchbar-border-color, #d0d7de);
+    resize: vertical;
+    font: 0.9rem/1.5 var(--code-font-family, monospace);
+    background: transparent;
+    color: inherit;
+}
+
+.rhai-diagram-preview {
+    padding: 1rem;
+    overflow: auto;
+}
+
+.rhai-diagram-preview svg {
+    max-width: 100%;
+    height: auto;
+}
+
+.rhai-diagram-error {
+    color: #b42318;
+    font-weight: 600;
+}
+
+.rhai-diagram-note {
+    font-size: 0.85rem;
+    opacity: 0.75;
+}
+
+.rhai-diag-panel {
+    margin-top: 0.75rem;
+    border-top: 1px solid var(--searchbar-border-color, #d0d7de);
+    padding-top: 0.6rem;
+}
+
+.rhai-diag-title {
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+}
+
+.rhai-diag-panel ul {
+    margin: 0;
+    padding-left: 1.2rem;
+}
+
+.rhai-diag-panel li {
+    margin-bottom: 0.35rem;
+}
+
+.rhai-diag-error {
+    color: #b42318;
+}
+
+.rhai-diag-warning {
+    color: #b54708;
+}
+
+.rhai-diag-info {
+    color: #344054;
+}
+
+.rhai-diag-hint {
+    font-size: 0.85rem;
+    opacity: 0.8;
+}
+
+.rhai-diagram-original {
+    display: none;
+}
+
+@media (max-width: 900px) {
+    .rhai-diagram-body {
+        grid-template-columns: 1fr;
+    }
+
+    .rhai-diagram-editor {
+        border-right: 0;
+        border-bottom: 1px solid var(--searchbar-border-color, #d0d7de);
+    }
+}

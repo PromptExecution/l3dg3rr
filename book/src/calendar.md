@@ -34,32 +34,21 @@ if horizon_days <= 7 -> escalate_urgent
 
 ## Scheduling Loop Diagram
 
-```mermaid
-flowchart TD
-    BC[BusinessCalendar] --> ED[EventsDue]
-    ED --> OD[OperationDispatcher]
-
-    OD --> IS[IngestStatement]
-    OD --> CT[ClassifyTransactions]
-    OD --> CK[CheckTaxDeadline]
-    OD --> EW[ExportWorkbook]
-
-    IS --> OR[OperationResult]
-    CT --> OR
-    CK --> OR
-    EW --> OR
-
-    OR --> AT[AuditTrail]
-
-    subgraph RecurrenceRules
-        RR1[Monthly]
-        RR2[Annual]
-        RR3[QuarterlyEstimated]
-        RR4[EveryNDays]
-        RR5[CronExpr - stub]
-    end
-
-    BC -.->|evaluated by| RecurrenceRules
+```rhai
+fn business_calendar() -> events_due
+fn events_due() -> operation_dispatcher
+fn operation_dispatcher() -> ingest_statement
+fn operation_dispatcher() -> classify_transactions
+fn operation_dispatcher() -> check_tax_deadline
+fn operation_dispatcher() -> export_workbook
+fn ingest_statement() -> operation_result
+fn classify_transactions() -> operation_result
+fn check_tax_deadline() -> operation_result
+fn export_workbook() -> operation_result
+fn operation_result() -> audit_trail
+if recurrence == monthly -> events_due
+if recurrence == quarterly_estimated -> events_due
+if recurrence == annual -> events_due
 ```
 
 ## US Tax Calendar

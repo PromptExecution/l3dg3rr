@@ -30,28 +30,19 @@ if result_failure -> emit_issue
 
 ## Dispatcher Architecture
 
-```mermaid
-flowchart TD
-    OD[OperationDispatcher] --> CTX[OperationContext]
-
-    OD --> ISS[IngestStatementOp]
-    OD --> CTO[ClassifyTransactionsOp]
-    OD --> CTD[CheckTaxDeadlineOp]
-    OD --> EWO[ExportWorkbookOp]
-    OD --> GAT[GenerateAuditTrailOp]
-
-    ISS -->|idempotent: blake3 dedup| OR[OperationResult]
-    CTO --> OR
-    CTD --> OR
-    EWO --> OR
-    GAT --> OR
-
-    OR --> AT[AuditTrail]
-    CTX -.->|provides| ISS
-    CTX -.->|provides| CTO
-    CTX -.->|provides| CTD
-    CTX -.->|provides| EWO
-    CTX -.->|provides| GAT
+```rhai
+fn operation_dispatcher() -> operation_context
+fn operation_dispatcher() -> ingest_statement_op
+fn operation_dispatcher() -> classify_transactions_op
+fn operation_dispatcher() -> check_tax_deadline_op
+fn operation_dispatcher() -> export_workbook_op
+fn operation_dispatcher() -> generate_audit_trail_op
+fn ingest_statement_op() -> operation_result
+fn classify_transactions_op() -> operation_result
+fn check_tax_deadline_op() -> operation_result
+fn export_workbook_op() -> operation_result
+fn generate_audit_trail_op() -> operation_result
+fn operation_result() -> audit_trail
 ```
 
 `IngestStatementOp` is annotated as idempotent: re-ingesting the same source file produces the same Blake3 content-hash transaction IDs and the dispatcher skips duplicate writes.

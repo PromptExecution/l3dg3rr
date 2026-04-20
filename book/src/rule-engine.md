@@ -40,44 +40,20 @@ The thresholds are configurable per deployment. The `review` path creates a `Rev
 
 The diagram below shows the full classification pipeline from document ingestion through workbook commit. Each node is tagged with its current implementation status.
 
-```mermaid
-flowchart TD
-    subgraph INGEST["Document Ingestion"]
-        PDF["PDF Source\n✅ filename routing"]
-        DOCTYPE["DocType Detection\n✅ DocType enum"]
-        REQIF["ReqIF Sidecar\n📋 Python bridge missing"]
-    end
-
-    subgraph RULES["Rule Engine"]
-        REGISTRY["RuleRegistry\n📋 load_from_dir stub"]
-        SELECT["Rule Selection\n⚠️ deterministic only"]
-        WATERFALL["classify_waterfall\n📋 orchestration stub"]
-    end
-
-    subgraph CONFIDENCE["Confidence Gate"]
-        HIGH["confidence > 0.85\n✅ commit path"]
-        MED["confidence 0.60–0.85\n✅ review flag"]
-        LOW["confidence ≤ 0.60\n✅ escalate flag"]
-    end
-
-    subgraph OUTPUT["Workbook Output"]
-        COMMIT["Workbook Commit\n✅ rust_xlsxwriter"]
-        FLAG["ReviewFlag Sheet\n✅ flags tracked"]
-    end
-
-    PDF --> DOCTYPE
-    DOCTYPE --> REQIF
-    DOCTYPE --> REGISTRY
-    REQIF --> REGISTRY
-    REGISTRY --> SELECT
-    SELECT --> WATERFALL
-    WATERFALL --> HIGH
-    WATERFALL --> MED
-    WATERFALL --> LOW
-    HIGH --> COMMIT
-    MED --> FLAG
-    LOW --> FLAG
-    FLAG --> COMMIT
+```rhai
+fn pdf_source() -> doctype_detection
+fn doctype_detection() -> reqif_bridge
+fn doctype_detection() -> rule_registry
+fn reqif_bridge() -> rule_registry
+fn rule_registry() -> rule_selection
+fn rule_selection() -> classify_waterfall
+fn classify_waterfall() -> high_confidence
+fn classify_waterfall() -> medium_confidence
+fn classify_waterfall() -> low_confidence
+fn high_confidence() -> workbook_commit
+fn medium_confidence() -> review_flag
+fn low_confidence() -> review_flag
+fn review_flag() -> workbook_commit
 ```
 
 ## Rule Authoring

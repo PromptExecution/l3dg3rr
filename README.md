@@ -10,6 +10,12 @@ Rust workspace for a local-first, Excel-first tax ledger system.
 
 The full API documentation is hosted at: **https://promptexecution.github.io/l3dg3rr/**
 
+Local docs workflow:
+- `just docgen` builds the book
+- `just docgen-check` validates generated diagrams and links
+- `just docserve` publishes the built book locally at `http://127.0.0.1:3000` with the live Rhai diagram editor enabled
+- `just wsl2-pwsh-docserve` starts Windows-local docs server + browser via `scripts/docserve-live.pwsh`
+
 Chapters include:
 - Graph Data Model
 - Force Layout

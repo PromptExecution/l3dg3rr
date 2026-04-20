@@ -4,81 +4,27 @@ This chapter provides a complete status map of the l3dg3rr system — every majo
 
 ## System Architecture Diagram
 
-```mermaid
-flowchart TD
-    subgraph INGEST["Document Ingestion"]
-        PDF_ROUTE["Filename Routing\n✅ VENDOR--ACCT--YYYY-MM"]
-        BLAKE3["Blake3 Hash IDs\n✅ deterministic dedup"]
-        DOCLING["Docling Extraction\n📋 Python sidecar bridge"]
-        DOC_GRAPH["DocumentGraph\n📋 sidecar internal"]
-        REQIF_CAND["ReqIfCandidate\n📋 NDJSON deserialization"]
-    end
-
-    subgraph RULES["Rule Engine"]
-        RULE_FILES["Rhai Rule Files\n✅ 3 rules exist"]
-        REGISTRY["RuleRegistry\n📋 load_from_dir stub"]
-        KEYWORD_SEL["Keyword Rule Select\n📋 deterministic stub"]
-        SEMANTIC_SEL["Semantic Rule Select\n📋 embeddings missing"]
-        WATERFALL["classify_waterfall\n📋 orchestration stub"]
-    end
-
-    subgraph CLASSIFY["Classification"]
-        ENGINE["ClassificationEngine\n✅ Rhai execution"]
-        OUTCOME["ClassificationOutcome\n✅ category + confidence"]
-        FLAGS["ReviewFlag tracking\n✅ flag upsert + query"]
-    end
-
-    subgraph LEGAL["Legal Verification"]
-        JURISDICTION["Jurisdiction enum\n✅ US / AU / UK"]
-        LEGAL_RULE["LegalRule + Z3 formulas\n✅ formulas defined"]
-        SOLVER["LegalSolver\n⚠️ Z3 integration partial"]
-        VERIFY["Proposer/Reviewer LLM\n⚠️ pattern defined, not wired"]
-    end
-
-    subgraph VIZ["Visualization"]
-        SLINT["Slint Desktop UI\n⚠️ stub, not wired"]
-        MERMAID_GEN["Mermaid auto-generation\n✅ from rhai DSL blocks"]
-        WORKFLOW_VIZ["WorkflowToml → diagrams\n✅ DSL compiles to Mermaid"]
-    end
-
-    subgraph WORKBOOK["Workbook Output"]
-        XLSX_WRITE["rust_xlsxwriter write\n✅ tx projection"]
-        CALAMINE_READ["calamine read-back\n✅ round-trip"]
-        JOURNAL["NDJSON journal\n✅ append + replay"]
-        AUDIT["Audit trail\n✅ MetaCtx mutation log"]
-    end
-
-    subgraph AGENT["Agent Infrastructure"]
-        PIPELINE_HSM["Pipeline HSM\n✅ type-state + statig"]
-        ISSUE_SRC["IssueSource::RhaiRule\n✅ validation layer"]
-        REQIF_OPA["reqif-opa-mcp MCP\n📋 not wired"]
-        NOTIFY["File watcher\n📋 notify crate stub"]
-    end
-
-    PDF_ROUTE --> BLAKE3
-    PDF_ROUTE --> DOCLING
-    BLAKE3 --> WORKBOOK
-    DOCLING --> DOC_GRAPH
-    DOC_GRAPH --> REQIF_CAND
-    REQIF_CAND --> REGISTRY
-    RULE_FILES --> REGISTRY
-    REGISTRY --> KEYWORD_SEL
-    REGISTRY --> SEMANTIC_SEL
-    KEYWORD_SEL --> WATERFALL
-    SEMANTIC_SEL --> WATERFALL
-    WATERFALL --> ENGINE
-    ENGINE --> OUTCOME
-    OUTCOME --> FLAGS
-    OUTCOME --> LEGAL
-    LEGAL_RULE --> SOLVER
-    SOLVER --> VERIFY
-    VERIFY --> WORKBOOK
-    FLAGS --> WORKBOOK
-    WORKBOOK --> AUDIT
-    WORKFLOW_VIZ --> MERMAID_GEN
-    PIPELINE_HSM --> AGENT
-    ISSUE_SRC --> AGENT
-    REQIF_OPA --> AGENT
+```rhai
+fn filename_routing() -> blake3_ids
+fn filename_routing() -> docling_bridge
+fn docling_bridge() -> document_graph
+fn document_graph() -> reqif_candidates
+fn reqif_candidates() -> rule_registry
+fn rule_files() -> rule_registry
+fn rule_registry() -> keyword_selector
+fn rule_registry() -> semantic_selector
+fn keyword_selector() -> classify_waterfall
+fn semantic_selector() -> classify_waterfall
+fn classify_waterfall() -> classification_engine
+fn classification_engine() -> review_flags
+fn classification_engine() -> legal_solver
+fn legal_solver() -> workbook_output
+fn review_flags() -> workbook_output
+fn workbook_output() -> audit_trail
+fn workflow_toml() -> mermaid_generation
+fn pipeline_hsm() -> agent_runtime
+fn issue_source() -> agent_runtime
+fn reqif_opa_bridge() -> agent_runtime
 ```
 
 ## Component Status Table
