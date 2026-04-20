@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-88c50e64.js";
+            window.path_to_searchindex_js = "searchindex-943908f1.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-dd41f5d9.js"></script>
@@ -183,6 +183,26 @@
                         <h1 id="verification"><a class="header" href="#verification">Verification</a></h1>
 <p>The verify module implements multi-model verification for quality assurance.</p>
 <h2 id="multi-model-verification"><a class="header" href="#multi-model-verification">Multi-Model Verification</a></h2>
+<pre class="mermaid">sequenceDiagram
+    participant T as Transaction
+    participant P as Proposer LLM
+    participant S as Decision Store
+    participant R as Reviewer LLM
+    participant H as Human
+    
+    T-&gt;&gt;P: propose(category)
+    P-&gt;&gt;S: store(proposal)
+    S-&gt;&gt;R: review(proposal)
+    alt agreed
+        R--&gt;&gt;S: verdict(agree)
+        S--&gt;&gt;T: result(confidence=0.9)
+    else rejected
+        R--&gt;&gt;S: verdict(disagree, reason)
+        S-&gt;&gt;H: flag_for_review
+        H--&gt;&gt;T: approved/rejected
+    end
+</pre>
+
 <p>The system uses a two-model approach:</p>
 <ol>
 <li><strong>Proposer</strong>: Primary model generates the classification/decision</li>

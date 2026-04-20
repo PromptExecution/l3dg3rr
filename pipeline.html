@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-88c50e64.js";
+            window.path_to_searchindex_js = "searchindex-943908f1.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-dd41f5d9.js"></script>
@@ -190,12 +190,25 @@
 <li><a href="./verify.html">Verify</a> - Multi-model verification</li>
 </ul>
 <h2 id="state-types"><a class="header" href="#state-types">State Types</a></h2>
+<pre class="mermaid">stateDiagram-v2
+    [*] --&gt; Ingested
+    Ingested --&gt; Validating: validate()
+    Validating --&gt; Classifying: classify()
+    Classifying --&gt; Reconciling: reconcile()
+    Reconciling --&gt; Committed: commit()
+    Committed --&gt; [*]
+    
+    Validating --&gt; NeedsReview: confidence &lt; 0.5
+    NeedsReview --&gt; Classifying: human_approved
+</pre>
+
 <ul>
 <li><strong>Ingested</strong>: Document has been parsed</li>
 <li><strong>Validating</strong>: Checking data integrity</li>
 <li><strong>Classifying</strong>: Categorizing transactions</li>
 <li><strong>Reconciling</strong>: Matching against external data</li>
 <li><strong>Committed</strong>: Finalized andauditable</li>
+<li><strong>NeedsReview</strong>: Awaiting human approval</li>
 </ul>
 <h2 id="type-state-pattern"><a class="header" href="#type-state-pattern">Type-State Pattern</a></h2>
 <p>The pipeline uses Rust’s type system to enforce state transitions at compile time:</p>

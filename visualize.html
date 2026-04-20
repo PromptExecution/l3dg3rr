@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-88c50e64.js";
+            window.path_to_searchindex_js = "searchindex-943908f1.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-dd41f5d9.js"></script>
@@ -190,6 +190,29 @@
 <li><a href="./slint_viz.html">Slint Viz</a> - Slint integration</li>
 </ul>
 <h2 id="pipelinegraph"><a class="header" href="#pipelinegraph">PipelineGraph</a></h2>
+<pre class="mermaid">flowchart TB
+    subgraph Input
+        W["Workflow.toml"]
+        S["Pipeline State"]
+    end
+    
+    subgraph Process
+        G["PipelineGraph"]
+        M["to_mermaid()"]
+        H["to_html()"]
+    end
+    
+    subgraph Output
+        MD["Mermaid SVG"]
+        HT["HTML + Mermaid.js"]
+    end
+    
+    W --&gt; G
+    S --&gt; G
+    G --&gt; M --&gt; MD
+    G --&gt; H --&gt; HT
+</pre>
+
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>pub struct PipelineGraph {

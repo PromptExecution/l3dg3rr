@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-88c50e64.js";
+            window.path_to_searchindex_js = "searchindex-943908f1.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-dd41f5d9.js"></script>
@@ -810,12 +810,25 @@ let pos = view.screen_position(0);
 <li><a href="#verification-1">Verify</a> - Multi-model verification</li>
 </ul>
 <h2 id="state-types"><a class="header" href="#state-types">State Types</a></h2>
+<pre class="mermaid">stateDiagram-v2
+    [*] --&gt; Ingested
+    Ingested --&gt; Validating: validate()
+    Validating --&gt; Classifying: classify()
+    Classifying --&gt; Reconciling: reconcile()
+    Reconciling --&gt; Committed: commit()
+    Committed --&gt; [*]
+    
+    Validating --&gt; NeedsReview: confidence &lt; 0.5
+    NeedsReview --&gt; Classifying: human_approved
+</pre>
+
 <ul>
 <li><strong>Ingested</strong>: Document has been parsed</li>
 <li><strong>Validating</strong>: Checking data integrity</li>
 <li><strong>Classifying</strong>: Categorizing transactions</li>
 <li><strong>Reconciling</strong>: Matching against external data</li>
 <li><strong>Committed</strong>: Finalized andauditable</li>
+<li><strong>NeedsReview</strong>: Awaiting human approval</li>
 </ul>
 <h2 id="type-state-pattern"><a class="header" href="#type-state-pattern">Type-State Pattern</a></h2>
 <p>The pipeline uses Rust’s type system to enforce state transitions at compile time:</p>
@@ -883,6 +896,29 @@ impl PipelineState&lt;Validating&gt; {
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="legal-verification"><a class="header" href="#legal-verification">Legal Verification</a></h1>
 <p>The legal module provides tax rule verification across multiple jurisdictions.</p>
+<pre class="mermaid">flowchart LR
+    subgraph Jurisdictions["Supported Jurisdictions"]
+        direction TB
+        US["🇺🇸 US&lt;br/&gt;Schedule C, 1040"]
+        AU["🇦🇺 AU&lt;br/&gt;GST, BAS"]
+        UK["🇬🇧 UK&lt;br/&gt;VAT, CT"]
+    end
+    
+    subgraph Rules["Tax Rules"]
+        R1["Schedule C Expense"]
+        R2["GST Credit"]
+        R3["VAT Deductibility"]
+    end
+    
+    subgraph Result["Disposition"]
+        U["Unrecoverable"]
+        R["Recoverable"]
+        A["Advisory"]
+    end
+    
+    Jurisdictions --&gt; Rules --&gt; Result
+</pre>
+
 <h2 id="jurisdiction"><a class="header" href="#jurisdiction">Jurisdiction</a></h2>
 <p>Supported tax jurisdictions:</p>
 <ul>
@@ -929,6 +965,31 @@ match result.disposition {
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="constraints"><a class="header" href="#constraints">Constraints</a></h1>
 <p>The constraints module implements Kasuari-based data plausibility validation.</p>
+<pre class="mermaid">flowchart LR
+    subgraph Input["Transaction"]
+        A["amount"]
+        D["date"]
+        C["category"]
+    end
+    
+    subgraph Validate["Kasuari Constraint Solver"]
+        RA["AmountRange"]
+        RD["DateWindow"]
+        RC["CategoryPattern"]
+    end
+    
+    subgraph Output["Result"]
+        OK["✓ Valid"]
+        WARN["⚠ Warning"]
+        FAIL["✗ Invalid"]
+    end
+    
+    Input --&gt; Validate
+    RA --&gt; OK
+    RD --&gt; WARN
+    RC --&gt; FAIL
+</pre>
+
 <h2 id="vendorconstraintset"><a class="header" href="#vendorconstraintset">VendorConstraintSet</a></h2>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -963,6 +1024,26 @@ match result.disposition {
 <h1 id="verification-1"><a class="header" href="#verification-1">Verification</a></h1>
 <p>The verify module implements multi-model verification for quality assurance.</p>
 <h2 id="multi-model-verification"><a class="header" href="#multi-model-verification">Multi-Model Verification</a></h2>
+<pre class="mermaid">sequenceDiagram
+    participant T as Transaction
+    participant P as Proposer LLM
+    participant S as Decision Store
+    participant R as Reviewer LLM
+    participant H as Human
+    
+    T-&gt;&gt;P: propose(category)
+    P-&gt;&gt;S: store(proposal)
+    S-&gt;&gt;R: review(proposal)
+    alt agreed
+        R--&gt;&gt;S: verdict(agree)
+        S--&gt;&gt;T: result(confidence=0.9)
+    else rejected
+        R--&gt;&gt;S: verdict(disagree, reason)
+        S-&gt;&gt;H: flag_for_review
+        H--&gt;&gt;T: approved/rejected
+    end
+</pre>
+
 <p>The system uses a two-model approach:</p>
 <ol>
 <li><strong>Proposer</strong>: Primary model generates the classification/decision</li>
@@ -1055,6 +1136,29 @@ event = "validate"
 <li><a href="#slint-visualization">Slint Viz</a> - Slint integration</li>
 </ul>
 <h2 id="pipelinegraph"><a class="header" href="#pipelinegraph">PipelineGraph</a></h2>
+<pre class="mermaid">flowchart TB
+    subgraph Input
+        W["Workflow.toml"]
+        S["Pipeline State"]
+    end
+    
+    subgraph Process
+        G["PipelineGraph"]
+        M["to_mermaid()"]
+        H["to_html()"]
+    end
+    
+    subgraph Output
+        MD["Mermaid SVG"]
+        HT["HTML + Mermaid.js"]
+    end
+    
+    W --&gt; G
+    S --&gt; G
+    G --&gt; M --&gt; MD
+    G --&gt; H --&gt; HT
+</pre>
+
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>pub struct PipelineGraph {
