@@ -2,8 +2,27 @@
 
 [![CI](https://github.com/PromptExecution/l3dg3rr/actions/workflows/ci.yml/badge.svg)](https://github.com/PromptExecution/l3dg3rr/actions/workflows/ci.yml)
 [![Release](https://github.com/PromptExecution/l3dg3rr/actions/workflows/release.yml/badge.svg)](https://github.com/PromptExecution/l3dg3rr/actions/workflows/release.yml)
+[![Documentation](https://img.shields.io/badge/docs-github.io-blue)](https://promptexecution.github.io/l3dg3rr/)
 
 Rust workspace for a local-first, Excel-first tax ledger system.
+
+## Documentation
+
+The full API documentation is hosted at: **https://promptexecution.github.io/l3dg3rr/**
+
+Chapters include:
+- Graph Data Model
+- Force Layout
+- Isometric Projection
+- Renderer
+- Slint Visualization
+- Pipeline
+- Validation
+- Legal Verification
+- Constraints
+- Verification
+- Workflow
+- Visualization
 
 ## Agent Guide
 
@@ -27,6 +46,7 @@ See [docs/mcp-capability-contract.md](docs/mcp-capability-contract.md) for the c
 | [cocogitto](https://docs.cocogitto.io/) | `cargo install cocogitto` | Conventional commits + version bumps |
 | [cross](https://github.com/cross-rs/cross) | `cargo install cross --locked` | Cross-compilation for musl/macOS release bundles |
 | [mcp-publisher](https://github.com/modelcontextprotocol/registry) | See registry releases | MCP Registry submission (`just publish-registry`) |
+| [mdbook](https://rust-lang.github.io/mdBook/) | `cargo install mdbook` | Build documentation |
 
 Optional: Docker or Podman for container builds.
 
