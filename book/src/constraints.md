@@ -2,6 +2,32 @@
 
 The constraints module implements Kasuari-based data plausibility validation.
 
+```mermaid
+flowchart LR
+    subgraph Input["Transaction"]
+        A["amount"]
+        D["date"]
+        C["category"]
+    end
+    
+    subgraph Validate["Kasuari Constraint Solver"]
+        RA["AmountRange"]
+        RD["DateWindow"]
+        RC["CategoryPattern"]
+    end
+    
+    subgraph Output["Result"]
+        OK["✓ Valid"]
+        WARN["⚠ Warning"]
+        FAIL["✗ Invalid"]
+    end
+    
+    Input --> Validate
+    RA --> OK
+    RD --> WARN
+    RC --> FAIL
+```
+
 ## VendorConstraintSet
 
 ```rust

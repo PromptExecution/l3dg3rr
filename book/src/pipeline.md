@@ -11,11 +11,25 @@ The pipeline module implements a type-state pattern for the document processing 
 
 ## State Types
 
+```mermaid
+stateDiagram-v2
+    [*] --> Ingested
+    Ingested --> Validating: validate()
+    Validating --> Classifying: classify()
+    Classifying --> Reconciling: reconcile()
+    Reconciling --> Committed: commit()
+    Committed --> [*]
+    
+    Validating --> NeedsReview: confidence < 0.5
+    NeedsReview --> Classifying: human_approved
+```
+
 - **Ingested**: Document has been parsed
 - **Validating**: Checking data integrity
 - **Classifying**: Categorizing transactions
 - **Reconciling**: Matching against external data
 - **Committed**: Finalized andauditable
+- **NeedsReview**: Awaiting human approval
 
 ## Type-State Pattern
 

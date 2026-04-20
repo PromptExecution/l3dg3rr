@@ -11,6 +11,30 @@ The visualize module generates Mermaid diagrams and HTML exports for pipeline st
 
 ## PipelineGraph
 
+```mermaid
+flowchart TB
+    subgraph Input
+        W["Workflow.toml"]
+        S["Pipeline State"]
+    end
+    
+    subgraph Process
+        G["PipelineGraph"]
+        M["to_mermaid()"]
+        H["to_html()"]
+    end
+    
+    subgraph Output
+        MD["Mermaid SVG"]
+        HT["HTML + Mermaid.js"]
+    end
+    
+    W --> G
+    S --> G
+    G --> M --> MD
+    G --> H --> HT
+```
+
 ```rust
 pub struct PipelineGraph {
     pub nodes: HashMap<String, NodeVisualState>,

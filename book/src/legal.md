@@ -2,6 +2,30 @@
 
 The legal module provides tax rule verification across multiple jurisdictions.
 
+```mermaid
+flowchart LR
+    subgraph Jurisdictions["Supported Jurisdictions"]
+        direction TB
+        US["🇺🇸 US<br/>Schedule C, 1040"]
+        AU["🇦🇺 AU<br/>GST, BAS"]
+        UK["🇬🇧 UK<br/>VAT, CT"]
+    end
+    
+    subgraph Rules["Tax Rules"]
+        R1["Schedule C Expense"]
+        R2["GST Credit"]
+        R3["VAT Deductibility"]
+    end
+    
+    subgraph Result["Disposition"]
+        U["Unrecoverable"]
+        R["Recoverable"]
+        A["Advisory"]
+    end
+    
+    Jurisdictions --> Rules --> Result
+```
+
 ## Jurisdiction
 
 Supported tax jurisdictions:
