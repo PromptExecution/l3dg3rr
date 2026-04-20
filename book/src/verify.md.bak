@@ -4,13 +4,6 @@ The verify module implements multi-model verification for quality assurance.
 
 ## Multi-Model Verification
 
-```rhai
-fn proposer_model() -> decision_store
-fn decision_store() -> reviewer_model
-if reviewer_agreed == true -> accepted_result
-if reviewer_agreed == false -> human_review
-fn human_review() -> accepted_result
-```
 ```mermaid
 sequenceDiagram
     participant T as Transaction

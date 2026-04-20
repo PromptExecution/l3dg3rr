@@ -29,6 +29,10 @@ wsl2-pwsh-run-tray:
 wsl2-pwsh-run-window:
     powershell.exe -NoProfile -Command '$env:PATH = "C:\Users\wendy\.cargo\bin;C:\msys64\mingw64\bin;" + $env:PATH; Set-Location "C:\Users\wendy\l3dg3rr"; cargo build -p ledgerr-host --bin host-window | Out-Null; Start-Process -FilePath "C:\Users\wendy\l3dg3rr\target\debug\host-window.exe" -WorkingDirectory "C:\Users\wendy\l3dg3rr"'
 
+# Build docs, start Windows-local HTTP server, and open browser for live Rhai diagram editing.
+wsl2-pwsh-docserve:
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Users\wendy\l3dg3rr\scripts\docserve-live.ps1"
+
 # Pull and run the MCP server from GHCR using podman (stdio transport)
 # Usage: just mcp-podman-run        — latest image on main
 #        just mcp-podman-run v0.2.0 — specific release tag
@@ -234,6 +238,15 @@ docgen:
     PATH="$HOME/.cargo/bin:$PATH" ~/.cargo/bin/mdbook build book
     @echo "Docs built in book/book/ — serve with: npx serve book/book"
 
+# Build and serve mdbook locally with the live Rhai editor enabled
+docserve host="127.0.0.1" port="3000":
+    @if [ ! -x ~/.cargo/bin/mdbook ]; then echo "error: mdbook not found — run: cargo install mdbook mdbook-mermaid"; exit 1; fi
+    @if [ ! -x ~/.cargo/bin/mdbook-mermaid ]; then echo "error: mdbook-mermaid not found — run: cargo install mdbook-mermaid"; exit 1; fi
+    @if [ ! -x ~/.cargo/bin/mdbook-rhai-mermaid ]; then cargo install --path crates/mdbook-rhai-mermaid --quiet; fi
+    PATH="$HOME/.cargo/bin:$PATH" ~/.cargo/bin/mdbook build book
+    @echo "Serving http://{{host}}:{{port}}"
+    cd book/book && python3 -m http.server {{port}} --bind {{host}}
+
 # Verify docs build, rhai→mermaid injection happened, diagrams render, cross-references valid
 docgen-check:
     @if [ ! -x ~/.cargo/bin/mdbook ]; then echo "error: mdbook not found — run: cargo install mdbook mdbook-mermaid"; exit 1; fi
@@ -251,4 +264,7 @@ docgen-check:
     @echo "Verifying rhai→mermaid injection..."
     @grep -q 'class="language-rhai"' book/book/theory.html && echo "✓ theory.html has rhai source blocks" || exit 1
     @grep -q 'class="mermaid"' book/book/theory.html && echo "✓ theory.html has generated mermaid blocks" || { echo "error: rhai→mermaid injection missing in theory.html"; exit 1; }
+    @grep -q 'theme/rhai-live-' book/book/theory.html && echo "✓ theory.html loads live-editor assets" || { echo "error: live-editor JS missing in theory.html"; exit 1; }
+    @echo "Running live-editor unit tests..."
+    @node --test book/theme/rhai-live-core.test.js
     @echo "All documentation diagrams validated!"

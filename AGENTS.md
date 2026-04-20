@@ -313,12 +313,14 @@ Treat this as a standing operational gate, not a one-time migration task.
   - Live at https://promptexecution.github.io/l3dg3rr/
   - Every chapter includes executable Rust code examples that can run as integration tests.
   - Include rhai code blocks that parse to Mermaid diagrams: ` ```rhai ` code fences.
+  - Keep auto-diagram Rhai blocks to the supported mini-DSL only: `fn source() -> target` and `if expr -> target`. Do not drop general imperative Rhai examples into diagram sections unless they are fenced with another language or explicitly meant to render no diagram.
   - Cross-reference chapters using relative links (e.g., `[Graph](./graph.md)`).
   - Include "Related Chapters" section in each chapter for navigation.
   - Use Option/Result/Either monadic patterns in code examples to reflect real API style.
   - Theory of Operation chapter documents Novel Theory of Tool (NTTP) pattern.
   - CI runs `just docgen-check` as part of docs job; validates SVG + cross-references.
-  - `just docgen` - build local docs, `just docgen-check` - validate diagrams and links.
+  - `just docgen` - build local docs, `just docgen-check` - validate diagrams and links, `just docserve` - serve the built book locally with the live Rhai diagram editor.
+  - Windows/WSL startup for live docs is memoized in `scripts/docserve-live.pwsh` and invoked via `just wsl2-pwsh-docserve`.
   - When adding new modules, add corresponding chapter in `book/src/` and update `book/src/SUMMARY.md`.
 
 

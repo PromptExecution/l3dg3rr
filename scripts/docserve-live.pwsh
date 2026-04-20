@@ -1,0 +1,101 @@
+param(
+    [string]$RepoPath = "C:\Users\wendy\l3dg3rr",
+    [string]$WslRepoPath = "/mnt/c/users/wendy/l3dg3rr",
+    [string]$BindHost = "127.0.0.1",
+    [int]$Port = 3000,
+    [switch]$SkipBuild,
+    [switch]$SkipBrowser
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+
+function Get-HttpServerProcesses {
+    param([int]$TargetPort)
+    Get-CimInstance Win32_Process |
+        Where-Object {
+            ($_.Name -match "python|py") -and
+            ($_.CommandLine -match "http\.server") -and
+            ($_.CommandLine -match "\s$TargetPort(\s|$)")
+        }
+}
+
+function Stop-HttpServerProcesses {
+    param([int]$TargetPort)
+    $procs = Get-HttpServerProcesses -TargetPort $TargetPort
+    foreach ($proc in $procs) {
+        try {
+            Stop-Process -Id $proc.ProcessId -Force -ErrorAction Stop
+        } catch {
+            Write-Warning "Failed to stop PID $($proc.ProcessId): $($_.Exception.Message)"
+        }
+    }
+}
+
+function Start-HttpServer {
+    param(
+        [string]$WorkingDir,
+        [string]$BindHost,
+        [int]$BindPort
+    )
+
+    if (Get-Command py -ErrorAction SilentlyContinue) {
+        return Start-Process `
+            -FilePath "py" `
+            -ArgumentList "-3 -m http.server $BindPort --bind $BindHost --directory book/book" `
+            -WorkingDirectory $WorkingDir `
+            -WindowStyle Hidden `
+            -PassThru
+    }
+
+    if (Get-Command python -ErrorAction SilentlyContinue) {
+        return Start-Process `
+            -FilePath "python" `
+            -ArgumentList "-m http.server $BindPort --bind $BindHost --directory book/book" `
+            -WorkingDirectory $WorkingDir `
+            -WindowStyle Hidden `
+            -PassThru
+    }
+
+    throw "No Python launcher found on Windows PATH (expected 'py' or 'python')."
+}
+
+if (-not (Test-Path -LiteralPath $RepoPath)) {
+    throw "Repo path not found: $RepoPath"
+}
+
+if (-not $SkipBuild) {
+    Write-Host "Building docs via WSL: just docgen"
+    & wsl.exe -e bash -lc "cd $WslRepoPath && just docgen"
+}
+
+Set-Location -LiteralPath $RepoPath
+
+Stop-HttpServerProcesses -TargetPort $Port
+
+$server = Start-HttpServer -WorkingDir $RepoPath -BindHost $BindHost -BindPort $Port
+$url = "http://$BindHost`:$Port/theory.html"
+
+$ready = $false
+for ($i = 0; $i -lt 20; $i++) {
+    Start-Sleep -Milliseconds 300
+    try {
+        $resp = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 2
+        if ($resp.StatusCode -eq 200) {
+            $ready = $true
+            break
+        }
+    } catch {
+        # Keep polling until timeout.
+    }
+}
+
+if (-not $ready) {
+    throw "Docs server did not become ready at $url"
+}
+
+if (-not $SkipBrowser) {
+    Start-Process $url | Out-Null
+}
+
+Write-Host "Docs server ready at $url (PID $($server.Id))"

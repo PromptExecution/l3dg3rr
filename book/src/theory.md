@@ -77,73 +77,42 @@ for (idx, _) in nodes.iter().enumerate() {
 
 ## System Architecture Diagram
 
-```mermaid
-flowchart TB
-    subgraph OPERATOR["OPERATOR"]
-        H["Human Accountant"]
-    end
-
-    subgraph HOST["SLINT DESKTOP HOST"]
-        T["Tray Icon"]
-        W["Window UI"]
-        N["Toast Notifier"]
-        C["Credential Manager"]
-        G["SlintGraph View"]
-    end
-
-    subgraph CORE["LEDGER-CORE"]
-        P["Pipeline HSM"]
-        V["Validation"]
-        L["Legal Solver"]
-        K["Constraints"]
-    end
-
-    subgraph MCP["MCP ADAPTER"]
-        D["ledgerr_documents"]
-        R["ledgerr_review"]
-        Cc["ledgerr_reconciliation"]
-    end
-
-    H --> HOST
-    T --> G
-    W --> G
-    N --> G
-    C --> G
-    HOST --> CORE
-    CORE --> MCP
-    P --> V
-    P --> L
-    P --> K
+```rhai
+fn human_accountant() -> tray_icon
+fn human_accountant() -> window_ui
+fn tray_icon() -> slint_graph_view
+fn window_ui() -> slint_graph_view
+fn toast_notifier() -> slint_graph_view
+fn credential_manager() -> slint_graph_view
+fn slint_graph_view() -> pipeline_hsm
+fn pipeline_hsm() -> validation
+fn pipeline_hsm() -> legal_solver
+fn pipeline_hsm() -> constraints
+fn pipeline_hsm() -> ledgerr_documents
+fn pipeline_hsm() -> ledgerr_review
+fn pipeline_hsm() -> ledgerr_reconciliation
 ```
 
 ## Pipeline Flow Diagram
 
-```mermaid
-stateDiagram-v2
-    [*] --> Ingested
-    Ingested --> Validating: validate
-    Validating --> Classifying: classify
-    Classifying --> Reconciling: reconcile
-    Reconciling --> Committed: commit
-    Committed --> [*]
-
-    Validating --> NeedsReview: low_confidence
-    NeedsReview --> Classifying: approved
+```rhai
+fn ingested() -> validating
+fn validating() -> classifying
+fn classifying() -> reconciling
+fn reconciling() -> committed
+if low_confidence == true -> needs_review
+if approved == true -> classifying
 ```
 
 ## LLM Verification Pattern
 
-```mermaid
-sequenceDiagram
-    participant P as Proposer LLM
-    participant S as Decision Store
-    participant R as Reviewer LLM
-    
-    P->>S: propose(category, confidence)
-    S->>R: review(proposal)
-    R-->>S: verdict(agreed, evidence)
-    S-->>P: result(confidence, issues)
-
+```rhai
+fn proposer_llm() -> decision_store
+fn decision_store() -> reviewer_llm
+if reviewer_agreed == true -> accepted_result
+if reviewer_agreed == false -> human_review
+fn human_review() -> accepted_result
+```
 ## Executable LLM Pipeline Integration
 
 ### Proposer/Reviewer Pattern
@@ -202,29 +171,12 @@ fn run_pipeline(document_path: &str) -> Result<PipelineState<Committed>, Issue> 
 
 ### 3D Force Layout to 2D Screen
 
-```mermaid
-flowchart LR
-    subgraph Input["3D Force Layout"]
-        F1["Node A"]
-        F2["Node B"]
-        F3["Node C"]
-    end
-    
-    subgraph Transform["Isometric Projection"]
-        I["x' = (x-z) * 0.866<br/>y' = (x+z) * 0.5 - y"]
-    end
-    
-    subgraph Output["2D Screen"]
-        S1["(400, 300)"]
-        S2["(450, 280)"]
-        S3["(420, 320)"]
-    end
-    
-    F1 --> I --> S1
-    F2 --> I --> S2
-    F3 --> I --> S3
+```rhai
+fn node_a_3d() -> isometric_projection
+fn node_b_3d() -> isometric_projection
+fn node_c_3d() -> isometric_projection
+fn isometric_projection() -> screen_coordinates
 ```
-
 ### State Visualization Mapping
 
 ```rust
@@ -285,8 +237,8 @@ test-recipes:
     validates: isometric graph rendering
 
   - name: mdbook-build
-    command: mdbook build book
-    validates: documentation generation
+    command: just docgen-check
+    validates: documentation generation plus live Rhai editor assets
 
   - name: mcp-surface-contract
     command: cargo run -p xtask-mcpb -- generate-mcp-artifacts

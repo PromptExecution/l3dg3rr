@@ -61,6 +61,19 @@ let mermaid = graph.to_mermaid();
 // Generates stateDiagram-v2
 ```
 
+## Live Rhai Editor
+
+The rendered book now upgrades generated Rhai diagram blocks into a local editor + preview surface. Use `just docserve`, open the book in a browser, edit a supported ` ```rhai ` block, and click `Regenerate` to redraw the chart without changing the source markdown.
+
+The live editor uses the same narrow diagram DSL as the mdBook preprocessor:
+- `fn source() -> target`
+- `if expression -> target`
+
+Diagnostics now surface line-level parse feedback:
+- malformed DSL lines are marked as errors
+- ignored non-DSL lines are marked as informational notes
+- render failures include Mermaid load guidance when the global runtime is unavailable
+
 ## HTML Export
 
 ```rust
