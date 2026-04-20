@@ -9,6 +9,3 @@ title = "l3dg3rr Ledger Documentation"
 [output.html]
 edit-url-template = "https://github.com/PromptExecution/l3dg3rr/edit/main/book/src/{path}#L{line}"
 git-repository-url = "https://github.com/PromptExecution/l3dg3rr"
-
-[output.linkcheck]
-optional = true
