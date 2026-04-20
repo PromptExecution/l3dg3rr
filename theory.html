@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-c80b5533.js";
+            window.path_to_searchindex_js = "searchindex-88c50e64.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-dd41f5d9.js"></script>
@@ -243,68 +243,76 @@ for (idx, _) in nodes.iter().enumerate() {
 </table>
 </div>
 <h2 id="system-architecture-diagram"><a class="header" href="#system-architecture-diagram">System Architecture Diagram</a></h2>
-<pre><code>┌─────────────────────────────────────────────────────────────────────────┐
-│                         OPERATOR (Human Accountant)                     │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                     SLINT DESKTOP HOST (Rust)                          │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐   │
-│  │ Tray Icon   │  │ Window UI   │  │ Toast       │  │ Credential  │   │
-│  │ (quick      │  │ (Slint      │  │ Notifier    │  │ Manager     │   │
-│  │  actions)   │  │  Isometric) │  │ (Windows)   │  │ (Win32)     │   │
-│  └─────────────┘  └──────┬──────┘  └─────────────┘  └─────────────┘   │
-│                          │                                               │
-│                   ┌──────▼──────┐                                        │
-│                   │ SlintGraph  │                                        │
-│                   │ View        │                                        │
-│                   │ (Arc&lt;RwLock │                                        │
-│                   │  ForceLayout│                                        │
-│                   └──────┬──────┘                                        │
-└──────────────────────────┼──────────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                      LEDGER-CORE (Business Logic)                      │
-│                                                                          │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                    PIPELINE (Type-State HSM)                     │   │
-│  │  ┌─────────┐    ┌───────────┐    ┌────────────┐    ┌─────────┐  │   │
-│  │  │Ingested │───▶│Validating │───▶│Classifying │───▶│Committed│  │   │
-│  │  └─────────┘    └─────┬─────┘    └────────────┘    └─────────┘  │   │
-│  └───────────────────────┼───────────────────────────────────────────┘   │
-│                          │                                                │
-│         ┌────────────────┼────────────────┐                              │
-│         ▼                ▼                ▼                              │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                      │
-│  │ Validation  │  │ Legal       │  │ Constraints │                      │
-│  │ (Kasuari)   │  │ (Z3 Solver) │  │ (Kasuari)   │                      │
-│  └─────────────┘  └─────────────┘  └─────────────┘                      │
-└──────────────────────────────────────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         MCP ADAPTER (Protocol)                          │
-│                                                                          │
-│   ledgerr_documents  │  ledgerr_review  │  ledgerr_reconciliation       │
-│   ledgerr_workflow   │  ledgerr_audit   │  ledgerr_tax                  │
-│   ledgerr_ontology   │                                                   │
-└──────────────────────────────────────────────────────────────────────────┘
-                           │
-            ┌──────────────┴──────────────┐
-            ▼                              ▼
-     ┌─────────────┐              ┌─────────────┐
-     │ Claude Code │              │ Xero API    │
-     │ (LLM Agent) │              │ (External)  │
-     └─────────────┘              └─────────────┘
-</code></pre>
-<h2 id="executable-llm-pipeline-integration"><a class="header" href="#executable-llm-pipeline-integration">Executable LLM Pipeline Integration</a></h2>
-<h3 id="proposerreviewer-pattern"><a class="header" href="#proposerreviewer-pattern">Proposer/Reviewer Pattern</a></h3>
-<p>The verification system uses a two-model approach for classification quality:</p>
-<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use ledger_core::verify::Verifier;
+<pre class="mermaid">flowchart TB
+    subgraph OPERATOR["OPERATOR"]
+        H["Human Accountant"]
+    end
+
+    subgraph HOST["SLINT DESKTOP HOST"]
+        T["Tray Icon"]
+        W["Window UI"]
+        N["Toast Notifier"]
+        C["Credential Manager"]
+        G["SlintGraph View"]
+    end
+
+    subgraph CORE["LEDGER-CORE"]
+        P["Pipeline HSM"]
+        V["Validation"]
+        L["Legal Solver"]
+        K["Constraints"]
+    end
+
+    subgraph MCP["MCP ADAPTER"]
+        D["ledgerr_documents"]
+        R["ledgerr_review"]
+        Cc["ledgerr_reconciliation"]
+    end
+
+    H --&gt; HOST
+    T --&gt; G
+    W --&gt; G
+    N --&gt; G
+    C --&gt; G
+    HOST --&gt; CORE
+    CORE --&gt; MCP
+    P --&gt; V
+    P --&gt; L
+    P --&gt; K
+</pre>
+
+<h2 id="pipeline-flow-diagram"><a class="header" href="#pipeline-flow-diagram">Pipeline Flow Diagram</a></h2>
+<pre class="mermaid">stateDiagram-v2
+    [*] --&gt; Ingested
+    Ingested --&gt; Validating: validate
+    Validating --&gt; Classifying: classify
+    Classifying --&gt; Reconciling: reconcile
+    Reconciling --&gt; Committed: commit
+    Committed --&gt; [*]
+
+    Validating --&gt; NeedsReview: low_confidence
+    NeedsReview --&gt; Classifying: approved
+</pre>
+
+<h2 id="llm-verification-pattern"><a class="header" href="#llm-verification-pattern">LLM Verification Pattern</a></h2>
+<pre class="mermaid">sequenceDiagram
+    participant P as Proposer LLM
+    participant S as Decision Store
+    participant R as Reviewer LLM
+    
+    P-&gt;&gt;S: propose(category, confidence)
+    S-&gt;&gt;R: review(proposal)
+    R--&gt;&gt;S: verdict(agreed, evidence)
+    S--&gt;&gt;P: result(confidence, issues)
+
+## Executable LLM Pipeline Integration
+
+### Proposer/Reviewer Pattern
+
+The verification system uses a two-model approach for classification quality:
+
+```rust
+use ledger_core::verify::Verifier;
 use ledger_core::validation::{Disposition, MetaCtx};
 
 // Initialize verifier with two models
@@ -322,7 +330,8 @@ let confidence = if review.agreed {
 } else {
     proposal.confidence * 0.5   // Disagreement penalty
 };
-<span class="boring">}</span></code></pre>
+</pre>
+
 <h3 id="multi-stage-classification-flow-executable"><a class="header" href="#multi-stage-classification-flow-executable">Multi-Stage Classification Flow (Executable)</a></h3>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -351,6 +360,29 @@ fn run_pipeline(document_path: &amp;str) -&gt; Result&lt;PipelineState&lt;Commit
 <span class="boring">}</span></code></pre>
 <h2 id="isometric-visualization-executable"><a class="header" href="#isometric-visualization-executable">Isometric Visualization (Executable)</a></h2>
 <h3 id="3d-force-layout-to-2d-screen"><a class="header" href="#3d-force-layout-to-2d-screen">3D Force Layout to 2D Screen</a></h3>
+<pre class="mermaid">flowchart LR
+    subgraph Input["3D Force Layout"]
+        F1["Node A"]
+        F2["Node B"]
+        F3["Node C"]
+    end
+    
+    subgraph Transform["Isometric Projection"]
+        I["x' = (x-z) * 0.866&lt;br/&gt;y' = (x+z) * 0.5 - y"]
+    end
+    
+    subgraph Output["2D Screen"]
+        S1["(400, 300)"]
+        S2["(450, 280)"]
+        S3["(420, 320)"]
+    end
+    
+    F1 --&gt; I --&gt; S1
+    F2 --&gt; I --&gt; S2
+    F3 --&gt; I --&gt; S3
+</pre>
+
+<h3 id="state-visualization-mapping"><a class="header" href="#state-visualization-mapping">State Visualization Mapping</a></h3>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use ledger_core::{graph::*, layout::*, render::*};
@@ -382,7 +414,7 @@ fn visualize_pipeline() -&gt; String {
     mermaid
 }
 <span class="boring">}</span></code></pre>
-<h3 id="state-visualization-mapping"><a class="header" href="#state-visualization-mapping">State Visualization Mapping</a></h3>
+<h3 id="state-visualization-mapping-1"><a class="header" href="#state-visualization-mapping-1">State Visualization Mapping</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -508,6 +540,13 @@ let id1 = compute_tx_id("WF-BH-CHK", "2024-01-15", 150.00, "Office Depot");
 let id2 = compute_tx_id("WF-BH-CHK", "2024-01-15", 150.00, "Office Depot");
 assert_eq!(id1, id2); // Idempotent!
 <span class="boring">}</span></code></pre>
+<h3 id="content-hash-flow"><a class="header" href="#content-hash-flow">Content-Hash Flow</a></h3>
+<pre class="mermaid">flowchart LR
+    I1["account|date|amount|desc"] --&gt; B["blake3"]
+    B --&gt; H["64-char hex"]
+    H --&gt; DB["tx_id stored"]
+</pre>
+
 <h2 id="workflow-dsl-compilation-executable"><a class="header" href="#workflow-dsl-compilation-executable">Workflow DSL Compilation (Executable)</a></h2>
 <h3 id="toml--triple-compilation"><a class="header" href="#toml--triple-compilation">TOML → Triple Compilation</a></h3>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
