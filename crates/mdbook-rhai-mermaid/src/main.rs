@@ -262,6 +262,25 @@ mod tests {
     }
 
     #[test]
+    fn test_inject_match_block() {
+        let content = [
+            "# Match",
+            "",
+            "```rhai",
+            "match result.disposition => Disposition::Unrecoverable -> halt_pipeline",
+            "match result.disposition => Disposition::Recoverable -> repair_and_retry",
+            "```",
+            "",
+        ]
+        .join("\n");
+        let result = inject_mermaid_blocks(&content);
+        assert!(result.contains("```mermaid"));
+        assert!(result.contains("match result.disposition"));
+        assert!(result.contains("Disposition::Unrecoverable"));
+        assert!(result.contains("Disposition::Recoverable"));
+    }
+
+    #[test]
     fn test_inject_multiple_blocks() {
         let content =
             "```rhai\nfn a() -> b\n```\n\nMiddle.\n\n```rhai\nfn c() -> d\n```\n";

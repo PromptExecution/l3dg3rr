@@ -261,10 +261,15 @@ docgen-check:
     @grep -q 'href="./graph.html"' book/book/intro.html && echo "✓ intro.html references graph.html" || exit 1
     @grep -q 'href="./validation.html"' book/book/pipeline.html && echo "✓ pipeline.html references validation.html" || exit 1
     @grep -q 'href="./pipeline.html"' book/book/validation.html && echo "✓ validation.html references pipeline.html" || exit 1
+    @grep -q 'href="./match-visualization-plan.html"' book/book/visualize.html && echo "✓ visualize.html references match-visualization-plan.html" || exit 1
     @echo "Verifying rhai→mermaid injection..."
     @grep -q 'class="language-rhai"' book/book/theory.html && echo "✓ theory.html has rhai source blocks" || exit 1
     @grep -q 'class="mermaid"' book/book/theory.html && echo "✓ theory.html has generated mermaid blocks" || { echo "error: rhai→mermaid injection missing in theory.html"; exit 1; }
+    @grep -q 'match result.disposition' book/book/match-visualization-plan.html && echo "✓ match-visualization-plan.html includes match DSL examples" || { echo "error: match DSL examples missing in match-visualization-plan.html"; exit 1; }
     @grep -q 'theme/rhai-live-' book/book/theory.html && echo "✓ theory.html loads live-editor assets" || { echo "error: live-editor JS missing in theory.html"; exit 1; }
+    @echo "Checking live-editor runtime syntax..."
+    @node -c book/theme/rhai-live-core.js
+    @node -c book/theme/rhai-live.js
     @echo "Running live-editor unit tests..."
     @node --test book/theme/rhai-live-core.test.js
     @echo "All documentation diagrams validated!"
