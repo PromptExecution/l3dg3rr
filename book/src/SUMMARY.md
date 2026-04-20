@@ -13,4 +13,7 @@
 - [Constraints](./constraints.md)
 - [Verification](./verify.md)
 - [Workflow](./workflow.md)
+- [Rule Engine](./rule-engine.md)
+- [Document Ingestion](./document-ingestion.md)
+- [Capability Map](./capability-map.md)
 - [Visualization](./visualize.md)

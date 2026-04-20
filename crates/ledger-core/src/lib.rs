@@ -11,6 +11,7 @@ pub mod layout;
 pub mod manifest;
 pub mod pipeline;
 pub mod render;
+pub mod rule_registry;
 pub mod slint_viz;
 pub mod tags;
 pub mod validation;
