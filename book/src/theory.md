@@ -10,6 +10,7 @@ This chapter documents the novel architecture patterns that power l3dg3rr's AI a
 - [Pipeline](./pipeline.md) - Type-state workflow
 - [Validation](./validation.md) - Confidence accumulation
 - [Visualization](./visualize.md) - Mermaid/HTML export
+- [Match Visualization Plan](./match-visualization-plan.md) - future branch rendering contract
 - [Legal Verification](./legal.md) - Tax rule verification
 - [Constraints](./constraints.md) - Kasuari constraints
 
@@ -320,6 +321,8 @@ match result.disposition {
     Disposition::Advisory => println!("Suggestion: {}", result.message),
 }
 ```
+
+The visualization plan for this kind of multi-arm branch is documented in [Match Visualization Plan](./match-visualization-plan.md). Until the docs renderer grows first-class `match` support, branch-heavy examples should include a fan-out sample that keeps arm order stable across Mermaid and isometric views.
 
 ## Content-Hash Identity Model
 
