@@ -312,11 +312,13 @@ Treat this as a standing operational gate, not a one-time migration task.
 - 2026-04-20: mdbook documentation with executable code examples.
   - Live at https://promptexecution.github.io/l3dg3rr/
   - Every chapter includes executable Rust code examples that can run as integration tests.
+  - Include rhai code blocks that parse to Mermaid diagrams: ` ```rhai ` code fences.
   - Cross-reference chapters using relative links (e.g., `[Graph](./graph.md)`).
   - Include "Related Chapters" section in each chapter for navigation.
   - Use Option/Result/Either monadic patterns in code examples to reflect real API style.
   - Theory of Operation chapter documents Novel Theory of Tool (NTTP) pattern.
-  - CI runs `mdbook build book` as part of docs job; deploys to GitHub Pages on push to main/feature/**.
+  - CI runs `just docgen-check` as part of docs job; validates SVG + cross-references.
+  - `just docgen` - build local docs, `just docgen-check` - validate diagrams and links.
   - When adding new modules, add corresponding chapter in `book/src/` and update `book/src/SUMMARY.md`.
 
 
