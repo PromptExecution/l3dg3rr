@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-9c93cb70.js";
+            window.path_to_searchindex_js = "searchindex-5b86dceb.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-f15e6ca1.js"></script>
@@ -204,28 +204,445 @@ mdbook build
 </code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="graph-data-model"><a class="header" href="#graph-data-model">Graph Data Model</a></h1>
+<p>The graph module provides the data structures for the pipeline visualization.</p>
+<h2 id="nodedata"><a class="header" href="#nodedata">NodeData</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct NodeData {
+    pub label: String,
+    pub color: [f32; 3],
+    pub mass: f32,
+}
+<span class="boring">}</span></code></pre>
+<ul>
+<li><strong>label</strong>: Human-readable name for the node (e.g., “Ingested”, “Validating”)</li>
+<li><strong>color</strong>: RGB values as floats [0-1] for visualization</li>
+<li><strong>mass</strong>: Relative size/weight for force-directed layout</li>
+</ul>
+<h2 id="edgedata"><a class="header" href="#edgedata">EdgeData</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct EdgeData {
+    pub weight: f32,
+}
+<span class="boring">}</span></code></pre>
+<ul>
+<li><strong>weight</strong>: Edge strength for layout calculations</li>
+</ul>
+<h2 id="functions"><a class="header" href="#functions">Functions</a></h2>
+<h3 id="create_pipeline_nodes"><a class="header" href="#create_pipeline_nodes">create_pipeline_nodes</a></h3>
+<p>Returns the standard pipeline node definitions:</p>
+<ul>
+<li>Ingested</li>
+<li>Validating</li>
+<li>Classifying</li>
+<li>Reconciling</li>
+<li>Committed</li>
+</ul>
+<h3 id="create_pipeline_edges"><a class="header" href="#create_pipeline_edges">create_pipeline_edges</a></h3>
+<p>Returns the standard pipeline connections:</p>
+<ul>
+<li>Ingested → Validating</li>
+<li>Validating → Classifying</li>
+<li>Classifying → Reconciling</li>
+<li>Reconciling → Committed</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="force-layout"><a class="header" href="#force-layout">Force Layout</a></h1>
+<p>The layout module implements force-directed graph layout using a custom Fruchterman-Reingold algorithm.</p>
+<h2 id="forcelayout"><a class="header" href="#forcelayout">ForceLayout</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct ForceLayout {
+    positions: HashMap&lt;usize, Vec3&gt;,
+    velocities: HashMap&lt;usize, Vec3&gt;,
+}
+<span class="boring">}</span></code></pre>
+<h2 id="methods"><a class="header" href="#methods">Methods</a></h2>
+<h3 id="new"><a class="header" href="#new">new()</a></h3>
+<p>Creates an empty force layout.</p>
+<h3 id="for_pipeline"><a class="header" href="#for_pipeline">for_pipeline()</a></h3>
+<p>Creates a force layout initialized with the standard pipeline nodes arranged in a circle.</p>
+<h3 id="tick"><a class="header" href="#tick">tick()</a></h3>
+<p>Runs one iteration of the force-directed layout algorithm, updating node positions based on:</p>
+<ul>
+<li>Repulsion between all nodes</li>
+<li>Attraction along edges</li>
+<li>Center gravity to keep the graph bounded</li>
+</ul>
+<h3 id="positionnode_idx-usize---option"><a class="header" href="#positionnode_idx-usize---option">position(node_idx: usize) -&gt; Option<vec3></vec3></a></h3>
+<p>Returns the 3D position of a node by index.</p>
+<h3 id="all_positions---hashmapusize-vec3"><a class="header" href="#all_positions---hashmapusize-vec3">all_positions() -&gt; &amp;HashMap&lt;usize, Vec3&gt;</a></h3>
+<p>Returns all node positions.</p>
+<h2 id="usage"><a class="header" href="#usage">Usage</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let mut layout = ForceLayout::for_pipeline();
+for _ in 0..100 {
+    layout.tick();
+}
+for (idx, pos) in layout.all_positions() {
+    println!("Node {}: {:?}", idx, pos);
+}
+<span class="boring">}</span></code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="isometric-projection"><a class="header" href="#isometric-projection">Isometric Projection</a></h1>
+<p>The isometric projection converts 3D force-directed positions to 2D screen coordinates.</p>
+<h2 id="iso_project"><a class="header" href="#iso_project">iso_project</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub fn iso_project(p: Vec3, scale: f32, origin: Vec2) -&gt; Vec2
+<span class="boring">}</span></code></pre>
+<h3 id="parameters"><a class="header" href="#parameters">Parameters</a></h3>
+<ul>
+<li><strong>p</strong>: 3D position from force layout (Vec3)</li>
+<li><strong>scale</strong>: Pixel scale factor (default: 32.0)</li>
+<li><strong>origin</strong>: Screen center point (Vec2)</li>
+</ul>
+<h3 id="returns"><a class="header" href="#returns">Returns</a></h3>
+<p>2D screen coordinates (Vec2)</p>
+<h3 id="formula"><a class="header" href="#formula">Formula</a></h3>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>x = origin.x + (p.x - p.z) * scale * 0.866  // cos(30°)
+y = origin.y + (p.x + p.z) * scale * 0.5 - p.y * scale
+<span class="boring">}</span></code></pre>
+<p>This produces a classic dimetric isometric view with 2:1 pixel ratio.</p>
+<h3 id="usage-1"><a class="header" href="#usage-1">Usage</a></h3>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let screen_pos = iso_project(node_position, 32.0, Vec2::new(400.0, 300.0));
+<span class="boring">}</span></code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="renderer"><a class="header" href="#renderer">Renderer</a></h1>
+<p>The render module provides screen coordinate mapping for the visualization.</p>
+<h2 id="graphrenderer"><a class="header" href="#graphrenderer">GraphRenderer</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct GraphRenderer {
+    pub width: u32,
+    pub height: u32,
+    pub scale: f32,
+    pub origin: Vec2,
+}
+<span class="boring">}</span></code></pre>
+<h2 id="methods-1"><a class="header" href="#methods-1">Methods</a></h2>
+<h3 id="newwidth-u32-height-u32"><a class="header" href="#newwidth-u32-height-u32">new(width: u32, height: u32)</a></h3>
+<p>Creates a renderer with the specified canvas dimensions.</p>
+<h3 id="screen_positionx-f32-y-f32-z-f32---vec2"><a class="header" href="#screen_positionx-f32-y-f32-z-f32---vec2">screen_position(x: f32, y: f32, z: f32) -&gt; Vec2</a></h3>
+<p>Converts 3D coordinates to 2D screen position using isometric projection.</p>
+<h2 id="usage-2"><a class="header" href="#usage-2">Usage</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let renderer = GraphRenderer::new(800, 600);
+let screen = renderer.screen_position(100.0, 0.0, 50.0);
+<span class="boring">}</span></code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="slint-visualization"><a class="header" href="#slint-visualization">Slint Visualization</a></h1>
+<p>The slint_viz module integrates the graph visualization with Slint UI framework.</p>
+<h2 id="slintgraphview"><a class="header" href="#slintgraphview">SlintGraphView</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct SlintGraphView {
+    pub renderer: GraphRenderer,
+    pub layout: Arc&lt;RwLock&lt;ForceLayout&gt;&gt;,
+}
+<span class="boring">}</span></code></pre>
+<h2 id="features"><a class="header" href="#features">Features</a></h2>
+<ul>
+<li>Thread-safe layout using <code>Arc&lt;RwLock&lt;ForceLayout&gt;&gt;</code></li>
+<li>Animation support via timer-driven tick updates</li>
+<li>Real-time position updates for Slint binding</li>
+</ul>
+<h2 id="methods-2"><a class="header" href="#methods-2">Methods</a></h2>
+<h3 id="newwidth-u32-height-u32-1"><a class="header" href="#newwidth-u32-height-u32-1">new(width: u32, height: u32)</a></h3>
+<p>Creates a new Slint-integrated graph view.</p>
+<h3 id="tick-1"><a class="header" href="#tick-1">tick()</a></h3>
+<p>Advances the force layout by one iteration. Thread-safe.</p>
+<h3 id="screen_positionnode_idx-usize---optionf32-f32"><a class="header" href="#screen_positionnode_idx-usize---optionf32-f32">screen_position(node_idx: usize) -&gt; Option&lt;(f32, f32)&gt;</a></h3>
+<p>Returns the screen position for a node.</p>
+<h2 id="integration"><a class="header" href="#integration">Integration</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let view = SlintGraphView::new(800, 600);
+
+// In animation loop:
+view.tick();
+let pos = view.screen_position(0);
+<span class="boring">}</span></code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="pipeline"><a class="header" href="#pipeline">Pipeline</a></h1>
+<p>The pipeline module implements a type-state pattern for the document processing workflow.</p>
+<h2 id="state-types"><a class="header" href="#state-types">State Types</a></h2>
+<ul>
+<li><strong>Ingested</strong>: Document has been parsed</li>
+<li><strong>Validating</strong>: Checking data integrity</li>
+<li><strong>Classifying</strong>: Categorizing transactions</li>
+<li><strong>Reconciling</strong>: Matching against external data</li>
+<li><strong>Committed</strong>: Finalized andauditable</li>
+</ul>
+<h2 id="type-state-pattern"><a class="header" href="#type-state-pattern">Type-State Pattern</a></h2>
+<p>The pipeline uses Rust’s type system to enforce state transitions at compile time:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct PipelineState&lt;S&gt; { /* ... */ }
+
+impl PipelineState&lt;Ingested&gt; {
+    pub fn validate(self) -&gt; PipelineState&lt;Validating&gt; { ... }
+}
+
+impl PipelineState&lt;Validating&gt; {
+    pub fn classify(self, category: String) -&gt; PipelineState&lt;Classified&gt; { ... }
+}
+<span class="boring">}</span></code></pre>
+<p>This ensures invalid state transitions are caught at compile time.</p>
+<h2 id="statig-integration"><a class="header" href="#statig-integration">Statig Integration</a></h2>
+<p>The pipeline uses <code>statig</code> for hierarchical state machine (HSM) implementation with:</p>
+<ul>
+<li>Superstates for grouping related states</li>
+<li>State-local storage for context</li>
+<li>Async-first design</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="validation"><a class="header" href="#validation">Validation</a></h1>
+<p>The validation module provides the core type system for pipeline stage results.</p>
+<h2 id="disposition"><a class="header" href="#disposition">Disposition</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub enum Disposition {
+    Unrecoverable,  // Fatal error, cannot proceed
+    Recoverable,    // Error that can be fixed
+    Advisory,       // Warning or suggestion
+}
+<span class="boring">}</span></code></pre>
+<h2 id="issue"><a class="header" href="#issue">Issue</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct Issue {
+    pub disposition: Disposition,
+    pub message: String,
+    pub source: IssueSource,
+}
+<span class="boring">}</span></code></pre>
+<h2 id="metactx"><a class="header" href="#metactx">MetaCtx</a></h2>
+<p>Metadata context that accumulates through pipeline stages:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct MetaCtx {
+    pub accumulated_confidence: f32,  // Compounded from all stages
+    pub stage_history: Vec&lt;StageResult&gt;,
+    // ...
+}
+<span class="boring">}</span></code></pre>
+<p>Confidence compounds multiplicatively: <code>next.confidence = current.confidence * stage.confidence</code></p>
+<h2 id="stageresult"><a class="header" href="#stageresult">StageResult</a></h2>
+<p>Captures the outcome of a pipeline stage with issues and confidence score.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="legal-verification"><a class="header" href="#legal-verification">Legal Verification</a></h1>
+<p>The legal module provides tax rule verification across multiple jurisdictions.</p>
+<h2 id="jurisdiction"><a class="header" href="#jurisdiction">Jurisdiction</a></h2>
+<p>Supported tax jurisdictions:</p>
+<ul>
+<li><strong>US</strong>: United States (Schedule C, Form 1040)</li>
+<li><strong>AU</strong>: Australia (GST, BAS)</li>
+<li><strong>UK</strong>: United Kingdom (VAT, CT)</li>
+</ul>
+<h2 id="legalsolver"><a class="header" href="#legalsolver">LegalSolver</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct LegalSolver {
+    jurisdiction: Jurisdiction,
+    rules: Vec&lt;TaxRule&gt;,
+}
+<span class="boring">}</span></code></pre>
+<h2 id="taxrule"><a class="header" href="#taxrule">TaxRule</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct TaxRule {
+    pub id: String,
+    pub jurisdiction: Jurisdiction,
+    pub description: String,
+    pub validator: fn(&amp;Transaction) -&gt; bool,
+}
+<span class="boring">}</span></code></pre>
+<h2 id="verification"><a class="header" href="#verification">Verification</a></h2>
+<p>The solver checks transactions against jurisdiction-specific tax rules:</p>
+<ul>
+<li>US: Schedule C business expense categorization</li>
+<li>AU: GST Act s38-190 compliance</li>
+<li>UK: VAT deductibility rules</li>
+</ul>
+<h2 id="usage-3"><a class="header" href="#usage-3">Usage</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let solver = LegalSolver::us();
+let result = solver.verify(&amp;transaction);
+match result.disposition {
+    Disposition::Unrecoverable =&gt; { /* fatal tax issue */ }
+    Disposition::Recoverable =&gt; { /* fixable */ }
+    Disposition::Advisory =&gt; { /* suggestion */ }
+}
+<span class="boring">}</span></code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="constraints"><a class="header" href="#constraints">Constraints</a></h1>
+<p>The constraints module implements Kasuari-based data plausibility validation.</p>
+<h2 id="vendorconstraintset"><a class="header" href="#vendorconstraintset">VendorConstraintSet</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct VendorConstraintSet {
+    pub vendor: String,
+    pub constraints: Vec&lt;Constraint&gt;,
+}
+<span class="boring">}</span></code></pre>
+<h2 id="constraint-types"><a class="header" href="#constraint-types">Constraint Types</a></h2>
+<ul>
+<li><strong>AmountRange</strong>: Valid transaction amount bounds</li>
+<li><strong>DateWindow</strong>: Expected date range for statements</li>
+<li><strong>DescriptionPattern</strong>: Regex pattern for valid descriptions</li>
+<li><strong>AccountFormat</strong>: Valid account number format</li>
+</ul>
+<h2 id="kasuari-integration"><a class="header" href="#kasuari-integration">Kasuari Integration</a></h2>
+<p>The module uses Kasuari strengths for constraint evaluation:</p>
+<ul>
+<li><strong>Strong</strong>: Must pass for validation to succeed</li>
+<li><strong>Medium</strong>: Warning if violated</li>
+<li><strong>Weak</strong>: Advisory if violated</li>
+</ul>
+<h2 id="invoiceconstraintsolver"><a class="header" href="#invoiceconstraintsolver">InvoiceConstraintSolver</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct InvoiceConstraintSolver {
+    // ...
+}
+<span class="boring">}</span></code></pre>
+<p>Solves constraints for invoice data with multi-pass validation.</p>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="verification"><a class="header" href="#verification">Verification</a></h1>
+<h1 id="verification-1"><a class="header" href="#verification-1">Verification</a></h1>
+<p>The verify module implements multi-model verification for quality assurance.</p>
+<h2 id="multi-model-verification"><a class="header" href="#multi-model-verification">Multi-Model Verification</a></h2>
+<p>The system uses a two-model approach:</p>
+<ol>
+<li><strong>Proposer</strong>: Primary model generates the classification/decision</li>
+<li><strong>Reviewer</strong>: Second model reviews and validates the proposal</li>
+</ol>
+<h2 id="verifier"><a class="header" href="#verifier">Verifier</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct Verifier {
+    proposer: ModelClient,
+    reviewer: ModelClient,
+}
+<span class="boring">}</span></code></pre>
+<h2 id="process"><a class="header" href="#process">Process</a></h2>
+<ol>
+<li>Proposer generates a candidate classification</li>
+<li>Reviewer evaluates the candidate against constraints</li>
+<li>If reviewer rejects, human review is flagged</li>
+<li>Confidence score reflects agreement between models</li>
+</ol>
+<h2 id="usage-4"><a class="header" href="#usage-4">Usage</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let verifier = Verifier::new(model_a, model_b);
+let result = verifier.verify(&amp;transaction, Proposal::Classify);
+<span class="boring">}</span></code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="workflow"><a class="header" href="#workflow">Workflow</a></h1>
+<p>The workflow module provides a TOML-based DSL for defining pipeline stages and transitions.</p>
+<h2 id="workflowtoml"><a class="header" href="#workflowtoml">WorkflowToml</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct WorkflowToml {
+    pub version: String,
+    pub state: Vec&lt;StateDef&gt;,
+    pub transitions: Vec&lt;TransitionDef&gt;,
+}
+<span class="boring">}</span></code></pre>
+<h2 id="statedef"><a class="header" href="#statedef">StateDef</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct StateDef {
+    pub id: String,
+    pub description: String,
+    pub verbs: Vec&lt;VerbDef&gt;,
+}
+<span class="boring">}</span></code></pre>
+<h2 id="transitiondef"><a class="header" href="#transitiondef">TransitionDef</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct TransitionDef {
+    pub from: String,
+    pub to: String,
+    pub event: String,
+    pub guard: Option&lt;String&gt;,
+}
+<span class="boring">}</span></code></pre>
+<h2 id="compilation"><a class="header" href="#compilation">Compilation</a></h2>
+<p>The workflow DSL compiles to:</p>
+<ul>
+<li><strong>Mermaid</strong>: Visual diagram generation</li>
+<li><strong>Rhai</strong>: Runtime execution FSM</li>
+<li><strong>Rust enum</strong>: Compile-time type safety</li>
+</ul>
+<h2 id="example"><a class="header" href="#example">Example</a></h2>
+<pre><code class="language-toml">[workflow]
+version = "1.0"
+
+[[state]]
+id = "Ingested"
+description = "Document parsed"
+
+[[state]]
+id = "Validating"
+description = "Checking integrity"
+
+[[transition]]
+from = "Ingested"
+to = "Validating"
+event = "validate"
+</code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="visualization"><a class="header" href="#visualization">Visualization</a></h1>
+<p>The visualize module generates Mermaid diagrams and HTML exports for pipeline state.</p>
+<h2 id="pipelinegraph"><a class="header" href="#pipelinegraph">PipelineGraph</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct PipelineGraph {
+    pub nodes: HashMap&lt;String, NodeVisualState&gt;,
+    pub edges: Vec&lt;EdgeVisual&gt;,
+    pub current_state: String,
+    pub accumulated_confidence: f32,
+}
+<span class="boring">}</span></code></pre>
+<h2 id="nodevisualstate"><a class="header" href="#nodevisualstate">NodeVisualState</a></h2>
+<p>Visual states for pipeline nodes:</p>
+<ul>
+<li><strong>Idle</strong>: Waiting, not entered</li>
+<li><strong>Active</strong>: Currently executing</li>
+<li><strong>Success</strong>: Completed successfully</li>
+<li><strong>Warning</strong>: Recoverable issue</li>
+<li><strong>Error</strong>: Unrecoverable issue</li>
+<li><strong>Review</strong>: Awaiting human review</li>
+</ul>
+<h2 id="mermaid-generation"><a class="header" href="#mermaid-generation">Mermaid Generation</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let mermaid = graph.to_mermaid();
+// Generates stateDiagram-v2
+<span class="boring">}</span></code></pre>
+<h2 id="html-export"><a class="header" href="#html-export">HTML Export</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let html = to_html(&amp;graph);
+// Returns complete HTML with Mermaid.js
+<span class="boring">}</span></code></pre>
+<h2 id="layoutsolver"><a class="header" href="#layoutsolver">LayoutSolver</a></h2>
+<p>Kasuari-backed constraint solver for node positioning:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct LayoutSolver;
+pub fn generate_layout(&amp;self, graph: &amp;PipelineGraph) -&gt; HashMap&lt;String, (f32, f32)&gt;;
+<span class="boring">}</span></code></pre>
 
                     </main>
 

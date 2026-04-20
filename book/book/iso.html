@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-9c93cb70.js";
+            window.path_to_searchindex_js = "searchindex-5b86dceb.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-f15e6ca1.js"></script>
@@ -181,6 +181,32 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="isometric-projection"><a class="header" href="#isometric-projection">Isometric Projection</a></h1>
+<p>The isometric projection converts 3D force-directed positions to 2D screen coordinates.</p>
+<h2 id="iso_project"><a class="header" href="#iso_project">iso_project</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub fn iso_project(p: Vec3, scale: f32, origin: Vec2) -&gt; Vec2
+<span class="boring">}</span></code></pre>
+<h3 id="parameters"><a class="header" href="#parameters">Parameters</a></h3>
+<ul>
+<li><strong>p</strong>: 3D position from force layout (Vec3)</li>
+<li><strong>scale</strong>: Pixel scale factor (default: 32.0)</li>
+<li><strong>origin</strong>: Screen center point (Vec2)</li>
+</ul>
+<h3 id="returns"><a class="header" href="#returns">Returns</a></h3>
+<p>2D screen coordinates (Vec2)</p>
+<h3 id="formula"><a class="header" href="#formula">Formula</a></h3>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>x = origin.x + (p.x - p.z) * scale * 0.866  // cos(30°)
+y = origin.y + (p.x + p.z) * scale * 0.5 - p.y * scale
+<span class="boring">}</span></code></pre>
+<p>This produces a classic dimetric isometric view with 2:1 pixel ratio.</p>
+<h3 id="usage"><a class="header" href="#usage">Usage</a></h3>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let screen_pos = iso_project(node_position, 32.0, Vec2::new(400.0, 300.0));
+<span class="boring">}</span></code></pre>
 
                     </main>
 

@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-9c93cb70.js";
+            window.path_to_searchindex_js = "searchindex-5b86dceb.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-f15e6ca1.js"></script>
@@ -181,6 +181,37 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="constraints"><a class="header" href="#constraints">Constraints</a></h1>
+<p>The constraints module implements Kasuari-based data plausibility validation.</p>
+<h2 id="vendorconstraintset"><a class="header" href="#vendorconstraintset">VendorConstraintSet</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct VendorConstraintSet {
+    pub vendor: String,
+    pub constraints: Vec&lt;Constraint&gt;,
+}
+<span class="boring">}</span></code></pre>
+<h2 id="constraint-types"><a class="header" href="#constraint-types">Constraint Types</a></h2>
+<ul>
+<li><strong>AmountRange</strong>: Valid transaction amount bounds</li>
+<li><strong>DateWindow</strong>: Expected date range for statements</li>
+<li><strong>DescriptionPattern</strong>: Regex pattern for valid descriptions</li>
+<li><strong>AccountFormat</strong>: Valid account number format</li>
+</ul>
+<h2 id="kasuari-integration"><a class="header" href="#kasuari-integration">Kasuari Integration</a></h2>
+<p>The module uses Kasuari strengths for constraint evaluation:</p>
+<ul>
+<li><strong>Strong</strong>: Must pass for validation to succeed</li>
+<li><strong>Medium</strong>: Warning if violated</li>
+<li><strong>Weak</strong>: Advisory if violated</li>
+</ul>
+<h2 id="invoiceconstraintsolver"><a class="header" href="#invoiceconstraintsolver">InvoiceConstraintSolver</a></h2>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct InvoiceConstraintSolver {
+    // ...
+}
+<span class="boring">}</span></code></pre>
+<p>Solves constraints for invoice data with multi-pass validation.</p>
 
                     </main>
 
