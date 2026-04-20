@@ -19,3 +19,6 @@ prd.md
 
 # Generated local state sidecars (should not be committed)
 *.ledgerr-state.json
+
+# mdbook output
+book/book/
