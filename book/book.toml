@@ -4,8 +4,13 @@ language = "en"
 src = "src"
 title = "l3dg3rr Ledger Documentation"
 
+[preprocessor.rhai-mermaid]
+command = "mdbook-rhai-mermaid"
+before = ["mermaid"]
+
 [preprocessor.mermaid]
 optional = true
+after = ["rhai-mermaid"]
 
 [output.html]
 edit-url-template = "https://github.com/PromptExecution/l3dg3rr/edit/main/book/src/{path}#L{line}"

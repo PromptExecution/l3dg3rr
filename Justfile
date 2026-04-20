@@ -225,23 +225,20 @@ stats:
     @echo "Recent commits:"
     @git log --oneline -5
 
-# Build mdbook documentation locally (requires: cargo install mdbook mdbook-mermaid)
+# Build mdbook documentation locally
+# Requires: cargo install mdbook mdbook-mermaid && cargo install --path crates/mdbook-rhai-mermaid
 docgen:
     @if [ ! -x ~/.cargo/bin/mdbook ]; then echo "error: mdbook not found — run: cargo install mdbook mdbook-mermaid"; exit 1; fi
     @if [ ! -x ~/.cargo/bin/mdbook-mermaid ]; then echo "error: mdbook-mermaid not found — run: cargo install mdbook-mermaid"; exit 1; fi
+    @if [ ! -x ~/.cargo/bin/mdbook-rhai-mermaid ]; then cargo install --path crates/mdbook-rhai-mermaid --quiet; fi
     PATH="$HOME/.cargo/bin:$PATH" ~/.cargo/bin/mdbook build book
     @echo "Docs built in book/book/ — serve with: npx serve book/book"
 
-# Extract Rhai patterns from docs to Mermaid diagrams
-docgen-rhai:
-    @if [ ! -f scripts/rhai_to_mermaid.rs ]; then echo "error: scripts/rhai_to_mermaid.rs not found"; exit 1; fi
-    cargo run --manifest-path scripts/Cargo.toml 2>/dev/null || echo "Run: cargo build -p xtask-mcpb 2>/dev/null; or compile scripts/rhai_to_mermaid.rs manually"
-    @echo "Rhai patterns extracted to mermaid"
-
-# Verify docs build, mermaid diagrams render, and cross-references valid (CI integration test)
+# Verify docs build, rhai→mermaid injection happened, diagrams render, cross-references valid
 docgen-check:
     @if [ ! -x ~/.cargo/bin/mdbook ]; then echo "error: mdbook not found — run: cargo install mdbook mdbook-mermaid"; exit 1; fi
     @if [ ! -x ~/.cargo/bin/mdbook-mermaid ]; then echo "error: mdbook-mermaid not found — run: cargo install mdbook-mermaid"; exit 1; fi
+    @if [ ! -x ~/.cargo/bin/mdbook-rhai-mermaid ]; then cargo install --path crates/mdbook-rhai-mermaid --quiet; fi
     PATH="$HOME/.cargo/bin:$PATH" ~/.cargo/bin/mdbook build book
     @echo "Checking for rendered SVG diagrams..."
     @grep -q '<svg' book/book/theory.html && echo "✓ theory.html has SVG diagrams" || { echo "error: no SVG in theory.html"; exit 1; }
@@ -251,6 +248,7 @@ docgen-check:
     @grep -q 'href="./graph.html"' book/book/intro.html && echo "✓ intro.html references graph.html" || exit 1
     @grep -q 'href="./validation.html"' book/book/pipeline.html && echo "✓ pipeline.html references validation.html" || exit 1
     @grep -q 'href="./pipeline.html"' book/book/validation.html && echo "✓ validation.html references pipeline.html" || exit 1
-    @echo "Verifying Rhai code blocks..."
-    @grep -q 'rhai' book/book/theory.html && echo "✓ theory.html has Rhai examples" || exit 1
+    @echo "Verifying rhai→mermaid injection..."
+    @grep -q 'class="language-rhai"' book/book/theory.html && echo "✓ theory.html has rhai source blocks" || exit 1
+    @grep -q 'class="mermaid"' book/book/theory.html && echo "✓ theory.html has generated mermaid blocks" || { echo "error: rhai→mermaid injection missing in theory.html"; exit 1; }
     @echo "All documentation diagrams validated!"

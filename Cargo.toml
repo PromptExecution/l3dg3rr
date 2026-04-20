@@ -5,6 +5,7 @@ members = [
   "crates/ledgerr-mcp",
   "crates/ledgerr-xero",
   "crates/ledgerr-llm",
+  "crates/mdbook-rhai-mermaid",
   "xtask",
 ]
 resolver = "2"
