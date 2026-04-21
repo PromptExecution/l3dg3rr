@@ -30,6 +30,8 @@ pub const AUDIT_TOOL: &str = "ledgerr_audit";
 pub const TAX_TOOL: &str = "ledgerr_tax";
 pub const ONTOLOGY_TOOL: &str = "ledgerr_ontology";
 pub const XERO_TOOL: &str = "ledgerr_xero";
+pub const CALENDAR_TOOL: &str = "list_calendar_events";
+pub const SHAPE_TOOL: &str = "get_document_shape";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ToolContractSpec {
@@ -37,6 +39,19 @@ pub struct ToolContractSpec {
     pub purpose: &'static str,
     pub actions: &'static [&'static str],
 }
+
+pub const TOOL_REGISTRY: &[&str] = &[
+    DOCUMENTS_TOOL,
+    REVIEW_TOOL,
+    RECONCILIATION_TOOL,
+    WORKFLOW_TOOL,
+    AUDIT_TOOL,
+    TAX_TOOL,
+    ONTOLOGY_TOOL,
+    XERO_TOOL,
+    CALENDAR_TOOL,
+    SHAPE_TOOL,
+];
 
 pub const PUBLISHED_TOOLS: [ToolContractSpec; 8] = [
     ToolContractSpec {
