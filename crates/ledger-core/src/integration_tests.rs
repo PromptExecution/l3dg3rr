@@ -14,7 +14,6 @@
 #[cfg(test)]
 mod integration {
     use std::path::PathBuf;
-    use std::sync::Arc;
 
     // -------------------------------------------------------------------------
     // Test #4 — Calendar drives OperationDispatcher
