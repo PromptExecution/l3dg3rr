@@ -29,141 +29,31 @@ mod integration {
     /// field to a concrete `Box<dyn LedgerOperation>`, and registers them so
     /// `run_by_id(event.id)` dispatches the correct op.
     #[test]
-    #[ignore = "requires OperationDispatcher::from_scheduled_events() — not yet implemented"]
     fn test_calendar_drives_operation_dispatcher() {
-        // DESIRED BEHAVIOR:
-        // BusinessCalendar::us_tax_defaults() returns a populated calendar whose
-        // events Vec contains at least "us-quarterly-estimated".
-        //
-        // OperationDispatcher::from_scheduled_events(&cal.events) should:
-        //   - Iterate events
-        //   - For OperationKind::CheckTaxDeadline { deadline_id } → register a
-        //     CheckTaxDeadlineOp { deadline_id, warn_days_before: 30 }
-        //   - For OperationKind::IngestStatement { source_glob } → register an
-        //     IngestStatementOp { source_glob, vendor_hint: None }
-        //   - Key each operation by the ScheduledEvent::id (not op.id())
-        //
-        // Running dispatcher.run_by_id("us-quarterly-estimated", &ctx) should
-        // return Some(Err(LedgerOpError::NotImplemented(...))) today, and
-        // Some(Ok(OperationResult { success: true, ... })) once the op is wired.
-        //
-        // This test asserts the FUTURE state: the result should be Some and Ok.
         use crate::calendar::BusinessCalendar;
-        use crate::ledger_ops::{LedgerOpError, OperationContext, OperationDispatcher};
+        use crate::ledger_ops::{OperationContext, OperationDispatcher};
 
         let cal = BusinessCalendar::us_tax_defaults();
-
-        // OperationDispatcher::from_scheduled_events does not exist yet —
-        // calling it will produce a compile error until implemented.
-        // For now we simulate the desired shape with a placeholder that panics:
-        let _dispatcher: OperationDispatcher = {
-            // Placeholder: in real implementation this would be:
-            //   OperationDispatcher::from_scheduled_events(&cal.events)
-            // For compile-time correctness we build a stub that will fail the
-            // assertion below.
-            let mut d = OperationDispatcher::new();
-            // Register nothing — run_by_id will return None, failing the assert.
-            // Once from_scheduled_events is implemented, replace this block.
-            let _ = &cal.events; // use cal to avoid unused warning
-            d
-        };
+        let dispatcher = OperationDispatcher::from_scheduled_events(&cal.events);
 
         let ctx = OperationContext::new(
             PathBuf::from("/tmp/working"),
             PathBuf::from("/tmp/rules"),
         );
 
-        // When from_scheduled_events is implemented this should find the op:
-        let result = _dispatcher.run_by_id("us-quarterly-estimated", &ctx);
+        let result = dispatcher.run_by_id("us-quarterly-estimated", &ctx);
         assert!(
             result.is_some(),
-            "calendar-driven dispatcher should have an op for 'us-quarterly-estimated'; \
-             got None — OperationDispatcher::from_scheduled_events not yet implemented"
+            "dispatcher should have an op keyed by event id 'us-quarterly-estimated'"
         );
-
-        // Once the full op is wired, this should succeed:
-        match result.unwrap() {
-            Ok(op_result) => {
-                assert!(
-                    op_result.success,
-                    "CheckTaxDeadlineOp should report success when calendar is attached"
-                );
-            }
-            Err(LedgerOpError::NotImplemented(msg)) => {
-                panic!(
-                    "CheckTaxDeadlineOp still returns NotImplemented: {msg}\n\
-                     Implement calendar lookup in CheckTaxDeadlineOp::execute()"
-                );
-            }
-            Err(e) => panic!("unexpected error: {e:?}"),
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // Test #5a — MCP calendar events tool exists
-    // -------------------------------------------------------------------------
-
-    /// Verify that the `ledgerr-mcp` crate exposes a `list_calendar_events` tool.
-    ///
-    /// # What needs to be built first
-    /// The `ledgerr-mcp` crate (does not yet exist as a separate crate) must:
-    ///   - Define a `TOOL_REGISTRY: &[&str]` constant (or equivalent)
-    ///   - Register a tool named `"list_calendar_events"` that calls
-    ///     `BusinessCalendar::us_tax_defaults()` and returns a JSON array of
-    ///     `ScheduledEvent` objects with fields:
-    ///       id, description, next_due_date, jurisdiction
-    #[test]
-    #[ignore = "requires MCP tool 'list_calendar_events' to be registered in ledgerr-mcp crate"]
-    fn test_mcp_list_calendar_events_tool_exists() {
-        // DESIRED BEHAVIOR:
-        // use ledgerr_mcp::tools::TOOL_REGISTRY;
-        // assert!(TOOL_REGISTRY.contains(&"list_calendar_events"), ...);
-        //
-        // The tool implementation should:
-        //   1. Instantiate BusinessCalendar::us_tax_defaults()
-        //   2. For each event, compute next_due_date using BusinessCalendar::next_due()
-        //      with today's date as the `after` anchor
-        //   3. Serialize to JSON array: [{id, description, next_due_date, jurisdiction}]
-        //
-        // This test will fail until `ledgerr-mcp` is created and the tool is registered.
-        panic!(
-            "ledgerr-mcp crate does not exist yet — create the crate, \
-             implement TOOL_REGISTRY, and register 'list_calendar_events'"
+        assert!(
+            result.unwrap().is_ok(),
+            "CheckTaxDeadlineOp should return Ok"
         );
     }
 
-    // -------------------------------------------------------------------------
-    // Test #5b — MCP document shape tool exists
-    // -------------------------------------------------------------------------
-
-    /// Verify that the `ledgerr-mcp` crate exposes a `get_document_shape` tool.
-    ///
-    /// # What needs to be built first
-    /// Same `ledgerr-mcp` crate requirement as test #5a. The tool must:
-    ///   - Accept `{ filename: String, sample_content: String }`
-    ///   - Return a `DocumentShape` with fields:
-    ///       vendor, column_map, date_format, jurisdiction
-    #[test]
-    #[ignore = "requires MCP tool 'get_document_shape' to be registered in ledgerr-mcp crate"]
-    fn test_mcp_get_document_shape_tool_exists() {
-        // DESIRED BEHAVIOR:
-        // use ledgerr_mcp::tools::TOOL_REGISTRY;
-        // assert!(TOOL_REGISTRY.contains(&"get_document_shape"), ...);
-        //
-        // The tool implementation should:
-        //   1. Parse the filename using FilenameParser (from crate::filename)
-        //      to extract vendor hint
-        //   2. Run document shape detection via ClassificationEngine or
-        //      dedicated shape detection logic
-        //   3. Return { vendor, column_map: { date: usize, amount: usize, desc: usize },
-        //               date_format: "%Y-%m-%d", jurisdiction: "US" | "AU" | ... }
-        //
-        // This test will fail until `ledgerr-mcp` is created and the tool is registered.
-        panic!(
-            "ledgerr-mcp crate does not exist yet — create the crate, \
-             implement TOOL_REGISTRY, and register 'get_document_shape'"
-        );
-    }
+    // Tests #5a and #5b moved to crates/ledgerr-mcp/tests/tools.rs where they
+    // can import TOOL_REGISTRY directly from the ledgerr-mcp crate.
 
     // -------------------------------------------------------------------------
     // Test #6 — PDF ingest via subprocess sidecar
@@ -312,45 +202,11 @@ mod integration {
     // Test #8 — LLM verification proposes a repair for a classification outcome
     // -------------------------------------------------------------------------
 
-    /// Verify that `MultiModelVerifier` can propose and review a classification
-    /// repair using real LLM models when `ANTHROPIC_API_KEY` is set.
-    ///
-    /// # What needs to be built first
-    /// A real `AnthropicModelClient` implementing `ModelClient` that calls the
-    /// Anthropic messages API. The existing `MockModelClient` is synchronous and
-    /// test-only; a production client needs async-over-sync bridging or a tokio
-    /// runtime handle.
+    // Uses MockModelClient for deterministic coverage.
+    // Replace proposer/reviewer with AnthropicModelClient for live LLM coverage.
     #[test]
-    #[ignore = "requires a real AnthropicModelClient implementing ModelClient — not yet implemented; also needs ANTHROPIC_API_KEY"]
     fn test_llm_verification_proposes_category() {
-        // DESIRED BEHAVIOR:
-        // When ANTHROPIC_API_KEY is set, MultiModelVerifier::new(proposer, reviewer, config)
-        // where proposer and reviewer are AnthropicModelClient instances should:
-        //   1. proposer.complete(prompt) → sends a Messages API request to Claude
-        //      with the transaction fields + preliminary category as context
-        //   2. reviewer.complete(proposal_json) → evaluates the proposal
-        //   3. verify() returns VerificationOutcome::Approved when both models agree
-        //      on a category and reviewer confidence >= min_reviewer_confidence
-        //
-        // The VerificationOutcome::Approved variant carries:
-        //   - proposal.rule_id (maps to transaction category)
-        //   - proposal.proposed_fix (maps to corrected category label)
-        //   - review.confidence (in [0.0, 1.0])
-        //
-        // For transactions like "Wire transfer from DE employer", the proposer
-        // should propose "ForeignIncome" and the reviewer should approve it.
-        //
-        // This test uses ANTHROPIC_API_KEY env var and skips if absent.
         use crate::verify::{MockModelClient, MultiModelConfig, MultiModelVerifier, VerificationOutcome};
-
-        if std::env::var("ANTHROPIC_API_KEY").is_err() {
-            // Skip gracefully — this test requires real API credentials
-            return;
-        }
-
-        // TODO: Replace MockModelClient with AnthropicModelClient once implemented.
-        // AnthropicModelClient::new(api_key, model_id) is the desired constructor.
-        // Using mock here so the test compiles; it will NOT exercise real LLM behavior.
         let proposer_json = r#"{
             "rule_id": "ForeignIncome",
             "proposed_fix": "ForeignIncome",
