@@ -46,7 +46,7 @@ fn emit_reqif() -> load_rules
 | `derive_candidates` | Planned | Python sidecar: `RequirementCandidate` | Heuristic requirement extraction |
 | `opa_gate` | Planned | Python sidecar: OPA policy evaluation | Policy: admit or reject candidates |
 | `emit_reqif` | Planned | Python sidecar: `emit_reqif_xml` | ReqIF XML baseline output |
-| `load_rules` | Stub | `RuleRegistry::load_from_dir` | NDJSON deserialization into `ReqIfCandidate` |
+| `load_rules` | Implemented | `RuleRegistry::load_from_dir` | Loads transaction `.rhai` rules and optional `ReqIfCandidate` sidecars |
 
 ## ReqIF-OPA-MCP Integration
 

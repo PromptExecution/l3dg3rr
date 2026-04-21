@@ -61,9 +61,9 @@ fn ledgerr_mcp_contract() -> agent_runtime
 | Xero service | `ledgerr-mcp/src/xero_service.rs` | Partial | Supervised catalog/link actions; credentials remain host-owned |
 | Mermaid auto-generation | `workflow.rs` | Implemented | rhai DSL → diagram blocks |
 | Slint desktop UI | `slint_viz.rs` | Partial | Stub, not wired to window system |
-| RuleRegistry | `rule_registry.rs` | Stub | `load_from_dir` unimplemented |
-| Keyword rule selection | `rule_registry.rs` | Stub | `select_rules_deterministic` unimplemented |
-| Waterfall orchestration | `rule_registry.rs` | Stub | `classify_waterfall` unimplemented |
+| RuleRegistry | `rule_registry.rs` | Implemented | Loads transaction `.rhai` rules and optional ReqIF sidecars |
+| Keyword rule selection | `rule_registry.rs` | Implemented | Deterministic keyword fallback; semantic selector remains planned |
+| Waterfall orchestration | `rule_registry.rs` | Implemented | First non-`Unclassified` result wins; fallback outcome is preserved |
 | ReqIfCandidate (Rust) | `rule_registry.rs` | Stub | Type defined, sidecar bridge missing |
 | DocumentChunk | `rule_registry.rs` | Stub | Type defined, bridge missing |
 | SemanticRuleSelector | `rule_registry.rs` | Stub | Trait defined, embeddings not wired |
@@ -86,15 +86,15 @@ fn legal_verify() -> workbook_commit
 fn workbook_commit() -> audit_trail
 ```
 
-Each step in this pipeline has a corresponding Rust type or trait. The pipeline will be executable end-to-end once the `reqif-opa-mcp` bridge and `RuleRegistry` orchestration are complete. Z3 is now wired for the first hard legal predicates; broader solver coverage is still a roadmap item.
+Each step in this pipeline has a corresponding Rust type or trait. The deterministic rule-registry waterfall is now implemented; the remaining ingestion-side gap is the `reqif-opa-mcp` bridge and semantic rule-selection infrastructure. Z3 is wired for the first hard legal predicates; broader solver coverage is still a roadmap item.
 
 ## Next Steps
 
 The five highest-value missing capabilities to implement, in priority order:
 
-1. **`RuleRegistry::load_from_dir` + `classify_waterfall`** — Wire the three existing `.rhai` rule files into the waterfall model. This unblocks multi-rule classification without requiring any external infrastructure. Estimated scope: ~150 lines in `rule_registry.rs`.
+1. **Docling extraction bridge** — Write the Rust `std::process::Command` call to invoke the Python sidecar, parse its NDJSON stdout, and deserialize into `DocumentChunk` / `ReqIfCandidate`. This is the critical path for Phase 2 document intelligence. Estimated scope: new `sidecar.rs` module, ~100 lines.
 
-2. **Docling extraction bridge** — Write the Rust `std::process::Command` call to invoke the Python sidecar, parse its NDJSON stdout, and deserialize into `DocumentChunk` / `ReqIfCandidate`. This is the critical path for Phase 2 document intelligence. Estimated scope: new `sidecar.rs` module, ~100 lines.
+2. **Wire `ClassifyTransactionsOp` to `RuleRegistry`** — Replace the current operation stub with registry loading, transaction iteration, waterfall classification, and review-flag emission.
 
 3. **Expand `LegalSolver` coverage** — Add hard Z3 checks for FBAR/FATCA thresholds, mutually exclusive categories, and reconciliation/workbook invariants. The initial Z3 integration covers AU GST and US Schedule C predicates.
 

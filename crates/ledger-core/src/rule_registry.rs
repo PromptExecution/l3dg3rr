@@ -1,4 +1,4 @@
-//! Rule Registry — stub module for multi-rule orchestration and semantic rule selection.
+//! Rule Registry — multi-rule orchestration and semantic rule selection.
 //!
 //! ## Purpose
 //! This module defines the interface for discovering, selecting, and applying Rhai
@@ -6,10 +6,10 @@
 //! mirror types for the `reqif-opa-mcp` Python sidecar's JSON output.
 //!
 //! ## Status
-//! - `RuleRegistry::load_from_dir` — STUB (unimplemented)
-//! - `RuleRegistry::select_rules_deterministic` — STUB (unimplemented)
-//! - `RuleRegistry::classify_waterfall` — STUB (unimplemented)
-//! - `SemanticRuleSelector` — STUB (requires embedding infrastructure)
+//! - `RuleRegistry::load_from_dir` — implemented for transaction `.rhai` rules
+//! - `RuleRegistry::select_rules_deterministic` — implemented keyword fallback
+//! - `RuleRegistry::classify_waterfall` — implemented first-match waterfall
+//! - `SemanticRuleSelector` — planned (requires embedding infrastructure)
 //!
 //! ## External Dependency
 //! The Python sidecar at <https://github.com/PromptExecution/reqif-opa-mcp> produces
@@ -19,7 +19,9 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::classify::{ClassificationEngine, ClassificationError, ClassificationOutcome, SampleTransaction};
+use crate::classify::{
+    ClassificationEngine, ClassificationError, ClassificationOutcome, SampleTransaction,
+};
 
 // ============================================================================
 // Internal helpers
@@ -31,6 +33,14 @@ fn filename_contains(path: &Path, keyword: &str) -> bool {
         .and_then(|n| n.to_str())
         .map(|n| n.to_ascii_lowercase().contains(keyword))
         .unwrap_or(false)
+}
+
+fn is_transaction_rule(path: &Path) -> bool {
+    let Ok(src) = std::fs::read_to_string(path) else {
+        return false;
+    };
+
+    src.contains("fn classify(")
 }
 
 // ============================================================================
@@ -131,11 +141,7 @@ pub trait SemanticRuleSelector {
     /// # Prerequisites
     /// - Embedding index must be pre-built via `build_embedding_index`.
     /// - `ReqIfCandidate` objects must already be loaded into the registry.
-    fn select_rules_semantic(
-        &self,
-        tx: &SampleTransaction,
-        top_k: usize,
-    ) -> Vec<PathBuf>;
+    fn select_rules_semantic(&self, tx: &SampleTransaction, top_k: usize) -> Vec<PathBuf>;
 
     /// Build or rebuild the embedding index from loaded `ReqIfCandidate` texts.
     ///
@@ -174,7 +180,10 @@ pub struct RuleRegistry {
 impl RuleRegistry {
     /// Load all `.rhai` files from a rules directory.
     ///
-    /// Scans `rules_dir` for files ending in `.rhai` and sorts them alphabetically.
+    /// Scans `rules_dir` for transaction rules ending in `.rhai` and sorts them
+    /// alphabetically. A transaction rule must expose `fn classify(tx)`.
+    /// Document-shape rules such as `classify_document_shape.rhai` are excluded
+    /// because they expose a different entry point.
     /// Optionally loads a paired `<rule_name>.reqif.json` sidecar for each rule.
     ///
     /// Returns `RuleRegistryError::NoRules` if the directory contains no `.rhai` files.
@@ -183,7 +192,9 @@ impl RuleRegistry {
             .filter_map(|entry| {
                 let entry = entry.ok()?;
                 let path = entry.path();
-                if path.extension().and_then(|e| e.to_str()) == Some("rhai") {
+                if path.extension().and_then(|e| e.to_str()) == Some("rhai")
+                    && is_transaction_rule(&path)
+                {
                     Some(path)
                 } else {
                     None
@@ -212,7 +223,10 @@ impl RuleRegistry {
             })
             .collect();
 
-        Ok(Self { rule_paths, candidates })
+        Ok(Self {
+            rule_paths,
+            candidates,
+        })
     }
 
     /// Select rules applicable to a transaction by keyword match (deterministic fallback).
@@ -235,21 +249,32 @@ impl RuleRegistry {
         // Determine which rule-type keywords are relevant for this transaction
         let mut wanted_patterns: Vec<&str> = Vec::new();
 
-        if account_id_lower.contains("hsbc") {
+        if account_id_lower.contains("hsbc")
+            || desc_lower.contains("foreign")
+            || desc_lower.contains("eur")
+            || desc_lower.contains("germany")
+            || desc_lower.contains(" de ")
+        {
             wanted_patterns.push("foreign");
         }
-        if desc_lower.contains("btc") || desc_lower.contains("eth") || desc_lower.contains("crypto") {
+        if desc_lower.contains("btc") || desc_lower.contains("eth") || desc_lower.contains("crypto")
+        {
             wanted_patterns.push("crypto");
         }
         if desc_lower.contains("rent") || desc_lower.contains("rental") {
-            wanted_patterns.push("rental");
+            wanted_patterns.push("schedule_e");
         }
         if desc_lower.contains("contractor")
             || desc_lower.contains("freelance")
             || desc_lower.contains("self-employ")
             || desc_lower.contains("self_employ")
+            || desc_lower.contains("invoice")
+            || desc_lower.contains("client")
+            || desc_lower.contains("consulting")
+            || desc_lower.contains("1099")
         {
             wanted_patterns.push("self_employ");
+            wanted_patterns.push("schedule_c");
         }
 
         let mut matched: Vec<PathBuf> = Vec::new();
@@ -298,8 +323,10 @@ impl RuleRegistry {
     /// executed in the order returned by `select_rules_deterministic`. Execution
     /// stops as soon as one rule returns a `category` other than `"Unclassified"`.
     ///
-    /// If all rules return `"Unclassified"` or error, a fallback `ClassificationOutcome`
-    /// with `category = "Unclassified"` and `confidence = 0.0` is returned.
+    /// If all rules return `"Unclassified"`, the final unclassified outcome is
+    /// returned so fallback reason/review fields are preserved. Rule execution
+    /// errors abort the waterfall because silently skipping a broken financial
+    /// rule would hide audit-relevant failures.
     pub fn classify_waterfall(
         &self,
         engine: &mut ClassificationEngine,
@@ -307,28 +334,23 @@ impl RuleRegistry {
     ) -> Result<ClassificationOutcome, ClassificationError> {
         let selected = self.select_rules_deterministic(tx);
 
-        for rule_path in &selected {
-            match engine.run_rule_from_file(rule_path, tx) {
-                Ok(outcome) if outcome.category != "Unclassified" => {
-                    return Ok(outcome);
-                }
-                Ok(_unclassified) => {
-                    // Continue to next rule
-                }
-                Err(_e) => {
-                    // Log and continue — a single rule failure should not abort the waterfall
-                    // tracing::warn! would go here in the real pipeline
-                }
+        let mut last_unclassified = None;
+
+        for rule_path in selected {
+            let outcome = engine.run_rule_from_file(&rule_path, tx)?;
+            if outcome.category != "Unclassified" {
+                return Ok(outcome);
             }
+
+            last_unclassified = Some(outcome);
         }
 
-        // All rules returned Unclassified or errored — return a deterministic fallback
-        Ok(ClassificationOutcome {
+        Ok(last_unclassified.unwrap_or_else(|| ClassificationOutcome {
             category: "Unclassified".to_string(),
             confidence: 0.0,
             needs_review: true,
             reason: "no rule produced a classification".to_string(),
-        })
+        }))
     }
 
     /// Return the number of rules loaded in this registry.
@@ -339,6 +361,14 @@ impl RuleRegistry {
     /// Return the rule paths in registry order.
     pub fn rule_paths(&self) -> &[PathBuf] {
         &self.rule_paths
+    }
+
+    /// Return the number of loaded ReqIF sidecar candidates.
+    pub fn candidate_count(&self) -> usize {
+        self.candidates
+            .iter()
+            .filter(|candidate| candidate.is_some())
+            .count()
     }
 }
 

@@ -274,11 +274,12 @@ mod integration {
     /// without any keyword overlap.
     ///
     /// # What needs to be built first
-    /// `RuleRegistry::load_from_dir()` (currently `unimplemented!()`) and
-    /// `SemanticRuleSelector::build_embedding_index()` (also `unimplemented!()`).
-    /// Both require embedding infrastructure (fastembed-rs, candle, or ONNX sidecar).
+    /// `RuleRegistry::load_from_dir()` is implemented, but
+    /// `SemanticRuleSelector::build_embedding_index()` remains unimplemented.
+    /// The semantic path requires embedding infrastructure (fastembed-rs, candle,
+    /// or ONNX sidecar).
     #[test]
-    #[ignore = "requires RuleRegistry::load_from_dir() and SemanticRuleSelector::build_embedding_index() — both unimplemented!() panic; blocked on embedding infrastructure"]
+    #[ignore = "requires SemanticRuleSelector::build_embedding_index() — blocked on embedding infrastructure"]
     fn test_semantic_rule_selector_selects_by_embedding() {
         // DESIRED BEHAVIOR:
         // 1. RuleRegistry::load_from_dir(&rules_dir) must:
@@ -310,7 +311,6 @@ mod integration {
             .unwrap() // crates → repo root
             .join("rules");
 
-        // This will panic with unimplemented!() until load_from_dir is implemented:
         let mut registry =
             RuleRegistry::load_from_dir(&rule_dir).expect("should load rules from rules/ dir");
 
