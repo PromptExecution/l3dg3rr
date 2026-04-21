@@ -20,6 +20,3 @@
 - [Capability Map](./capability-map.md)
 - [Type Compatibility](./type-compatibility.md)
 - [Concept Affinity](./concept-affinity.md)
-- [Capability Map](./capability-map.md)
-- [Type Compatibility](./type-compatibility.md)
-- [Concept Affinity](./concept-affinity.md)

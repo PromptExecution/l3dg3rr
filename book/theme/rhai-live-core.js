@@ -714,6 +714,30 @@
         const levelKeys = refineLevelOrder(grouped, topology);
         const positions = new Map();
 
+        // Pre-compute match node metadata: for each match node, find its arms
+        // and their indices so we can assign stable Z lanes.
+        const matchMeta = new Map();
+        graph.order.forEach(function (id) {
+            const node = graph.nodes.get(id);
+            if (node && (node.kind === "decision" || node.kind === "match")) {
+                const outgoing = topology.outgoing.get(id) || [];
+                const arms = outgoing
+                    .map(function (edge) {
+                        return {
+                            edge,
+                            target: edge.to,
+                            arm_index: edge.arm_index !== null ? edge.arm_index : 0,
+                            is_default: edge.is_default,
+                            label: edge.label,
+                        };
+                    })
+                    .sort(function (a, b) { return a.arm_index - b.arm_index; });
+                if (arms.length > 1) {
+                    matchMeta.set(id, { arms, armCount: arms.length });
+                }
+            }
+        });
+
         levelKeys.forEach(function (level) {
             const ids = grouped.get(level) || [];
             const center = (ids.length - 1) / 2;
@@ -735,6 +759,115 @@
             });
         });
 
+        function applyMatchArmPositions() {
+            // Apply match-specific lane assignment: arms get Z lanes by arm_index,
+            // default arm goes to outermost lane.
+            matchMeta.forEach(function (meta, matchId) {
+                const matchPos = positions.get(matchId);
+                if (!matchPos) return;
+
+                const totalArms = meta.armCount;
+                meta.arms.forEach(function (arm) {
+                    const targetPos = positions.get(arm.target);
+                    if (!targetPos) return;
+
+                    // Match arms sit one level to the right of the match node.
+                    targetPos.x = Math.max(targetPos.x, matchPos.x + settings.levelGap);
+
+                    if (arm.is_default) {
+                        // Default arm at outermost lane.
+                        targetPos.z = matchPos.z + (totalArms - 1) * settings.laneGap;
+                    } else {
+                        // Explicit arm at its declaration-order lane.
+                        targetPos.z = matchPos.z + arm.arm_index * settings.laneGap;
+                    }
+                });
+            });
+        }
+
+        applyMatchArmPositions();
+
+        // Track which match arm each branch node belongs to, then identify nodes
+        // where incoming branches from the same match converge.
+        const branchOwners = new Map();
+        function addBranchOwner(id, owner) {
+            if (!branchOwners.has(id)) {
+                branchOwners.set(id, []);
+            }
+            const owners = branchOwners.get(id);
+            const exists = owners.some(function (entry) {
+                return entry.matchId === owner.matchId && entry.arm_index === owner.arm_index;
+            });
+            if (!exists) {
+                owners.push(owner);
+            }
+        }
+
+        matchMeta.forEach(function (meta, matchId) {
+            meta.arms.forEach(function (arm) {
+                const owner = { matchId, arm_index: arm.arm_index };
+                const queue = [arm.target];
+                const seen = new Set();
+                while (queue.length) {
+                    const id = queue.shift();
+                    if (seen.has(id)) continue;
+                    seen.add(id);
+                    addBranchOwner(id, owner);
+                    const outgoing = topology.outgoing.get(id) || [];
+                    outgoing.forEach(function (edge) {
+                        queue.push(edge.to);
+                    });
+                }
+            });
+        });
+
+        const rejoinMeta = new Map();
+        graph.order.forEach(function (id) {
+            const incoming = topology.incoming.get(id) || [];
+            const branchKeys = new Set();
+            const matchIds = new Set();
+            incoming.forEach(function (edge) {
+                const owners = branchOwners.get(edge.from) || [];
+                owners.forEach(function (owner) {
+                    branchKeys.add(`${owner.matchId}:${owner.arm_index}`);
+                    matchIds.add(owner.matchId);
+                });
+            });
+            if (branchKeys.size > 1) {
+                const fromEdges = incoming.filter(function (edge) {
+                    return (branchOwners.get(edge.from) || []).length > 0;
+                });
+                rejoinMeta.set(id, { matchSources: Array.from(matchIds), fromEdges });
+            }
+        });
+
+        function applyRejoinPositions() {
+            // Constrain rejoin X position: must be after the widest incoming branch.
+            rejoinMeta.forEach(function (meta, rejoinId) {
+                const rejoinPos = positions.get(rejoinId);
+                if (!rejoinPos) return;
+
+                let maxX = 0;
+                meta.fromEdges.forEach(function (edge) {
+                    const sourcePos = positions.get(edge.from);
+                    if (sourcePos) {
+                        maxX = Math.max(maxX, sourcePos.x);
+                    }
+                });
+
+                // Rejoin must be at least one levelGap past the widest branch.
+                rejoinPos.x = Math.max(rejoinPos.x, maxX + settings.levelGap);
+
+                // Center rejoin on the match node's Z axis for visual alignment.
+                const matchPos = positions.get(meta.matchSources[0]);
+                if (matchPos) {
+                    rejoinPos.z = matchPos.z;
+                }
+            });
+        }
+
+        applyRejoinPositions();
+
         for (let pass = 0; pass < 6; pass += 1) {
             levelKeys.forEach(function (level) {
                 const ids = (grouped.get(level) || []).slice().sort(function (left, right) {
@@ -744,6 +877,15 @@
                 ids.forEach(function (id, index) {
                     const pos = positions.get(id);
                     const incoming = topology.incoming.get(id);
+                    // Skip relaxation for match arms — their Z is fixed by arm_index.
+                    const isMatchArm = incoming && incoming.some(function (edge) {
+                        return matchMeta.has(edge.from);
+                    });
+                    if (isMatchArm) return;
+
+                    // Skip relaxation for rejoin points — their Z is centered on the match.
+                    if (rejoinMeta.has(id)) return;
+
                     if (incoming.length) {
                         const targetZ = median(
                             incoming.map(function (edge) {
@@ -774,11 +916,18 @@
             });
         }
 
+        // Relaxation and collision avoidance can nudge protected lanes, so apply
+        // match/rejoin constraints again as the final layout authority.
+        applyMatchArmPositions();
+        applyRejoinPositions();
+
         return {
             positions,
             levels,
             grouped,
             settings,
+            matchMeta,
+            rejoinMeta,
         };
     }
 

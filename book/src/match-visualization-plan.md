@@ -98,6 +98,28 @@ match result.disposition => Disposition::Advisory -> record_note
 fn repair_and_retry() -> requeue_validation
 ```
 
+## Implementation Status
+
+### Completed
+- **Single match node**: Parser compiles one `match` node per expression, not scattered `if` nodes.
+- **Arm order preservation**: `IndexMap` in Rust and ordered `Map` in JS preserve declaration order.
+- **Labeled edges**: Every outgoing edge carries the arm key as its label.
+- **Default arm detection**: `_`, `else`, `otherwise`, `default` arms are flagged with `is_default: true`.
+- **Stable identity keys**: `Node.identity_key` enables identity-stable reflow across label changes.
+- **Arm index tracking**: `Node.arm_index` and `Edge.arm_index` carry declaration order.
+- **Semantic role inference**: Both Rust and JS infer roles from label keywords (ingest/validate/classify/review/reconcile/commit/decision/step).
+- **Mermaid default annotation**: Default arms rendered with `(default)` suffix.
+- **Match-specific lane assignment in JS layout solver**: Arms receive stable Z lanes from `arm_index`.
+- **Default arm outer-lane placement**: `_`/`else` arms render at the outermost lane.
+- **Basic rejoin constraint**: Simple rejoin points are placed after the widest branch and centered on the match node lane.
+
+### In Progress
+- **Richer rejoin semantics**: The live solver handles simple joins, but branch-local work and explicit rejoin syntax still need a stronger graph model.
+
+### Planned
+- **Animated reflow**: Inserting/deleting/moving arms should animate lane changes instead of snapping.
+- **Explicit rejoin syntax**: e.g. `fn repair_and_retry() -> requeue_validation` already implies rejoin; the parser should expose that intent directly.
+
 The current live editor and mdBook preprocessor both accept the repeated-arm syntax above. The next implementation target is richer identity and placement semantics, not a second incompatible syntax.
 
 ## Example Gallery
