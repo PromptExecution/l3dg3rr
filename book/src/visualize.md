@@ -12,28 +12,13 @@ The visualize module generates Mermaid diagrams and HTML exports for pipeline st
 
 ## PipelineGraph
 
-```mermaid
-flowchart TB
-    subgraph Input
-        W["Workflow.toml"]
-        S["Pipeline State"]
-    end
-    
-    subgraph Process
-        G["PipelineGraph"]
-        M["to_mermaid()"]
-        H["to_html()"]
-    end
-    
-    subgraph Output
-        MD["Mermaid SVG"]
-        HT["HTML + Mermaid.js"]
-    end
-    
-    W --> G
-    S --> G
-    G --> M --> MD
-    G --> H --> HT
+```rhai
+fn workflow_toml() -> pipeline_graph
+fn pipeline_state() -> pipeline_graph
+fn pipeline_graph() -> to_mermaid
+fn pipeline_graph() -> to_html
+fn to_mermaid() -> mermaid_svg
+fn to_html() -> html_export
 ```
 
 ```rust

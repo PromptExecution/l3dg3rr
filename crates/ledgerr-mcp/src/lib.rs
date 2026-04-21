@@ -20,6 +20,7 @@ use ledgerr_llm::{LlmClient, LlmConfig};
 #[cfg(feature = "xero")]
 use xero_service::XeroService;
 
+pub mod calendar_tool;
 pub mod contract;
 pub mod events;
 pub mod hsm;
@@ -27,8 +28,10 @@ pub mod mcp_adapter;
 pub mod ontology;
 pub mod plugin_info;
 pub mod reconciliation;
+pub mod shape_tool;
 pub mod tax_assist;
 pub mod xero_service;
+pub use calendar_tool::{list_calendar_events, CalendarEventRow, ListCalendarEventsRequest};
 pub use events::{
     AppendEventResult, EventHistoryFilter, EventHistoryResponse, InMemoryLifecycleEventStore,
     LifecycleEvent, LifecycleEventStore, ReplayProjection,
@@ -46,6 +49,7 @@ pub use reconciliation::{
     commit_stage, reconcile_stage, validate_stage, ReconciliationDiagnostic,
     ReconciliationStageRequest, ReconciliationStageResponse,
 };
+pub use shape_tool::{get_document_shape, GetDocumentShapeRequest};
 pub use tax_assist::{
     TaxAmbiguityRecord, TaxAmbiguityReviewRequest, TaxAmbiguityReviewResponse, TaxAssistRequest,
     TaxAssistResponse, TaxAssistSummary, TaxEvidenceChainRequest, TaxEvidenceChainResponse,

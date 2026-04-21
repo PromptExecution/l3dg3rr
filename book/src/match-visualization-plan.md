@@ -47,13 +47,12 @@ Equivalent workflow intent:
 
 ### Sample 2D Layout
 
-```mermaid
-flowchart TD
-    verify_result["verify_result"] --> match_disposition{"match result.disposition"}
-    match_disposition -->|"Unrecoverable"| halt_pipeline["halt_pipeline"]
-    match_disposition -->|"Recoverable"| repair_and_retry["repair_and_retry"]
-    match_disposition -->|"Advisory"| record_note["record_note"]
-    repair_and_retry --> requeue_validation["requeue_validation"]
+```rhai
+fn verify_result() -> match_result_disposition
+match result.disposition => Disposition::Unrecoverable -> halt_pipeline
+match result.disposition => Disposition::Recoverable -> repair_and_retry
+match result.disposition => Disposition::Advisory -> record_note
+fn repair_and_retry() -> requeue_validation
 ```
 
 ### Mermaid Acceptance Criteria

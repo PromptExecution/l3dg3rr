@@ -345,11 +345,10 @@ assert_eq!(id1, id2); // Idempotent!
 
 ### Content-Hash Flow
 
-```mermaid
-flowchart LR
-    I1["account|date|amount|desc"] --> B["blake3"]
-    B --> H["64-char hex"]
-    H --> DB["tx_id stored"]
+```rhai
+fn account_date_amount_desc() -> blake3_hasher
+fn blake3_hasher() -> hex_64_chars
+fn hex_64_chars() -> tx_id_stored
 ```
 
 ## Workflow DSL Compilation (Executable)

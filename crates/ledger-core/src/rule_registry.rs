@@ -22,6 +22,18 @@ use serde::{Deserialize, Serialize};
 use crate::classify::{ClassificationEngine, ClassificationError, ClassificationOutcome, SampleTransaction};
 
 // ============================================================================
+// Internal helpers
+// ============================================================================
+
+/// Check whether a rule filename (stem only) matches a given keyword pattern.
+fn filename_contains(path: &Path, keyword: &str) -> bool {
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .map(|n| n.to_ascii_lowercase().contains(keyword))
+        .unwrap_or(false)
+}
+
+// ============================================================================
 // MIRROR TYPES: reqif-opa-mcp JSON output shapes
 // ============================================================================
 
@@ -166,27 +178,118 @@ impl RuleRegistry {
     /// Optionally loads a paired `<rule_name>.reqif.json` sidecar for each rule.
     ///
     /// Returns `RuleRegistryError::NoRules` if the directory contains no `.rhai` files.
-    ///
-    /// # Stub
-    /// This method is not yet implemented.
-    pub fn load_from_dir(_rules_dir: &Path) -> Result<Self, RuleRegistryError> {
-        unimplemented!("RuleRegistry::load_from_dir — scan directory for .rhai files and optional .reqif.json sidecars")
+    pub fn load_from_dir(rules_dir: &Path) -> Result<Self, RuleRegistryError> {
+        let mut rule_paths: Vec<PathBuf> = std::fs::read_dir(rules_dir)?
+            .filter_map(|entry| {
+                let entry = entry.ok()?;
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()) == Some("rhai") {
+                    Some(path)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if rule_paths.is_empty() {
+            return Err(RuleRegistryError::NoRules(rules_dir.to_path_buf()));
+        }
+
+        rule_paths.sort();
+
+        // Load optional .reqif.json sidecars in parallel with rule_paths order
+        let candidates: Vec<Option<ReqIfCandidate>> = rule_paths
+            .iter()
+            .map(|p| {
+                let sidecar = p.with_extension("reqif.json");
+                if sidecar.exists() {
+                    std::fs::read_to_string(&sidecar)
+                        .ok()
+                        .and_then(|s| serde_json::from_str::<ReqIfCandidate>(&s).ok())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        Ok(Self { rule_paths, candidates })
     }
 
     /// Select rules applicable to a transaction by keyword match (deterministic fallback).
     ///
-    /// Filters `rule_paths` by checking whether the rule file name or its associated
-    /// `ReqIfCandidate` text contains any keyword from the transaction's description.
-    /// Returns rule file paths sorted by expected relevance (match count descending).
+    /// Filters `rule_paths` by checking whether the rule filename contains keywords that
+    /// match fields in `tx`. The keyword mapping is:
+    /// - `account_id` contains "hsbc" → include `*foreign*` rules
+    /// - `description` contains "btc", "eth", or "crypto" → include `*crypto*` rules
+    /// - `description` contains "rent" or "rental" → include `*rental*` rules
+    /// - `description` contains "contractor", "freelance", or "self-employ" → include `*self_employ*` rules
+    /// - `*fallback*` rules are always appended last
     ///
-    /// This is the deterministic fallback used when embedding infrastructure is absent.
-    /// All rules are returned (in alphabetical order) when no keyword match is found,
-    /// ensuring the waterfall always has candidates.
-    ///
-    /// # Stub
-    /// This method is not yet implemented.
-    pub fn select_rules_deterministic(&self, _tx: &SampleTransaction) -> Vec<PathBuf> {
-        unimplemented!("RuleRegistry::select_rules_deterministic — keyword-match rule selection from registry")
+    /// Returns a unique, ordered list: matched rules first, fallback rules last.
+    /// If no keywords matched any non-fallback rule, all non-fallback rules are included
+    /// so the waterfall always has candidates.
+    pub fn select_rules_deterministic(&self, tx: &SampleTransaction) -> Vec<PathBuf> {
+        let account_id_lower = tx.account_id.to_ascii_lowercase();
+        let desc_lower = tx.description.to_ascii_lowercase();
+
+        // Determine which rule-type keywords are relevant for this transaction
+        let mut wanted_patterns: Vec<&str> = Vec::new();
+
+        if account_id_lower.contains("hsbc") {
+            wanted_patterns.push("foreign");
+        }
+        if desc_lower.contains("btc") || desc_lower.contains("eth") || desc_lower.contains("crypto") {
+            wanted_patterns.push("crypto");
+        }
+        if desc_lower.contains("rent") || desc_lower.contains("rental") {
+            wanted_patterns.push("rental");
+        }
+        if desc_lower.contains("contractor")
+            || desc_lower.contains("freelance")
+            || desc_lower.contains("self-employ")
+            || desc_lower.contains("self_employ")
+        {
+            wanted_patterns.push("self_employ");
+        }
+
+        let mut matched: Vec<PathBuf> = Vec::new();
+        let mut fallbacks: Vec<PathBuf> = Vec::new();
+
+        for path in &self.rule_paths {
+            let is_fallback = filename_contains(path, "fallback");
+
+            if is_fallback {
+                fallbacks.push(path.clone());
+                continue;
+            }
+
+            if wanted_patterns.is_empty() {
+                // No keyword matched — include all non-fallback rules
+                matched.push(path.clone());
+            } else if wanted_patterns.iter().any(|p| filename_contains(path, p)) {
+                matched.push(path.clone());
+            }
+        }
+
+        // If keyword patterns were specified but nothing matched, fall through to all non-fallback rules
+        if !wanted_patterns.is_empty() && matched.is_empty() {
+            for path in &self.rule_paths {
+                if !filename_contains(path, "fallback") {
+                    matched.push(path.clone());
+                }
+            }
+        }
+
+        // Deduplicate while preserving order
+        let mut seen = std::collections::HashSet::new();
+        let mut result: Vec<PathBuf> = Vec::new();
+        for path in matched.into_iter().chain(fallbacks) {
+            if seen.insert(path.clone()) {
+                result.push(path);
+            }
+        }
+
+        result
     }
 
     /// Apply all rules in order, returning the first non-`Unclassified` result.
@@ -195,17 +298,37 @@ impl RuleRegistry {
     /// executed in the order returned by `select_rules_deterministic`. Execution
     /// stops as soon as one rule returns a `category` other than `"Unclassified"`.
     ///
-    /// If all rules return `"Unclassified"`, the last result is returned so callers
-    /// always receive a `ClassificationOutcome`.
-    ///
-    /// # Stub
-    /// This method is not yet implemented.
+    /// If all rules return `"Unclassified"` or error, a fallback `ClassificationOutcome`
+    /// with `category = "Unclassified"` and `confidence = 0.0` is returned.
     pub fn classify_waterfall(
         &self,
-        _engine: &mut ClassificationEngine,
-        _tx: &SampleTransaction,
+        engine: &mut ClassificationEngine,
+        tx: &SampleTransaction,
     ) -> Result<ClassificationOutcome, ClassificationError> {
-        unimplemented!("RuleRegistry::classify_waterfall — multi-rule waterfall: first non-Unclassified result wins")
+        let selected = self.select_rules_deterministic(tx);
+
+        for rule_path in &selected {
+            match engine.run_rule_from_file(rule_path, tx) {
+                Ok(outcome) if outcome.category != "Unclassified" => {
+                    return Ok(outcome);
+                }
+                Ok(_unclassified) => {
+                    // Continue to next rule
+                }
+                Err(_e) => {
+                    // Log and continue — a single rule failure should not abort the waterfall
+                    // tracing::warn! would go here in the real pipeline
+                }
+            }
+        }
+
+        // All rules returned Unclassified or errored — return a deterministic fallback
+        Ok(ClassificationOutcome {
+            category: "Unclassified".to_string(),
+            confidence: 0.0,
+            needs_review: true,
+            reason: "no rule produced a classification".to_string(),
+        })
     }
 
     /// Return the number of rules loaded in this registry.

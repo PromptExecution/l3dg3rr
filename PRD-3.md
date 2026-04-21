@@ -1,0 +1,504 @@
+# PRD-3: Interactive Documentation Live Rhai Editor and Slint Desktop Host
+
+**Status**: Specification — not yet implemented  
+**Target capabilities**: #10 Interactive Documentation with Live Rhai Editor and d3.js/WASM, #11 Slint Desktop Host  
+**Author**: Claude Sonnet (coordinator)  
+**Date**: 2026-04-20
+
+---
+
+## Capability #10 — Interactive Documentation with Live Rhai Editor and d3.js/WASM
+
+### Problem
+
+The current mdbook documentation renders `\`\`\`rhai` blocks as static Mermaid diagrams via `mdbook-rhai-mermaid`. Readers cannot experiment with the DSL or observe how classification paths change with different inputs. There is no mechanism for capturing user interactions as training data for future instruction-tuned model fine-tuning.
+
+### Finished-State Description
+
+Every rendered `\`\`\`rhai` block in the book becomes an interactive surface:
+
+- A `<textarea>` containing the Rhai DSL source, fully editable in-browser
+- A "Regenerate" button that re-parses the DSL and redraws both views without any server round-trip
+- A view toggle switching between `isometric-3d` (animated SVG scene) and `mermaid-2d` (canonical Mermaid flowchart)
+- An input fuzzer sidebar where the user enters arbitrary `tx` map fields, clicks "Run", and sees which classification path the Rhai rule engine takes — with edges highlighted on the active diagram
+
+The Rhai runtime is compiled to `wasm32-unknown-unknown` and loaded into the page. All DSL evaluation happens in-browser. No server is required after the page loads.
+
+Every user interaction — diagram edit, fuzz run, node click — is recorded as a structured NDJSON event to `~/.l3dg3rr/editor-traces/YYYY-MM-DD.ndjson`. This trace file is the training data corpus for the upcoming instruction-tuned model fine-tuned on the system's classification logic.
+
+---
+
+### Acceptance Criteria
+
+**AC-10.1** — Every chapter in the rendered book that contains at least one `\`\`\`rhai` block must upgrade that block to an interactive editor surface on page load. Static fallback Mermaid is still present in the DOM for non-JS readers.
+
+**AC-10.2** — The Regenerate button must produce a new diagram within 500 ms of click on a modern laptop (M2/equivalent). No network request may be issued during regeneration.
+
+**AC-10.3** — The isometric-3d view must use pure SVG (no WebGL). Inserting or deleting a node must animate position changes via CSS transitions (not snap). Minimum 60 fps on a 20-node graph.
+
+**AC-10.4** — The mermaid-2d view must render the identical parsed graph as a `flowchart TD` Mermaid diagram using the same Mermaid.js version already loaded by the book theme.
+
+**AC-10.5** — The input fuzzer panel must accept fields `{ tx_id, account_id, date, amount, description }` as plain text inputs. On "Run", the WASM Rhai engine evaluates the currently loaded DSL against those inputs. The result `{ category, confidence, review, reason }` must be displayed. Edges taken during evaluation must be highlighted in both views for 3 seconds.
+
+**AC-10.6** — Every user action must be appended to `~/.l3dg3rr/editor-traces/YYYY-MM-DD.ndjson` within 2 seconds of the action. Each record must be a single-line JSON object with fields `{ ts, action, diagram_src, fuzz_inputs, result }`. If the directory does not exist it must be created. If the write fails, the failure must be logged to the browser console and must not interrupt the UI.
+
+**AC-10.7** — `just docgen-check` must:
+  - Verify at least one `\`\`\`rhai` block is present in each chapter listed in `SUMMARY.md`
+  - Verify no hardcoded `\`\`\`mermaid` blocks exist in source markdown (they are always generated)
+  - Run `node --check book/theme/rhai-live.js book/theme/rhai-live-core.js` (JS syntax check)
+  - Run the live-editor unit test suite (`npm test` in `book/theme/`)
+
+**AC-10.8** — The isometric-3d node icon library must use role keys inferred from node labels: `ingest`, `validate`, `classify`, `review`, `reconcile`, `commit`, `decision`. When no role matches, an auto-generated glTF data URI is used as fallback. All icons must be inline SVG (no external fetches).
+
+**AC-10.9** — Line-level parse feedback must surface in the editor: malformed DSL lines must be underlined red with a tooltip, ignored non-DSL lines must be underlined grey with an informational note, and Mermaid render failures must include a concrete hint to switch to isometric view.
+
+---
+
+### File Layout
+
+| Path | Purpose |
+|---|---|
+| `book/theme/rhai-live.js` | Page-level bootstrap: upgrades rhai fences, wires button and slider events, loads WASM |
+| `book/theme/rhai-live-core.js` | Core rendering engine: isometric SVG renderer, Mermaid bridge, fuzzer panel, trace writer |
+| `book/theme/rhai-live.css` | Styles for editor surface, toggle, fuzzer panel, highlight animations |
+| `book/theme/rhai_engine_bg.wasm` | WASM-compiled Rhai runtime (produced by `wasm-pack build`) |
+| `book/theme/rhai_engine.js` | JS glue generated by `wasm-pack` |
+| `crates/rhai-wasm/` | New Rust crate: `wasm32-unknown-unknown` target, exports `evaluate_rhai_dsl(src, tx_json)` |
+| `crates/rhai-wasm/src/lib.rs` | WASM entry point; imports `rhai` crate, parses DSL, calls `fn classify(tx)` |
+| `crates/rhai-wasm/Cargo.toml` | `[lib] crate-type = ["cdylib"]`; depends on `rhai`, `wasm-bindgen`, `serde-wasm-bindgen` |
+| `book/theme/package.json` | JS test runner config (vitest or jest) |
+| `book/theme/__tests__/` | Unit tests for rhai-live-core.js |
+
+---
+
+### Rust WASM Crate Dependencies
+
+Add to `crates/rhai-wasm/Cargo.toml`:
+
+```toml
+[dependencies]
+rhai = { version = "1.24.0", features = [] }
+wasm-bindgen = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+serde_json = "1"
+```
+
+The crate must not depend on `std::fs`, `std::process`, or any system I/O that does not compile to WASM. Rule files are passed as strings, not file paths.
+
+### WASM API Contract
+
+```rust
+// src/lib.rs
+use wasm_bindgen::prelude::*;
+
+/// Evaluate a Rhai DSL diagram source and optionally a classify(tx) call.
+/// Returns a JSON string: { "nodes": [...], "edges": [...], "classify_result": {...} | null }
+#[wasm_bindgen]
+pub fn evaluate_rhai_dsl(dsl_src: &str, tx_json: &str) -> String { ... }
+
+/// Parse only — returns graph JSON without executing classify().
+#[wasm_bindgen]
+pub fn parse_dsl(dsl_src: &str) -> String { ... }
+```
+
+---
+
+### Isometric SVG Renderer Spec
+
+The isometric renderer in `rhai-live-core.js` must:
+
+1. Accept a `{ nodes: [{id, label, kind, role}], edges: [{from, to, label}] }` parsed graph
+2. Assign each node to a layer (x) and lane (y) using a topological sort with deterministic tie-breaking (alphabetical by id). The main spine is lane 0; side-branch nodes (those not on the longest path) fan out to lanes 1, 2, etc.
+3. Map (layer, lane) to isometric 2D coordinates: `screen_x = (layer - lane) * TILE_W`, `screen_y = (layer + lane) * TILE_H * 0.5`
+4. Render each node as an SVG `<g>` containing: the role icon (inline SVG `<use>` referencing a `<defs>` symbol), a label `<text>`, and a bounding `<rect>` styled by `kind` (Step=rect, Decision=diamond, Match=hexagon)
+5. Render each edge as an SVG `<path>` with an arrowhead marker; labeled edges include a `<text>` at the midpoint
+6. On graph change (Regenerate), compute new positions and animate each `<g>` using CSS `transition: transform 0.3s ease` rather than re-creating the DOM
+
+**Role → icon key mapping:**
+
+| Inferred role | Icon key | Label keywords |
+|---|---|---|
+| `ingest` | ingest | ingest, load, read, parse, extract |
+| `validate` | validate | validate, check, verify, lint |
+| `classify` | classify | classify, score, tag, rule, waterfall |
+| `review` | review | review, flag, audit, human |
+| `reconcile` | reconcile | reconcile, match, diff, compare |
+| `commit` | commit | commit, write, save, export, publish |
+| `decision` | decision | node.kind === Decision or Match |
+
+---
+
+### Fuzzer Panel Spec
+
+The fuzzer panel is a sidebar `<div>` containing:
+
+- Six `<input type="text">` fields: `tx_id` (auto-filled with UUID), `account_id`, `date` (ISO), `amount` (decimal string), `description`, `rule_src` (hidden — current editor content)
+- A "Run" button
+- A result display `<pre>` showing `{ category, confidence, review, reason }`
+- A path trace `<ol>` showing which DSL lines were evaluated
+
+On "Run":
+1. Call `evaluate_rhai_dsl(editor_content, JSON.stringify(inputs))`
+2. Parse the returned JSON
+3. Display the classify result
+4. For each edge in the path trace, add the CSS class `rhai-live--edge-active` to the corresponding SVG `<path>` element; remove after 3000 ms
+
+---
+
+### Trace File Format
+
+Each record written to `~/.l3dg3rr/editor-traces/YYYY-MM-DD.ndjson`:
+
+```json
+{
+  "ts": "2026-04-20T14:32:01.123Z",
+  "action": "fuzz_run",
+  "diagram_src": "fn ingest_pdf() -> detect_shape\nfn detect_shape() -> validate_rows\n",
+  "fuzz_inputs": {
+    "tx_id": "abc123",
+    "account_id": "chase--checking",
+    "date": "2024-03-15",
+    "amount": "-142.50",
+    "description": "AMAZON.COM"
+  },
+  "result": {
+    "category": "OfficeSupplies",
+    "confidence": 0.72,
+    "review": false,
+    "reason": "keyword:business_expense matched"
+  }
+}
+```
+
+`action` is one of: `diagram_edit`, `fuzz_run`, `node_click`, `view_toggle`.
+
+Trace writes use the File System Access API (`showDirectoryPicker` / `FileSystemWritableFileStream`) with a fallback to `localStorage` accumulation + a "Download traces" button when the API is unavailable (non-Chrome browsers, iframe contexts).
+
+---
+
+### mdBook Integration
+
+In `book/book.toml`:
+
+```toml
+[preprocessor.rhai-mermaid]
+command = "mdbook-rhai-mermaid"
+
+[output.html]
+additional-js = ["theme/rhai-live.js"]
+additional-css = ["theme/rhai-live.css"]
+```
+
+`rhai-live.js` is loaded after Mermaid.js. On `DOMContentLoaded` it queries `document.querySelectorAll('code.language-rhai')` (the rendered fence elements), wraps each in the editor surface, and loads the WASM module. The Mermaid-injected `\`\`\`mermaid` block immediately following each rhai block is hidden by CSS when the live editor activates successfully, and shown as fallback if WASM load fails.
+
+---
+
+### docgen-check Implementation
+
+Add to `Justfile`:
+
+```just
+docgen-check:
+    mdbook build book/ --dest-dir /tmp/l3dg3rr-check
+    # Verify at least one rhai block per chapter
+    cargo run -p xtask -- check-rhai-coverage book/src/
+    # No hardcoded mermaid in source
+    ! grep -r '```mermaid' book/src/ --include='*.md' | grep -v SUMMARY
+    # JS syntax
+    node --check book/theme/rhai-live.js
+    node --check book/theme/rhai-live-core.js
+    # Unit tests
+    cd book/theme && npm test
+```
+
+---
+
+## Capability #11 — Slint Desktop Host
+
+### Problem
+
+The pipeline operates entirely via CLI and MCP server. There is no persistent local surface showing pipeline state, upcoming deadlines, or ingestion progress. Rule editing requires a text editor; there is no live feedback when editing a `.rhai` file. Audit logs are only accessible by opening the Excel workbook.
+
+### Finished-State Description
+
+A single-binary Slint 1.x desktop application (`ledgerr-host`) provides:
+
+- A system tray icon showing current pipeline status with OS notifications on deadline approach and pipeline completion
+- A real-time pipeline state panel showing each `LedgerOperation` with status, confidence score, and review flags
+- A credential manager using the OS keychain for API keys
+- Drag-drop PDF/CSV ingest triggering `IngestStatementOp` via `OperationDispatcher`
+- A monthly calendar grid showing `BusinessCalendar` deadlines color-coded by jurisdiction
+- An embedded rule editor with hot-reload reclassification
+- A searchable audit trail viewer over the AUDIT workbook sheet
+
+---
+
+### Acceptance Criteria
+
+**AC-11.1** — The tray icon binary (`host-tray`) must launch at OS startup if enabled, appear in the system tray, and display a status indicator: green (idle), yellow (running), red (error). It must not open a window on launch.
+
+**AC-11.2** — The tray context menu must include: "Open Dashboard", "Ingest Now", "Run Classification", "Check Deadlines", "Quit". "Open Dashboard" must open the main Slint window.
+
+**AC-11.3** — OS toast notifications must fire when: (a) a `BusinessCalendar` deadline is within `warn_days_before` (default 7) days; (b) any `OperationDispatcher.run_all()` call completes; (c) a new review flag is written. Notifications must include the event description and a "View" action that opens the dashboard.
+
+**AC-11.4** — The pipeline state panel must update in real-time via Slint data bindings. It must show one row per registered `LedgerOperation` with columns: Operation ID, Status (`Pending` / `Running` / `Done` / `Error`), Items Processed, Items Flagged, Last Duration (ms), Last Error (if any). Status must refresh within 500 ms of an `OperationResult` being emitted.
+
+**AC-11.5** — The credential manager must read and write API keys (OpenAI, Anthropic, `reqif-opa-mcp` endpoint URL) using the `keyring` crate (`keyring = "3"`). Keys must never be written to disk in plaintext. On Windows the keyring backend is Windows Credential Manager; on macOS it is Keychain; on Linux it is the Secret Service API (libsecret).
+
+**AC-11.6** — Drag-drop of a PDF or CSV file onto the main window must trigger `IngestStatementOp` with the dropped file path as `source_glob`. Progress (items processed, items flagged) must be streamed into the pipeline panel via Slint data bindings during ingestion. On completion, a toast notification must fire.
+
+**AC-11.7** — The calendar view must render a standard monthly grid. Days with due events must be highlighted. US events must use `#1565C0` (blue); AU events must use `#E65100` (gold). Clicking a highlighted day must open a detail pane listing that day's events with their `OperationKind` and a "Run Now" button.
+
+**AC-11.8** — The rule editor must embed a WebView-based code editor (CodeMirror 6 via `slint::WebView` or equivalent). On save (Ctrl+S), the modified `.rhai` file must be written to disk and a `ClassifyTransactionsOp` must be triggered automatically on the last ingested statement. The result diff (newly classified vs previously classified) must be displayed in a modal.
+
+**AC-11.9** — The audit trail viewer must load the AUDIT sheet from the Excel workbook via `calamine`. It must support: full-text search across all columns, filter by date range, filter by operation ID, and export the filtered view to a CSV file.
+
+**AC-11.10** — The entire application must be a single binary (`ledgerr-host`). No Electron. No separate Node.js process. No mandatory cloud services. All data must remain on the local filesystem.
+
+**AC-11.11** — The state machine for pipeline execution inside the host must use the `statig` crate (already in workspace). States: `Idle → Running → Done | Error → Idle`. Transitions must be logged to `tracing`.
+
+---
+
+### File Layout
+
+| Path | Purpose |
+|---|---|
+| `crates/ledgerr-host/` | New Rust crate for the Slint desktop host |
+| `crates/ledgerr-host/Cargo.toml` | Depends on `slint`, `keyring`, `statig`, `tokio`, `tracing`, `ledger-core` |
+| `crates/ledgerr-host/src/main.rs` | Binary entrypoint; sets up Slint app, tray, tokio runtime |
+| `crates/ledgerr-host/src/tray.rs` | System tray icon and notification logic |
+| `crates/ledgerr-host/src/pipeline_panel.rs` | Slint data bindings for `OperationDispatcher` state |
+| `crates/ledgerr-host/src/credential_store.rs` | `keyring` wrapper for API keys |
+| `crates/ledgerr-host/src/calendar_view.rs` | Monthly grid rendering from `BusinessCalendar::upcoming()` |
+| `crates/ledgerr-host/src/rule_editor.rs` | WebView rule editor, hot-reload trigger |
+| `crates/ledgerr-host/src/audit_viewer.rs` | `calamine` AUDIT sheet reader, search/filter/export |
+| `crates/ledgerr-host/ui/main.slint` | Slint UI definition: main window, all panels |
+| `crates/ledgerr-host/ui/pipeline_panel.slint` | Pipeline state panel component |
+| `crates/ledgerr-host/ui/calendar_view.slint` | Calendar grid component |
+| `crates/ledgerr-host/ui/audit_viewer.slint` | Audit trail component |
+
+---
+
+### Rust Crate Dependencies
+
+Add to `crates/ledgerr-host/Cargo.toml`:
+
+```toml
+[dependencies]
+slint = "1"
+slint-build = "1"          # build.rs
+
+keyring = "3"
+statig = "0.3"             # already in workspace
+tokio = { version = "1.50", features = ["full"] }
+tracing = "0.1.41"
+tracing-subscriber = "0.3.23"
+thiserror = "2.0.18"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+notify = "8.2.0"
+
+ledger-core = { path = "../ledger-core" }
+
+# Windows tray (non-WSL builds only)
+[target.'cfg(target_os = "windows")'.dependencies]
+tray-icon = "0.18"
+winit = "0.30"
+
+# Linux/macOS tray
+[target.'cfg(not(target_os = "windows"))'.dependencies]
+tray-icon = "0.18"
+```
+
+---
+
+### Integration Points with Existing Modules
+
+#### OperationDispatcher integration
+
+`pipeline_panel.rs` wraps `OperationDispatcher` from `ledger-core`. It must:
+
+1. Wrap each `op.execute(ctx)` call in a `tokio::task::spawn_blocking` to avoid blocking the Slint event loop
+2. Forward `OperationResult` fields into a `Vec<PipelineRowModel>` that Slint reads via its model API
+3. Expose a `Weak<OperationDispatcher>` so the tray "Ingest Now" and "Run Classification" menu items can trigger operations without owning the dispatcher
+
+```rust
+// Slint model type (generated from .slint)
+#[derive(Clone, Default)]
+pub struct PipelineRowModel {
+    pub operation_id: SharedString,
+    pub status: SharedString,        // "Pending" | "Running" | "Done" | "Error"
+    pub items_processed: i32,
+    pub items_flagged: i32,
+    pub duration_ms: i32,
+    pub last_error: SharedString,
+}
+```
+
+#### BusinessCalendar integration
+
+`calendar_view.rs` must:
+
+1. Load both `calendar/tax_calendar_us.toml` and `calendar/tax_calendar_au.toml` via `BusinessCalendar::from_toml_file`
+2. Call `calendar.merge(au_cal)` to combine
+3. On each calendar page change, call `calendar.upcoming(first_day_of_month, days_in_month)` and build a `Vec<CalendarDayModel>` for the Slint grid
+
+```rust
+#[derive(Clone, Default)]
+pub struct CalendarDayModel {
+    pub date: SharedString,            // "2026-04-15"
+    pub events: ModelRc<EventModel>,
+    pub has_us_event: bool,
+    pub has_au_event: bool,
+}
+```
+
+Deadline notifications use `calendar.upcoming(today, warn_days_before)`. The tray module polls this on a 1-hour timer using `tokio::time::interval`.
+
+#### ClassificationEngine integration
+
+`rule_editor.rs` hot-reload sequence:
+
+1. User saves `.rhai` file via editor
+2. `notify` watcher fires `Event::Modify` on `rules/` directory
+3. `rule_editor.rs` calls `ClassificationEngine::run_rule_from_file(rule_path, &last_tx_sample)` for the modified rule only
+4. Compare returned `ClassificationOutcome` to the stored outcome for `last_tx_sample`
+5. Display diff in modal: old category, new category, confidence delta
+
+The `last_tx_sample` is the most recently ingested `SampleTransaction`, stored in `Arc<Mutex<Option<SampleTransaction>>>` shared between `pipeline_panel.rs` and `rule_editor.rs`.
+
+---
+
+### Pipeline State Machine (statig)
+
+```rust
+// crates/ledgerr-host/src/pipeline_state.rs
+
+use statig::prelude::*;
+
+#[derive(Default)]
+pub struct PipelineHost;
+
+pub enum Event {
+    StartOp { op_id: String },
+    OpComplete { result: OperationResult },
+    OpError { op_id: String, err: String },
+    Reset,
+}
+
+#[state_machine(
+    initial = "State::idle()",
+    on_transition = "Self::on_transition"
+)]
+impl PipelineHost {
+    #[state]
+    fn idle(&mut self, event: &Event) -> Response<State> {
+        match event {
+            Event::StartOp { op_id } => {
+                tracing::info!(op_id, "pipeline: starting");
+                Transition(State::running(op_id.clone()))
+            }
+            _ => Super,
+        }
+    }
+
+    #[state]
+    fn running(&mut self, op_id: &str, event: &Event) -> Response<State> {
+        match event {
+            Event::OpComplete { result } => {
+                tracing::info!(op_id, items = result.items_processed, "pipeline: done");
+                Transition(State::done(result.clone()))
+            }
+            Event::OpError { err, .. } => {
+                tracing::error!(op_id, %err, "pipeline: error");
+                Transition(State::error(err.clone()))
+            }
+            _ => Super,
+        }
+    }
+
+    #[state]
+    fn done(&mut self, _result: &OperationResult, event: &Event) -> Response<State> {
+        match event {
+            Event::Reset => Transition(State::idle()),
+            Event::StartOp { op_id } => Transition(State::running(op_id.clone())),
+            _ => Super,
+        }
+    }
+
+    #[state]
+    fn error(&mut self, _err: &str, event: &Event) -> Response<State> {
+        match event {
+            Event::Reset => Transition(State::idle()),
+            _ => Super,
+        }
+    }
+
+    fn on_transition(&mut self, source: &State, target: &State) {
+        tracing::debug!(?source, ?target, "pipeline state transition");
+    }
+}
+```
+
+---
+
+### Build Configuration
+
+`crates/ledgerr-host/build.rs` must call:
+
+```rust
+fn main() {
+    slint_build::compile("ui/main.slint").unwrap();
+}
+```
+
+The Justfile recipes for the host already exist:
+
+```just
+wsl2-pwsh-build:   # builds host-tray and host-window on Windows via PowerShell
+wsl2-pwsh-run-tray:   # rebuilds and launches host-tray.exe
+wsl2-pwsh-run-window: # rebuilds and launches host-window.exe
+```
+
+Add:
+
+```just
+host-build:
+    cargo build -p ledgerr-host --bin ledgerr-host
+
+host-run:
+    cargo run -p ledgerr-host --bin ledgerr-host
+```
+
+---
+
+### Constraints
+
+- No Electron. No Node.js process. Slint 1.x only.
+- Single-binary deployment — `ledgerr-host` must link all dependencies statically where possible.
+- All data must remain local: workbook, rules, calendar manifests, trace files, audit log.
+- API keys must only exist in the OS keychain — never written to disk by application code.
+- The `OperationDispatcher` must be the sole code path for triggering any pipeline operation from the host UI — no direct calls to `ClassificationEngine`, `ingest`, or `workbook` modules from UI code.
+- State transitions in `PipelineHost` must be logged via `tracing` at `INFO` or above.
+- `notify` watcher in `rule_editor.rs` must use a debounce of at least 300 ms before triggering reclassification.
+
+---
+
+## Shared Dependencies Introduced by PRD-3
+
+These crates or tools are new to the workspace:
+
+| Dependency | Version | Purpose | Capability |
+|---|---|---|---|
+| `wasm-bindgen` | 0.2 | WASM/JS glue | #10 |
+| `serde-wasm-bindgen` | 0.6 | Serde types across WASM boundary | #10 |
+| `wasm-pack` | latest | Build `rhai-wasm` crate to WASM | #10 |
+| `slint` | 1.x | Desktop UI framework | #11 |
+| `slint-build` | 1.x | Build script for `.slint` files | #11 |
+| `keyring` | 3 | OS keychain access | #11 |
+| `tray-icon` | 0.18 | System tray icon and menu | #11 |
+| `winit` | 0.30 | Event loop for tray (if not provided by slint) | #11 |
+
+All other dependencies (`statig`, `notify`, `tokio`, `tracing`, `chrono`, `serde`, `thiserror`, `ledger-core`) are already present in the workspace.
