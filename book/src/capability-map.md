@@ -21,10 +21,13 @@ fn classification_engine() -> legal_solver
 fn legal_solver() -> workbook_output
 fn review_flags() -> workbook_output
 fn workbook_output() -> audit_trail
+fn audit_trail() -> sidecar_state
 fn workflow_toml() -> mermaid_generation
 fn pipeline_hsm() -> agent_runtime
 fn issue_source() -> agent_runtime
 fn reqif_opa_bridge() -> agent_runtime
+fn xero_catalog() -> reconciliation_candidates
+fn ledgerr_mcp_contract() -> agent_runtime
 ```
 
 ## Component Status Table
@@ -43,8 +46,8 @@ fn reqif_opa_bridge() -> agent_runtime
 | ReviewFlag | `classify.rs` | Implemented | Flag upsert, query by year/status |
 | Rhai rule files | `rules/` | Implemented | foreign_income, self_employment, fallback |
 | Jurisdiction enum | `legal.rs` | Implemented | US, AU, UK |
-| LegalRule + Z3 formulas | `legal.rs` | Implemented | Constraint formulas defined |
-| LegalSolver | `legal.rs` | Partial | Z3 integration not fully wired |
+| LegalRule + Z3 formulas | `legal.rs` | Implemented | Hard predicate checks for AU GST and US Schedule C |
+| LegalSolver | `legal.rs` | Implemented | Uses pinned `z3 = 0.8` for violation satisfiability checks behind `legal-z3`; default builds use the same deterministic result semantics without native Z3 |
 | Proposer/Reviewer LLM | `verify.rs` | Partial | Pattern defined, no real LLM calls |
 | WorkflowToml DSL | `workflow.rs` | Implemented | TOML → Rhai FSM + Mermaid |
 | IssueSource::RhaiRule | `validation.rs` | Implemented | Validation layer with rule source |
@@ -52,6 +55,10 @@ fn reqif_opa_bridge() -> agent_runtime
 | Workbook read-back | `workbook.rs` | Implemented | `calamine` round-trip |
 | Journal | `journal.rs` | Implemented | NDJSON append and replay |
 | Audit trail (MetaCtx) | `pipeline.rs` | Implemented | Mutation log per pipeline state |
+| MCP contract | `ledgerr-mcp/src/contract.rs` | Implemented | 8 advertised `ledgerr_*` capability families |
+| MCP adapter | `ledgerr-mcp/src/mcp_adapter.rs` | Implemented | Dispatches contract actions to `TurboLedgerService` |
+| Ontology store | `ledgerr-mcp/src/ontology.rs` | Implemented | Entity/edge upsert and path query surface |
+| Xero service | `ledgerr-mcp/src/xero_service.rs` | Partial | Supervised catalog/link actions; credentials remain host-owned |
 | Mermaid auto-generation | `workflow.rs` | Implemented | rhai DSL → diagram blocks |
 | Slint desktop UI | `slint_viz.rs` | Partial | Stub, not wired to window system |
 | RuleRegistry | `rule_registry.rs` | Stub | `load_from_dir` unimplemented |
@@ -79,7 +86,7 @@ fn legal_verify() -> workbook_commit
 fn workbook_commit() -> audit_trail
 ```
 
-Each step in this pipeline has a corresponding Rust type or trait. The pipeline will be executable end-to-end once the `reqif-opa-mcp` bridge, `RuleRegistry` orchestration, and `LegalSolver` Z3 wiring are complete.
+Each step in this pipeline has a corresponding Rust type or trait. The pipeline will be executable end-to-end once the `reqif-opa-mcp` bridge and `RuleRegistry` orchestration are complete. Z3 is now wired for the first hard legal predicates; broader solver coverage is still a roadmap item.
 
 ## Next Steps
 
@@ -89,7 +96,7 @@ The five highest-value missing capabilities to implement, in priority order:
 
 2. **Docling extraction bridge** — Write the Rust `std::process::Command` call to invoke the Python sidecar, parse its NDJSON stdout, and deserialize into `DocumentChunk` / `ReqIfCandidate`. This is the critical path for Phase 2 document intelligence. Estimated scope: new `sidecar.rs` module, ~100 lines.
 
-3. **`LegalSolver` Z3 wiring** — Complete the Z3 constraint solver integration in `legal.rs`. Z3 formulas are already defined; the gap is the `z3::Context` / `z3::Solver` call site and result mapping. Estimated scope: ~80 lines in `legal.rs`.
+3. **Expand `LegalSolver` coverage** — Add hard Z3 checks for FBAR/FATCA thresholds, mutually exclusive categories, and reconciliation/workbook invariants. The initial Z3 integration covers AU GST and US Schedule C predicates.
 
 4. **File watcher via `notify`** — Add a debounced `notify` watcher on the workbook path and the `rules/` directory. This enables live rule reloading and human Excel-edit detection without polling. Estimated scope: new `watcher.rs` module, ~60 lines.
 

@@ -1,29 +1,50 @@
 # Introduction
 
-`l3dg3rr` is a local-first personal financial document intelligence system focused on retroactive U.S. expat tax preparation from raw PDF statements.
+`l3dg3rr` is a local-first financial document intelligence system for retroactive U.S. expat tax preparation. It ingests raw statements, classifies transactions with editable rules, verifies hard constraints, and exports an accountant-usable Excel workbook with audit history.
 
-## Architecture
+The system is built around an operator/agent workflow: agents do ingestion, classification, reconciliation, flagging, and evidence gathering; the human operator and CPA keep approval authority through Excel, notifications, and auditable review surfaces.
 
-The system implements a 6-layer visualization stack:
+## Core Functional Shape
 
-| Layer | Module | Description |
-|-------|--------|-------------|
-| 0 | [graph](./graph.md) | NodeData, EdgeData, pipeline node/edge vectors |
-| 1 | [layout](./layout.md) | ForceLayout with Fruchterman-Reingold solver |
-| 2 | [layout](./iso.md) | Isometric projection (iso_project) |
-| 3 | [render](./render.md) | GraphRenderer for screen coordinates |
-| 4 | [slint_viz](./slint_viz.md) | SlintGraphView with thread-safe layout |
-| 5 | host-window.rs | GraphView Slint component |
-
-## Theory
-
-See [Theory of Operation](./theory.md) for the Novel Theory of Tool pattern and executable documentation.
-
-## Source Documentation
-
-This book is auto-generated from Rustdoc comments in the source code.
-
-```bash
-cargo doc --workspace --no-deps
-mdbook build
+```rhai
+fn source_documents() -> document_ingestion
+fn document_ingestion() -> validation
+fn validation() -> classification
+fn classification() -> legal_verification
+fn legal_verification() -> reconciliation
+fn reconciliation() -> workbook_export
+fn workbook_export() -> cpa_review
+fn cpa_review() -> audit_history
 ```
+
+## Product Guarantees
+
+- **Local-first operation**: private financial data does not require third-party SaaS processing.
+- **Excel-first audit layer**: the workbook is the CPA-facing review and signoff artifact.
+- **Deterministic identity**: transaction IDs are content hashes, not random UUIDs.
+- **Decimal money semantics**: currency values stay in `rust_decimal::Decimal` in financial paths.
+- **Agent-visible but operator-governed tools**: MCP exposes capability families while l3dg3rr owns policy, audit, approvals, and credentials.
+
+## How To Read This Book
+
+Use [Capability Map](./capability-map.md) for the current implementation state. Then read the operator capability chapters for what the application does, followed by the application structure chapters for how it behaves internally.
+
+The visualization chapters document the live mdBook diagram system. They are important, but they are no longer the top-level architecture of the whole application.
+
+## Primary Surfaces
+
+| Surface | Audience | Purpose |
+|---|---|---|
+| Excel workbook | CPA/operator | Review, correction, schedule summaries, audit signoff |
+| MCP tools | agents | Controlled capability execution through `ledgerr_*` tool families |
+| Sidecar state | host/service | Restart recovery, replay, idempotency cache, lifecycle state |
+| Desktop host | operator | approvals, notifications, credentials, process supervision |
+| mdBook docs | developers/operators | executable diagrams and technical behavior reference |
+
+## Related Chapters
+
+- [Capability Map](./capability-map.md)
+- [MCP Surface](./mcp-surface.md)
+- [Workbook & Audit](./workbook-audit.md)
+- [Theory of Operation](./theory.md)
+- [Graph Data Model](./graph.md)

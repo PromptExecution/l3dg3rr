@@ -40,7 +40,7 @@ Use `TurboLedgerService` in `crates/ledgerr-mcp/src/lib.rs` as the canonical con
 Use `docs/mcp-capability-contract.md` as the canonical MCP surface map (tool names, arg contracts, service mapping, contrived usage flow).
 
 Published MCP surface rule:
-- Default `tools/list` should stay collapsed to the 7 top-level `ledgerr_*` capability families: `ledgerr_documents`, `ledgerr_review`, `ledgerr_reconciliation`, `ledgerr_workflow`, `ledgerr_audit`, `ledgerr_tax`, `ledgerr_ontology`.
+- Default `tools/list` should stay collapsed to the 8 top-level `ledgerr_*` capability families: `ledgerr_documents`, `ledgerr_review`, `ledgerr_reconciliation`, `ledgerr_workflow`, `ledgerr_audit`, `ledgerr_tax`, `ledgerr_ontology`, `ledgerr_xero`.
 - Use required `action` parameters to expose sub-operations while keeping major capability families visible.
 - Keep any legacy `l3dg3rr_*` or proxy-style names hidden compatibility aliases only; do not advertise them in the default tool catalog.
 
@@ -288,6 +288,11 @@ Treat this as a standing operational gate, not a one-time migration task.
 - 2026-04-17: reduced the default MCP catalog to 7 top-level `ledgerr_*` tools and relocated plugin info under `ledgerr_workflow`.
   - Keep docs/examples aligned to the reduced surface; `tools/list` is now intended to be a trustworthy small catalog for agents.
   - Legacy `l3dg3rr_*` and proxy tool names remain compatibility aliases only and should not be reintroduced into the advertised catalog.
+- 2026-04-21: Xero is now part of the advertised MCP catalog as `ledgerr_xero`, making the default published surface 8 top-level `ledgerr_*` tools.
+  - Keep generated docs and AGENTS guidance aligned to `crates/ledgerr-mcp/src/contract.rs`; older references to a 7-tool surface are stale.
+  - Documentation hierarchy should lead with operator capabilities first, then application structure, then visualization internals.
+  - Use Z3 for hard satisfiability/proof obligations and Kasuari for soft plausibility/layout constraints.
+  - `ledger-core` keeps native Z3 behind the `legal-z3` feature because default local builds may not have `libz3` installed.
 - 2026-04-17: issue `#22` established a code-first MCP contract path.
   - The published MCP surface now lives in `crates/ledgerr-mcp/src/contract.rs`; treat it as the only source of truth for parser shapes, generated JSON Schema, and checked-in operator docs/examples.
   - Regenerate `docs/mcp-capability-contract.md`, `docs/agent-mcp-runbook.md`, and `scripts/mcp_cli_demo.sh` via `cargo run -p xtask-mcpb -- generate-mcp-artifacts` after changing the published MCP surface.

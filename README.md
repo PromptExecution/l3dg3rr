@@ -41,7 +41,7 @@ The table below is the authoritative capability status map. See `book/src/capabi
 | `OperationDispatcher` | `crates/ledger-core/src/ledger_ops.rs` | Implemented |
 | `DocumentShape` classifier (12 vendor variants, 8-pass) | `crates/ledger-core/src/document_shape.rs` | Implemented |
 | `Jurisdiction` enum (`US`, `AU`, `UK`) | `crates/ledger-core/src/legal.rs` | Implemented |
-| `LegalRule` + Z3 constraint formulas | `crates/ledger-core/src/legal.rs` | Partial — Z3 not fully wired |
+| `LegalRule` + Z3 constraint formulas | `crates/ledger-core/src/legal.rs` | Implemented for AU GST + US Schedule C hard predicates; native Z3 path behind `ledger-core/legal-z3` |
 | Proposer/Reviewer LLM pattern | `crates/ledger-core/src/verify.rs` | Partial — no real LLM calls yet |
 | `WorkflowToml` DSL → Rhai FSM + Mermaid | `crates/ledger-core/src/workflow.rs` | Implemented |
 | `IssueSource::RhaiRule` validation layer | `crates/ledger-core/src/validation.rs` | Implemented |
