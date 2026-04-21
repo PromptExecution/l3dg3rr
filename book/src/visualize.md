@@ -120,7 +120,7 @@ Expected view behavior:
 This now uses the dedicated match-arm DSL.
 
 ```rhai
-fn verify_result() -> match_disposition
+fn verify_result() -> match_result_disposition
 match result.disposition => Disposition::Unrecoverable -> halt_pipeline
 match result.disposition => Disposition::Recoverable -> repair_and_retry
 match result.disposition => Disposition::Advisory -> record_note

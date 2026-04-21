@@ -92,7 +92,7 @@ When the source changes:
 ### Sample Isometric Intent
 
 ```rhai
-fn verify_result() -> match_disposition
+fn verify_result() -> match_result_disposition
 match result.disposition => Disposition::Unrecoverable -> halt_pipeline
 match result.disposition => Disposition::Recoverable -> repair_and_retry
 match result.disposition => Disposition::Advisory -> record_note
@@ -143,7 +143,7 @@ match selector.pick(tx.description) {
 
 - add at least one `match` sample to every branch-heavy chapter instead of relying on generic prose
 - keep Mermaid and isometric screenshots or generated views side-by-side for the same sample
-- use stable example names such as `match_disposition`, `match_confidence_band`, and `match_rule_pick`
+- use stable example names derived from the full expression: `match_result_disposition`, `match_confidence_band`, `match_selector_pick` — the parser generates the node ID as `match_` + `sanitize_id(expr)`, so pipeline steps must target the full sanitized form
 - keep one example focused on routing to a terminal state and one focused on rejoining the main workflow
 
 ## Test Plan
