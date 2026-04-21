@@ -13,6 +13,7 @@ use thiserror::Error;
 // `BusinessCalendar` is defined in `calendar`, which imports from here — use a
 // forward-reference via the module path; actual Arc usage is behind `Option`.
 use crate::calendar::BusinessCalendar;
+use crate::classify::ClassifiedTransaction;
 
 // ---------------------------------------------------------------------------
 // Error type
@@ -28,6 +29,10 @@ pub enum LedgerOpError {
     InvalidInput(String),
     #[error("classification failed: {0}")]
     Classification(String),
+    #[error("workbook error: {0}")]
+    Workbook(String),
+    #[error("external process failed: {0}")]
+    ExternalProcessFailed(String),
 }
 
 // ---------------------------------------------------------------------------
@@ -56,6 +61,12 @@ pub struct OperationContext {
     pub rules_dir: PathBuf,
     pub calendar: Option<Arc<BusinessCalendar>>,
     pub dry_run: bool,
+    /// Optional single-file input path for `IngestStatementOp`.
+    pub input_path: Option<PathBuf>,
+    /// Pre-classified transactions for `ExportWorkbookOp`.
+    pub classified_transactions: Vec<ClassifiedTransaction>,
+    /// Optional OPA policy bundle path for `OpaGateOp` (phase-3).
+    pub opa_bundle_path: Option<PathBuf>,
 }
 
 impl OperationContext {
@@ -65,7 +76,25 @@ impl OperationContext {
             rules_dir,
             calendar: None,
             dry_run: false,
+            input_path: None,
+            classified_transactions: Vec::new(),
+            opa_bundle_path: None,
         }
+    }
+
+    pub fn with_input_path(mut self, path: PathBuf) -> Self {
+        self.input_path = Some(path);
+        self
+    }
+
+    pub fn with_classified_transactions(mut self, txs: Vec<ClassifiedTransaction>) -> Self {
+        self.classified_transactions = txs;
+        self
+    }
+
+    pub fn with_opa_bundle_path(mut self, path: PathBuf) -> Self {
+        self.opa_bundle_path = Some(path);
+        self
     }
 
     pub fn with_calendar(mut self, cal: Arc<BusinessCalendar>) -> Self {
@@ -156,21 +185,130 @@ impl LedgerOperation for IngestStatementOp {
         true
     }
 
-    fn execute(&self, _ctx: &OperationContext) -> Result<OperationResult, LedgerOpError> {
-        // Intended logic:
-        //   1. Expand `self.source_glob` against `ctx.working_dir`
-        //   2. For each matched file:
-        //      a. Derive DocType from extension
-        //      b. Run `classify_document_shape` to identify vendor/format
-        //      c. Call Docling sidecar (or stub) to extract text/tables
-        //      d. Parse transactions from extracted content
-        //      e. Compute Blake3 content-hash ID per transaction
-        //      f. Upsert into the ledger store (skipping existing IDs)
-        //      g. Write .rkyv sidecar snapshot alongside the source file
-        //   3. Return item counts and any extraction issues
-        Err(LedgerOpError::NotImplemented(
-            "IngestStatementOp: PDF/CSV extraction pipeline not yet wired".to_string(),
-        ))
+    fn execute(&self, ctx: &OperationContext) -> Result<OperationResult, LedgerOpError> {
+        use calamine::{open_workbook_auto, Reader};
+        use crate::document::DocType;
+        use crate::document_shape::classify_document_shape;
+        use crate::ingest::{IngestedLedger, TransactionInput};
+
+        let input_path = ctx
+            .input_path
+            .as_ref()
+            .ok_or_else(|| LedgerOpError::InvalidInput("input_path not set in context".to_string()))?;
+
+        let filename = input_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("");
+
+        let doc_type = DocType::from_path(input_path);
+
+        // Read a small sample for shape classification (first 2 KB of the file
+        // for CSV; not applicable for XLSX — just use the filename).
+        let sample_content = if matches!(doc_type, DocType::SpreadsheetCsv) {
+            std::fs::read_to_string(input_path)
+                .map(|s| s.chars().take(2048).collect::<String>())
+                .unwrap_or_default()
+        } else {
+            String::new()
+        };
+
+        let shape = classify_document_shape(&doc_type, filename, &sample_content);
+
+        // Resolve canonical column names from the shape's column_map.
+        // column_map: canonical → source_header. We need to find the
+        // 0-based column index for "date", "amount", "description".
+        //
+        // For XLSX/CSV via calamine, we scan the header row.
+        let mut workbook = open_workbook_auto(input_path)
+            .map_err(|e| LedgerOpError::InvalidInput(format!("calamine open: {e}")))?;
+
+        let sheet_names = workbook.sheet_names().to_vec();
+        let first_sheet = sheet_names
+            .first()
+            .cloned()
+            .ok_or_else(|| LedgerOpError::InvalidInput("no sheets in file".to_string()))?;
+
+        let range = workbook
+            .worksheet_range(&first_sheet)
+            .map_err(|e| LedgerOpError::InvalidInput(format!("calamine range: {e}")))?;
+
+        let mut rows_iter = range.rows();
+
+        // Read header row to build column-index map
+        let header_row = match rows_iter.next() {
+            Some(h) => h,
+            None => {
+                return Ok(OperationResult::success("ingest-statement", 0));
+            }
+        };
+
+        // Build header → index map from the actual file
+        let header_map: std::collections::HashMap<String, usize> = header_row
+            .iter()
+            .enumerate()
+            .filter_map(|(i, cell)| {
+                let s = cell.to_string().trim().to_ascii_lowercase();
+                if s.is_empty() { None } else { Some((s, i)) }
+            })
+            .collect();
+
+        // Resolve canonical names through shape.column_map → actual header name → index
+        let find_col = |canon: &str| -> Option<usize> {
+            // First try shape column_map canonical → source_header → index
+            if let Some(source_header) = shape.column_map.get(canon) {
+                let lower = source_header.to_ascii_lowercase();
+                if let Some(&idx) = header_map.get(&lower) {
+                    return Some(idx);
+                }
+            }
+            // Fallback: direct canonical name match in header
+            header_map.get(canon).copied()
+        };
+
+        let date_col = find_col("date");
+        let amount_col = find_col("amount");
+        let desc_col = find_col("description");
+
+        // Derive account_id from filename (vendor slug or filename stem)
+        let account_id = input_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .map(|s| s.split("--").next().unwrap_or(s).to_string())
+            .unwrap_or_else(|| "unknown".to_string());
+
+        let mut transactions: Vec<TransactionInput> = Vec::new();
+
+        for row in rows_iter {
+            let get_cell = |col: Option<usize>| -> String {
+                col.and_then(|i| row.get(i))
+                    .map(|c| c.to_string().trim().to_string())
+                    .unwrap_or_default()
+            };
+
+            let date = get_cell(date_col);
+            let amount = get_cell(amount_col);
+            let description = get_cell(desc_col);
+
+            // Skip empty rows
+            if date.is_empty() && amount.is_empty() && description.is_empty() {
+                continue;
+            }
+
+            transactions.push(TransactionInput {
+                account_id: account_id.clone(),
+                date,
+                amount,
+                description,
+                source_ref: filename.to_string(),
+            });
+        }
+
+        let count = transactions.len();
+        let mut ledger = IngestedLedger::default();
+        ledger.ingest(&transactions);
+
+        Ok(OperationResult::success("ingest-statement", count))
     }
 }
 
@@ -253,18 +391,86 @@ impl LedgerOperation for ExportWorkbookOp {
         "Write the current ledger state to an Excel workbook"
     }
 
-    fn execute(&self, _ctx: &OperationContext) -> Result<OperationResult, LedgerOpError> {
-        // Intended logic:
-        //   1. Open `rust_xlsxwriter::Workbook` at `self.output_path`
-        //   2. Write Transactions sheet: all ledger transactions with classifications
-        //   3. Write Schedule C / Schedule B sheets: pivoted tax-category summaries
-        //   4. If `self.include_flags` → write Flags sheet with review items
-        //   5. Add data validation drop-downs from TaxCategory/Flag enums (strum)
-        //   6. Write mutation history to Audit sheet
-        //   7. Save and close workbook
-        Err(LedgerOpError::NotImplemented(
-            "ExportWorkbookOp: workbook writer integration not yet wired".to_string(),
-        ))
+    fn execute(&self, ctx: &OperationContext) -> Result<OperationResult, LedgerOpError> {
+        use crate::workbook::TxProjectionRow;
+        use rust_xlsxwriter::Workbook;
+
+        let txs = &ctx.classified_transactions;
+
+        if ctx.dry_run {
+            return Ok(OperationResult::success("export-workbook", txs.len()));
+        }
+
+        // Route transactions to sheet groups by category
+        let mut sched_c: Vec<TxProjectionRow> = Vec::new();
+        let mut sched_d: Vec<TxProjectionRow> = Vec::new();
+        let mut sched_e: Vec<TxProjectionRow> = Vec::new();
+        let mut fbar: Vec<TxProjectionRow> = Vec::new();
+        let mut flags_open: Vec<TxProjectionRow> = Vec::new();
+
+        for tx in txs {
+            let row = TxProjectionRow {
+                tx_id: tx.tx_id.clone(),
+                account_id: String::new(), // not carried in ClassifiedTransaction
+                date: String::new(),
+                amount: String::new(),
+                description: String::new(),
+                source_ref: tx.reason.clone(),
+            };
+
+            if tx.needs_review {
+                if tx.category == "ForeignIncome" {
+                    fbar.push(row.clone());
+                }
+                flags_open.push(row);
+                continue;
+            }
+
+            match tx.category.as_str() {
+                "SelfEmployment" => sched_c.push(row),
+                "CapitalGain" | "CryptoGain" | "CryptoLoss" => sched_d.push(row),
+                "RentalIncome" => sched_e.push(row),
+                _ => {} // Other categories not yet routed to a specific sheet
+            }
+        }
+
+        // Materialize the workbook with all required sheets
+        let mut workbook = Workbook::new();
+        for sheet_name in crate::workbook::REQUIRED_SHEETS {
+            workbook
+                .add_worksheet()
+                .set_name(*sheet_name)
+                .map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
+        }
+
+        // Write each sheet group
+        let write_sheet = |wb: &mut Workbook, sheet_name: &str, rows: &[TxProjectionRow]| -> Result<(), LedgerOpError> {
+            let ws = wb
+                .worksheet_from_name(sheet_name)
+                .map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
+            ws.write_string(0, 0, "tx_id").map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
+            ws.write_string(0, 1, "category").map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
+            ws.write_string(0, 2, "reason").map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
+            for (idx, row) in rows.iter().enumerate() {
+                let r = (idx + 1) as u32;
+                ws.write_string(r, 0, &row.tx_id).map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
+                ws.write_string(r, 2, &row.source_ref).map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
+            }
+            Ok(())
+        };
+
+        write_sheet(&mut workbook, "SCHED.C", &sched_c)?;
+        write_sheet(&mut workbook, "SCHED.D", &sched_d)?;
+        write_sheet(&mut workbook, "SCHED.E", &sched_e)?;
+        write_sheet(&mut workbook, "FBAR.accounts", &fbar)?;
+        write_sheet(&mut workbook, "FLAGS.open", &flags_open)?;
+
+        workbook
+            .save(&self.output_path)
+            .map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
+
+        let total = sched_c.len() + sched_d.len() + sched_e.len() + fbar.len() + flags_open.len();
+        Ok(OperationResult::success("export-workbook", total))
     }
 }
 
@@ -325,6 +531,84 @@ impl LedgerOperation for CheckTaxDeadlineOp {
             "CheckTaxDeadlineOp: calendar lookup not yet wired (deadline={})",
             self.deadline_id
         )))
+    }
+}
+
+/// Ingest a PDF statement file via the `reqif-opa-mcp` Python sidecar.
+///
+/// This op is a Phase 2 stub. See the TODO below for the intended implementation.
+pub struct PdfIngestOp {
+    pub input_path: PathBuf,
+}
+
+impl LedgerOperation for PdfIngestOp {
+    fn id(&self) -> &str {
+        "pdf-ingest"
+    }
+
+    fn description(&self) -> &str {
+        "Ingest a PDF statement file via the reqif-opa-mcp Python sidecar (phase-2)"
+    }
+
+    fn is_idempotent(&self) -> bool {
+        // Blake3 content-hash IDs prevent duplicate records on re-ingest
+        true
+    }
+
+    fn execute(&self, _ctx: &OperationContext) -> Result<OperationResult, LedgerOpError> {
+        // TODO(phase-2): PDF ingestion via reqif-opa-mcp subprocess
+        //
+        // Intended behavior:
+        //   1. Spawn subprocess: `reqif-opa-mcp ingest --file <path> --output ndjson`
+        //      (reqif-opa-mcp is a Python CLI at https://github.com/PromptExecution/reqif-opa-mcp)
+        //   2. Read NDJSON lines from stdout; deserialize each line as ReqIfCandidate
+        //      (type is already defined in rule_registry.rs)
+        //   3. For each candidate: call RuleRegistry::classify_waterfall with candidate fields
+        //      mapped to a tx HashMap (id→tx_id, text→description, metadata.amount→amount)
+        //   4. Emit ClassificationOutcome rows to the workbook via ExportWorkbookOp
+        //   5. Error handling: if subprocess exits non-zero, return LedgerOpError::ExternalProcessFailed
+        //      with stdout+stderr captured for audit logging
+        //   6. This op should be idempotent: the Blake3 content hash prevents duplicate rows
+        //      even if the PDF is re-ingested
+        Err(LedgerOpError::NotImplemented(
+            "PdfIngestOp: PDF ingestion via reqif-opa-mcp not yet implemented (phase-2)".to_string(),
+        ))
+    }
+}
+
+/// Gate classified transactions through OPA policies before workbook commit.
+///
+/// This op is a Phase 3 stub. See the TODO below for the intended implementation.
+pub struct OpaGateOp {
+    pub policy_bundle_path: Option<PathBuf>,
+}
+
+impl LedgerOperation for OpaGateOp {
+    fn id(&self) -> &str {
+        "opa-gate"
+    }
+
+    fn description(&self) -> &str {
+        "Run classified transactions through OPA policy gate before workbook commit (phase-3)"
+    }
+
+    fn execute(&self, _ctx: &OperationContext) -> Result<OperationResult, LedgerOpError> {
+        // TODO(phase-3): OPA (Open Policy Agent) gate integration
+        //
+        // Intended behavior:
+        //   1. Before committing classified transactions to the workbook, run each
+        //      ClassificationOutcome through an OPA policy bundle
+        //   2. Policy bundle path: configured via OperationContext.opa_bundle_path (add this field)
+        //   3. OPA HTTP API: POST to http://localhost:8181/v1/data/ledger/allow
+        //      with body: { "input": { "category": "...", "confidence": 0.9, "review": false } }
+        //   4. If OPA returns { "result": false }, move the transaction to FLAGS.open with
+        //      reason "opa_gate_rejected" instead of committing to schedule sheet
+        //   5. If OPA is unreachable (connection refused), fall through with a warning logged
+        //      via tracing::warn! — do not block pipeline for a missing OPA sidecar
+        //   6. OPA policy source lives in opa/policies/ledger_classify.rego (create this directory)
+        Err(LedgerOpError::NotImplemented(
+            "OpaGateOp: OPA gate not yet implemented (phase-3)".to_string(),
+        ))
     }
 }
 
