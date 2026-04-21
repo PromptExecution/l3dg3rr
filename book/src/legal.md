@@ -21,7 +21,9 @@ match z3_result => Unknown -> request_more_facts
 
 ## Z3 Integration
 
-The Rust crate `z3` provides an idiomatic wrapper over Microsoft's Z3 theorem prover. The repo currently pins `z3 = "0.8"` behind the `ledger-core/legal-z3` feature because local developer machines may not have native `libz3` installed. docs.rs currently shows newer `z3` 0.20.0 APIs, so examples in this book describe the application pattern rather than relying on newest-version syntax.
+The Rust crate `z3` provides an idiomatic wrapper over Microsoft's Z3 theorem prover. The repo currently pins `z3 = "0.8"` behind the `ledger-core/legal-z3` feature because local developer machines may not have native `libz3` installed. When that feature is enabled, `ledger-core` checks for common native Z3 library locations and emits a Cargo warning if the library is missing. On Ubuntu/WSL, install it with `sudo apt install -y libz3-dev`.
+
+docs.rs currently shows newer `z3` 0.20.0 APIs, so examples in this book describe the application pattern rather than relying on newest-version syntax.
 
 The core pattern is:
 
