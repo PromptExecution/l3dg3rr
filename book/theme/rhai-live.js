@@ -1,9 +1,10 @@
 (function () {
     const ORIGINAL_CLASS = "rhai-diagram-original";
     const MERMAID_CDN = "https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js";
+    const STORAGE_KEY = "rhai-live-view-mode";
 
     function escapeHtml(raw) {
-        return raw
+        return String(raw)
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;");
@@ -77,6 +78,38 @@
         )}</ul></div>`;
     }
 
+    function renderFailureHtml(core, error, viewMode) {
+        const failure = core.buildRenderFailure(error, viewMode);
+        return `<div class="rhai-diagram-failure">
+            <p class="rhai-diagram-error">${escapeHtml(failure.title)}</p>
+            <p>${escapeHtml(failure.detail)}</p>
+            <p class="rhai-diag-hint">${escapeHtml(failure.hint)}</p>
+        </div>`;
+    }
+
+    function modeLabel(mode) {
+        return mode === "mermaid-2d" ? "mermaid-2d" : "isometric-3d";
+    }
+
+    function selectedViewMode() {
+        try {
+            const stored = window.localStorage ? window.localStorage.getItem(STORAGE_KEY) : null;
+            return stored === "mermaid-2d" ? "mermaid-2d" : "isometric-3d";
+        } catch (_e) {
+            return "isometric-3d";
+        }
+    }
+
+    function persistViewMode(mode) {
+        try {
+            if (window.localStorage) {
+                window.localStorage.setItem(STORAGE_KEY, mode);
+            }
+        } catch (_e) {
+            // storage unavailable (private browsing, SecurityError) — ignore
+        }
+    }
+
     async function attachEditor(sourcePre) {
         const sourceCode = sourcePre && sourcePre.querySelector("code.language-rhai");
         const previewPre = sourcePre.nextElementSibling;
@@ -95,9 +128,29 @@
         const toolbar = document.createElement("div");
         toolbar.className = "rhai-diagram-toolbar";
 
+        const left = document.createElement("div");
+        left.className = "rhai-diagram-toolbar-left";
+
         const status = document.createElement("div");
         status.className = "rhai-diagram-status";
-        status.textContent = "Live Rhai diagram editor";
+        status.textContent = "Live Rhai workflow editor";
+
+        const switcher = document.createElement("label");
+        switcher.className = "rhai-view-switch";
+        switcher.innerHTML = `
+            <span class="rhai-view-label">View</span>
+            <span class="rhai-view-slider">
+                <input class="rhai-view-input" type="checkbox" aria-label="Toggle between isometric and Mermaid views">
+                <span class="rhai-view-track">
+                    <span class="rhai-view-thumb"></span>
+                    <span class="rhai-view-option" data-mode="isometric-3d">isometric-3d</span>
+                    <span class="rhai-view-option" data-mode="mermaid-2d">mermaid-2d</span>
+                </span>
+            </span>
+        `;
+
+        left.appendChild(status);
+        left.appendChild(switcher);
 
         const actions = document.createElement("div");
         actions.className = "rhai-diagram-actions";
@@ -114,7 +167,7 @@
 
         actions.appendChild(regenerate);
         actions.appendChild(reset);
-        toolbar.appendChild(status);
+        toolbar.appendChild(left);
         toolbar.appendChild(actions);
 
         const body = document.createElement("div");
@@ -130,7 +183,8 @@
 
         const note = document.createElement("div");
         note.className = "rhai-diagram-note";
-        note.textContent = "Edit the supported Rhai diagram DSL (`fn ... -> ...`, `if ... -> ...`) and regenerate.";
+        note.textContent =
+            "Edit the supported Rhai diagram DSL (`fn ... -> ...`, `if ... -> ...`, `match expr => Arm -> target`) and regenerate. The isometric view animates layout shifts when the graph changes.";
 
         body.appendChild(editor);
         body.appendChild(preview);
@@ -143,6 +197,17 @@
         previewPre.insertAdjacentElement("afterend", shell);
 
         const originalSource = editor.value;
+        const modeInput = switcher.querySelector(".rhai-view-input");
+        const viewOptions = Array.from(switcher.querySelectorAll(".rhai-view-option"));
+        let viewMode = selectedViewMode();
+        let previousScene = null;
+
+        function syncViewSwitch() {
+            modeInput.checked = viewMode === "mermaid-2d";
+            viewOptions.forEach(function (option) {
+                option.classList.toggle("is-active", option.getAttribute("data-mode") === viewMode);
+            });
+        }
 
         async function update() {
             try {
@@ -155,26 +220,40 @@
                         '<p class="rhai-diagram-error">No diagramable Rhai DSL lines found in this block.</p>' +
                         diagnosticsHtml(diagnostics);
                     status.textContent = "No parseable diagram nodes";
+                    previousScene = null;
                     return;
                 }
 
-                const mermaidSource = core.graphToMermaid(graph);
-                await renderMermaid(preview, mermaidSource);
+                const scene = core.buildVisualizationModel(graph);
+                if (viewMode === "mermaid-2d") {
+                    const mermaidSource = core.graphToMermaid(graph);
+                    await renderMermaid(preview, mermaidSource);
+                } else {
+                    preview.innerHTML = core.sceneToIsometricSvg(scene, previousScene);
+                }
+
                 preview.insertAdjacentHTML("beforeend", diagnosticsHtml(diagnostics));
-                status.textContent = `Rendered ${graph.nodes.size} nodes and ${graph.edges.length} edges`;
+                status.textContent = `${modeLabel(viewMode)} · ${graph.nodes.size} nodes · ${graph.edges.length} edges`;
+                previousScene = scene;
             } catch (error) {
-                preview.innerHTML =
-                    `<p class="rhai-diagram-error">${escapeHtml(error.message)}</p>` +
-                    '<p class="rhai-diag-hint">Try refreshing, or verify Mermaid network availability.</p>';
-                status.textContent = "Render failed";
+                preview.innerHTML = renderFailureHtml(core, error, viewMode);
+                status.textContent = `${modeLabel(viewMode)} failed`;
             }
         }
+
+        modeInput.addEventListener("change", async function () {
+            viewMode = modeInput.checked ? "mermaid-2d" : "isometric-3d";
+            persistViewMode(viewMode);
+            syncViewSwitch();
+            await update();
+        });
 
         regenerate.addEventListener("click", update);
         reset.addEventListener("click", async function () {
             editor.value = originalSource;
             await update();
         });
+
         editor.addEventListener("keydown", async function (event) {
             if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
                 event.preventDefault();
@@ -182,6 +261,7 @@
             }
         });
 
+        syncViewSwitch();
         await update();
     }
 
@@ -204,9 +284,13 @@
 
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", function () {
-            main().catch((error) => console.error("rhai-live:", error));
+            main().catch(function (error) {
+                console.error("rhai-live:", error);
+            });
         });
     } else {
-        main().catch((error) => console.error("rhai-live:", error));
+        main().catch(function (error) {
+            console.error("rhai-live:", error);
+        });
     }
 })();

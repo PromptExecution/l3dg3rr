@@ -10,7 +10,7 @@ pub fn emit_mermaid(graph: &Graph) -> String {
         if let Some(node) = graph.nodes.get(id) {
             let declaration = match node.kind {
                 NodeKind::Step => format!("    {}[\"{}\"]\n", node.id, escape_label(&node.label)),
-                NodeKind::Decision => {
+                NodeKind::Decision | NodeKind::Match => {
                     format!("    {}{{\"{}\"}}\n", node.id, escape_label(&node.label))
                 }
             };
@@ -21,7 +21,7 @@ pub fn emit_mermaid(graph: &Graph) -> String {
     // 2. Edges.
     for edge in &graph.edges {
         let line = match &edge.label {
-            Some(lbl) => format!("    {} -->|\"{}\"|{}\n", edge.from, lbl, edge.to),
+            Some(lbl) => format!("    {} -->|\"{}\"|{}\n", edge.from, escape_label(lbl), edge.to),
             None => format!("    {} --> {}\n", edge.from, edge.to),
         };
         out.push_str(&line);
@@ -69,5 +69,28 @@ mod tests {
         let out = emit_mermaid(&graph);
         assert!(out.contains("|\"false\"|"), "expected false chain edge in output");
         assert!(out.contains("|\"true\"|"), "expected true edge in output");
+    }
+
+    #[test]
+    fn test_emit_match_node_with_arm_labels() {
+        let src = [
+            "match result.disposition => Disposition::Unrecoverable -> halt_pipeline",
+            "match result.disposition => Disposition::Recoverable -> repair_and_retry",
+        ]
+        .join("\n");
+        let graph = parse(&src);
+        let out = emit_mermaid(&graph);
+        assert!(out.contains("match_result_disposition"));
+        assert!(out.contains("{\"match result.disposition\"}"));
+        assert!(out.contains("|\"Disposition::Unrecoverable\"|"));
+        assert!(out.contains("|\"Disposition::Recoverable\"|"));
+    }
+
+    #[test]
+    fn test_emit_edge_labels_are_escaped() {
+        let src = "match review.outcome => \"needs quote\" -> commit\n";
+        let graph = parse(src);
+        let out = emit_mermaid(&graph);
+        assert!(out.contains("&quot;needs quote&quot;"));
     }
 }

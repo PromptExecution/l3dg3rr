@@ -111,14 +111,25 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install just
+        run: cargo install just --locked
+
       - name: Install mdbook
         run: cargo install mdbook --locked
 
       - name: Install mdbook-mermaid
         run: cargo install mdbook-mermaid --locked
 
-      - name: Build mdbook
-        run: mdbook build book
+      - name: Install mdbook-rhai-mermaid
+        run: cargo install --path crates/mdbook-rhai-mermaid
+
+      - name: Validate docs
+        run: just docgen-check
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3

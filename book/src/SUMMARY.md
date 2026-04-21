@@ -14,5 +14,6 @@
 - [Verification](./verify.md)
 - [Workflow](./workflow.md)
 - [Visualization](./visualize.md)
+- [Match Visualization Plan](./match-visualization-plan.md)
 - [Business Calendar](./calendar.md)
 - [Ledger Operations](./ledger-ops.md)

@@ -3,6 +3,7 @@
 /// Two statement forms are supported:
 ///   - Pipeline step:    `fn name() -> target`
 ///   - Conditional:      `if expr -> target`   where expr is e.g. `confidence > 0.8`
+///   - Match arm:        `match expr => Arm -> target`
 use std::collections::HashMap;
 
 // ---------------------------------------------------------------------------
@@ -15,6 +16,8 @@ pub enum NodeKind {
     Step,
     /// A decision diamond (condition expression).
     Decision,
+    /// A match/switch diamond with labeled outgoing arms.
+    Match,
 }
 
 #[derive(Debug, Clone)]
@@ -78,14 +81,22 @@ struct Conditional {
     target: String,
 }
 
+#[derive(Debug, Clone)]
+struct MatchArm {
+    expr: String,
+    arm: String,
+    target: String,
+}
+
 /// Parse the rhai pseudo-DSL source into a `Graph`.
 ///
-/// Returns `None` only if the source contains no parseable statements at all
-/// (empty/comment-only). Malformed lines are silently skipped so a partial
-/// parse always succeeds.
+/// Returns an empty `Graph` when the source contains no parseable statements
+/// (empty or comment-only input). Malformed lines are silently skipped so a
+/// partial parse always succeeds.
 pub fn parse(source: &str) -> Graph {
     let mut pipeline_edges: Vec<(String, String)> = Vec::new();
     let mut conditionals: Vec<Conditional> = Vec::new();
+    let mut match_arms: Vec<MatchArm> = Vec::new();
 
     for raw_line in source.lines() {
         // Strip inline comment.
@@ -131,11 +142,23 @@ pub fn parse(source: &str) -> Graph {
                     }
                 }
             }
+        } else if let Some(rest) = line.strip_prefix("match ") {
+            // Form 3: `match expr => Arm -> target`
+            if let Some((expr_part, arm_target_part)) = rest.split_once("=>") {
+                if let Some((arm_part, target_part)) = arm_target_part.split_once("->") {
+                    let expr = expr_part.trim().to_string();
+                    let arm = arm_part.trim().to_string();
+                    let target = target_part.trim().to_string();
+                    if !expr.is_empty() && !arm.is_empty() && !target.is_empty() {
+                        match_arms.push(MatchArm { expr, arm, target });
+                    }
+                }
+            }
         }
         // Unknown forms are silently skipped.
     }
 
-    build_graph(pipeline_edges, conditionals)
+    build_graph(pipeline_edges, conditionals, match_arms)
 }
 
 /// Parse a condition string like `confidence > 0.8` into its parts.
@@ -166,6 +189,7 @@ fn parse_condition(expr: &str, target: &str) -> Option<Conditional> {
 fn build_graph(
     pipeline_edges: Vec<(String, String)>,
     conditionals: Vec<Conditional>,
+    match_arms: Vec<MatchArm>,
 ) -> Graph {
     let mut graph = Graph::default();
 
@@ -245,7 +269,38 @@ fn build_graph(
         }
     }
 
+    emit_match_groups(&mut graph, &match_arms);
+
     graph
+}
+
+fn emit_match_groups(graph: &mut Graph, match_arms: &[MatchArm]) {
+    let mut groups: HashMap<String, Vec<(String, String)>> = HashMap::new();
+    let mut order: Vec<String> = Vec::new();
+
+    for arm in match_arms {
+        if !groups.contains_key(&arm.expr) {
+            order.push(arm.expr.clone());
+        }
+        groups
+            .entry(arm.expr.clone())
+            .or_default()
+            .push((arm.arm.clone(), arm.target.clone()));
+    }
+
+    for expr in order {
+        let node_id = format!("match_{}", sanitize_id(&expr));
+        let label = format!("match {}", expr);
+        graph.add_node(node_id.clone(), label, NodeKind::Match);
+
+        if let Some(arms) = groups.get(&expr) {
+            for (arm_label, target) in arms {
+                let target_id = sanitize_id(target);
+                graph.add_node(target_id.clone(), target.clone(), NodeKind::Step);
+                graph.add_edge(node_id.clone(), target_id, Some(arm_label.clone()));
+            }
+        }
+    }
 }
 
 /// Emit a chain of threshold decisions into the graph.
@@ -413,6 +468,24 @@ mod tests {
         "#;
         let g = parse(src);
         assert_eq!(g.nodes.len(), 3); // ingest, classify, done
+    }
+
+    #[test]
+    fn test_match_group_builds_single_match_node_with_labeled_arms() {
+        let src = r#"
+            match result.disposition => Disposition::Unrecoverable -> halt_pipeline
+            match result.disposition => Disposition::Recoverable -> repair_and_retry
+            match result.disposition => Disposition::Advisory -> record_note
+        "#;
+        let g = parse(src);
+
+        let match_nodes: Vec<&Node> = g.nodes.values().filter(|n| n.kind == NodeKind::Match).collect();
+        assert_eq!(match_nodes.len(), 1);
+        assert_eq!(match_nodes[0].label, "match result.disposition");
+        assert_eq!(g.edges.len(), 3);
+        assert_eq!(g.edges[0].label.as_deref(), Some("Disposition::Unrecoverable"));
+        assert_eq!(g.edges[1].label.as_deref(), Some("Disposition::Recoverable"));
+        assert_eq!(g.edges[2].label.as_deref(), Some("Disposition::Advisory"));
     }
 
     #[test]
