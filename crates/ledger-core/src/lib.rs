@@ -27,3 +27,6 @@ pub use graph::{NodeData, EdgeData, create_pipeline_nodes, create_pipeline_edges
 pub use layout::{ForceLayout, iso_project};
 pub use render::GraphRenderer;
 pub use slint_viz::SlintGraphView;
+
+#[cfg(test)]
+mod integration_tests;
