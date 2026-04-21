@@ -235,14 +235,14 @@ mod tests {
     fn test_verification_rejected_low_confidence() {
         let proposer_json = r#"{"rule_id":"test","proposed_fix":"x","reasoning":"y","confidence":0.5}"#;
         let reviewer_json = r#"{"approved":false,"concerns":["too risky"],"suggestions":[],"confidence":0.6}"#;
-        
+
         let proposer = MockModelClient::default().with_response(proposer_json);
         let reviewer = MockModelClient::default().with_response(reviewer_json);
-        
+
         // Use higher threshold to force rejection
         let config = MultiModelConfig::default().with_threshold(0.80);
-        let mut verifier = MultiModelVerifier::new(proposer, reviewer, config);
-        
+        let _verifier = MultiModelVerifier::new(proposer, reviewer, config);
+
         // Override with mocked threshold test - manually check
         // In real code, reviewer_json confidence 0.6 < 0.80 threshold
         // This test shows the logic path
