@@ -102,7 +102,7 @@ fn test_classification_outcome_to_classified_shape() {
     let classified = check_shape("abc123".into(), outcome);
     assert_eq!(classified.category, "OfficeSupplies");
     assert_eq!(classified.confidence, 0.92);
-    assert_eq!(classified.needs_review, false);
+    assert!(!classified.needs_review);
 }
 
 // ── Shape compatibility: ClassifiedTransaction → TxProjectionRow ──────

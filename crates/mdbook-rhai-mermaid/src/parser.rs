@@ -211,6 +211,11 @@ struct MatchArm {
     target: String,
 }
 
+/// Parse the rhai pseudo-DSL source into a `Graph`.
+///
+/// Returns an empty `Graph` when the source contains no parseable statements
+/// (empty or comment-only input). Malformed lines are silently skipped so a
+/// partial parse always succeeds.
 pub fn parse(source: &str) -> Graph {
     let mut pipeline_edges: Vec<(String, String)> = Vec::new();
     let mut conditionals: Vec<Conditional> = Vec::new();
