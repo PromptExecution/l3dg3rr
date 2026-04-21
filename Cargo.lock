@@ -3741,6 +3741,7 @@ dependencies = [
 name = "mdbook-rhai-mermaid"
 version = "1.5.0"
 dependencies = [
+ "indexmap",
  "serde",
  "serde_json",
 ]

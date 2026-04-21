@@ -173,13 +173,21 @@
         return "step";
     }
 
-    function createNodeRecord(id, label, kind) {
+    function createNodeRecord(id, label, kind, armIndex, isDefault) {
         return {
             id,
+            identity_key: id,
             label,
             kind,
             semanticType: inferSemanticType(label, kind),
+            arm_index: armIndex !== undefined ? armIndex : null,
+            is_default: !!isDefault,
         };
+    }
+
+    function isDefaultArm(armLabel) {
+        const trimmed = String(armLabel || "").trim();
+        return trimmed === "_" || trimmed === "else" || trimmed === "otherwise" || trimmed === "default";
     }
 
     function parseRhaiDiagram(source) {
@@ -193,15 +201,15 @@
         const matchArms = [];
         const diagnostics = [];
 
-        function addNode(id, label, kind) {
+        function addNode(id, label, kind, armIndex, isDefault) {
             if (!graph.nodes.has(id)) {
                 graph.order.push(id);
-                graph.nodes.set(id, createNodeRecord(id, label, kind));
+                graph.nodes.set(id, createNodeRecord(id, label, kind, armIndex, isDefault));
             }
         }
 
-        function addEdge(from, to, label) {
-            graph.edges.push({ from, to, label: label || null });
+        function addEdge(from, to, label, armIndex, isDefault) {
+            graph.edges.push({ from, to, label: label || null, arm_index: armIndex !== undefined ? armIndex : null, is_default: !!isDefault });
         }
 
         function parseCondition(expr, target) {
@@ -432,10 +440,12 @@
         matchOrder.forEach(function (expr) {
             const nodeId = `match_${sanitizeId(expr)}`;
             addNode(nodeId, `match ${expr}`, "match");
-            matchGroups.get(expr).forEach(function (entry) {
+            const arms = matchGroups.get(expr);
+            arms.forEach(function (entry, armIndex) {
                 const targetId = sanitizeId(entry.target);
-                addNode(targetId, entry.target, "step");
-                addEdge(nodeId, targetId, entry.arm);
+                const isDefault = isDefaultArm(entry.arm);
+                addNode(targetId, entry.target, "step", armIndex, isDefault);
+                addEdge(nodeId, targetId, entry.arm, armIndex, isDefault);
             });
         });
 
@@ -458,8 +468,14 @@
         });
 
         graph.edges.forEach(function (edge) {
-            if (edge.label) {
-                lines.push(`    ${edge.from} -->|"${escapeLabel(edge.label)}"|${edge.to}`);
+            let label = edge.label;
+            if (edge.is_default && label) {
+                label = label + " (default)";
+            } else if (edge.is_default && !label) {
+                label = "_";
+            }
+            if (label) {
+                lines.push(`    ${edge.from} -->|"${escapeLabel(label)}"|${edge.to}`);
             } else {
                 lines.push(`    ${edge.from} --> ${edge.to}`);
             }
