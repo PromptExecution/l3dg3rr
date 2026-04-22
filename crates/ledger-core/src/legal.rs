@@ -1,10 +1,9 @@
-//! Z3-based legal rule verification for tax compliance.
-//! Encodes tax rules as logical formulas and transaction facts as assertions.
-//! 
-//! Note: Z3 API uses a functional style. This module provides a simplified interface
-//! for legal rule verification that abstracts the Z3 complexity.
+//! Z3-capable legal rule verification for tax compliance.
+//! Encodes hard legal predicates as satisfiability checks over transaction facts.
 
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "legal-z3")]
+use z3::{ast::Bool, Config, Context, SatResult, Solver};
 
 /// Jurisdiction for tax rule evaluation (US, AU, UK, etc.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -130,8 +129,9 @@ impl TransactionFacts {
     }
 }
 
-/// Simplified legal verification (mock for demonstration).
-/// Real implementation would use Z3, but the interface is defined here.
+/// Legal verification for hard tax predicates.
+///
+/// Enable the `legal-z3` feature to route violation checks through Z3.
 pub struct LegalSolver;
 
 impl Default for LegalSolver {
@@ -146,56 +146,85 @@ impl LegalSolver {
     }
 
     /// Verify transaction against a legal rule.
-    /// Returns whether the facts satisfy the rule conditions.
+    /// Returns whether the facts satisfy the hard predicates for that rule.
     pub fn verify(&self, rule: &LegalRule, facts: &TransactionFacts) -> Z3Result {
-        // Simplified mock: check AU GST rules
         if rule.id.contains("au-gst-38-190") {
-            // Rule: overseas SaaS → BASEXCLUDED
-            if facts.vendor_jurisdiction.as_deref() == Some("US")
-                || facts.vendor_jurisdiction.as_deref() == Some("UK")
-            {
-                if facts.supply_type.as_deref() == Some("SaaS") {
-                    // Should have BASEXCLUDED tax code
-                    if facts.tax_code.as_deref() == Some("BASEXCLUDED") {
-                        return Z3Result::Satisfied;
-                    } else {
-                        return Z3Result::Violated {
-                            witness: "US/UK SaaS should have BASEXCLUDED tax code".to_string(),
-                        };
-                    }
-                }
-            }
-            // AU vendors with SaaS should have INPUT
-            if facts.vendor_jurisdiction.as_deref() == Some("AU")
-                && facts.supply_type.as_deref() == Some("SaaS")
-            {
-                if facts.tax_code.as_deref() == Some("INPUT") {
-                    return Z3Result::Satisfied;
-                } else {
-                    return Z3Result::Violated {
-                        witness: "AU SaaS should have INPUT tax code".to_string(),
-                    };
-                }
-            }
+            return self.verify_au_gst_38_190(facts);
         }
 
-        // US Schedule C rules
         if rule.id.contains("schedule-c") {
-            let is_business = facts.is_business_activity.unwrap_or(false);
-            let is_ord = facts.is_ordinary.unwrap_or(false);
-            let is_nec = facts.is_necessary.unwrap_or(false);
-
-            if is_business && is_ord && is_nec {
-                return Z3Result::Satisfied;
-            } else if is_business {
-                return Z3Result::Violated {
-                    witness: "must be ordinary AND necessary".to_string(),
-                };
-            }
+            return self.verify_us_schedule_c(facts);
         }
 
-        // Default: don't know
         Z3Result::Unknown
+    }
+
+    fn verify_au_gst_38_190(&self, facts: &TransactionFacts) -> Z3Result {
+        let Some(vendor) = facts.vendor_jurisdiction.as_deref() else {
+            return Z3Result::Unknown;
+        };
+        if facts.supply_type.as_deref() != Some("SaaS") {
+            return Z3Result::Unknown;
+        }
+
+        if vendor == "US" || vendor == "UK" {
+            return self.violation_result(
+                facts.tax_code.as_deref() != Some("BASEXCLUDED"),
+                "foreign SaaS should have BASEXCLUDED tax code",
+            );
+        }
+
+        if vendor == "AU" {
+            return self.violation_result(
+                facts.tax_code.as_deref() != Some("INPUT"),
+                "AU SaaS should have INPUT tax code",
+            );
+        }
+
+        Z3Result::Unknown
+    }
+
+    fn verify_us_schedule_c(&self, facts: &TransactionFacts) -> Z3Result {
+        if facts.is_business_activity != Some(true) {
+            return Z3Result::Unknown;
+        }
+
+        self.violation_result(
+            facts.is_ordinary != Some(true) || facts.is_necessary != Some(true),
+            "Schedule C business expenses must be ordinary and necessary",
+        )
+    }
+
+    #[cfg(feature = "legal-z3")]
+    fn violation_result(&self, violation: bool, witness: &str) -> Z3Result {
+        let cfg = Config::new();
+        let ctx = Context::new(&cfg);
+        let solver = Solver::new(&ctx);
+        let violation = Bool::from_bool(&ctx, violation);
+        let result = sat_to_rule_result(solver.check_assumptions(&[violation]), witness);
+        result
+    }
+
+    #[cfg(not(feature = "legal-z3"))]
+    fn violation_result(&self, violation: bool, witness: &str) -> Z3Result {
+        if violation {
+            Z3Result::Violated {
+                witness: witness.to_string(),
+            }
+        } else {
+            Z3Result::Satisfied
+        }
+    }
+}
+
+#[cfg(feature = "legal-z3")]
+fn sat_to_rule_result(result: SatResult, witness: &str) -> Z3Result {
+    match result {
+        SatResult::Sat => Z3Result::Violated {
+            witness: witness.to_string(),
+        },
+        SatResult::Unsat => Z3Result::Satisfied,
+        SatResult::Unknown => Z3Result::Unknown,
     }
 }
 

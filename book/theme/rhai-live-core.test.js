@@ -102,6 +102,32 @@ test("isometric scene sizes edge labels for match arms", function () {
     assert.ok(/width=\"1[0-9]{2}\.[0-9]\"/.test(svg));
 });
 
+test("isometric layout gives match arms stable lanes and centers simple rejoins", function () {
+    const { graph } = core.parseRhaiDiagram(
+        [
+            "match result.disposition => Disposition::Unrecoverable -> halt_pipeline",
+            "match result.disposition => Disposition::Recoverable -> repair_and_retry",
+            "match result.disposition => _ -> record_note",
+            "fn repair_and_retry() -> requeue_validation",
+            "fn record_note() -> requeue_validation",
+        ].join("\n")
+    );
+    const scene = core.buildVisualizationModel(graph);
+    const byId = new Map(scene.nodes.map((node) => [node.id, node]));
+
+    const matchNode = byId.get("match_result_disposition");
+    const halt = byId.get("halt_pipeline");
+    const repair = byId.get("repair_and_retry");
+    const defaultArm = byId.get("record_note");
+    const rejoin = byId.get("requeue_validation");
+
+    assert.equal(halt.z, matchNode.z);
+    assert.equal(repair.z, matchNode.z + scene.settings.laneGap);
+    assert.equal(defaultArm.z, matchNode.z + scene.settings.laneGap * 2);
+    assert.ok(rejoin.x > defaultArm.x);
+    assert.equal(rejoin.z, matchNode.z);
+});
+
 test("render failure guidance points mermaid users to isometric fallback", function () {
     const failure = core.buildRenderFailure(new Error("window.mermaid missing"), "mermaid-2d");
     assert.match(failure.title, /Mermaid render failed/);

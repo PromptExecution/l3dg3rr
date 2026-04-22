@@ -1,4 +1,9 @@
+pub mod agent_runtime;
 pub mod chat;
+#[cfg(feature = "local-llm")]
+pub mod local_llm;
+#[cfg(feature = "mistralrs-llm")]
+pub mod local_llm_mistral;
 pub mod notify;
 pub mod settings;
 pub mod tray;

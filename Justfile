@@ -67,6 +67,43 @@ test:
     cargo build -p ledgerr-mcp --bin mcp-outcome-test
     ./target/debug/mcp-outcome-test
 
+# ─── Local model assets ───────────────────────────────────────────────────────
+
+# Requires the Hugging Face CLI from `huggingface_hub`:
+#   uv tool install huggingface-hub
+# Download the Phi-4 mini reasoning GGUF quantization used for local host tests.
+hf-download-phi4-mini-gguf local_dir="/mnt/d/models/unsloth/Phi-4-mini-reasoning-GGUF":
+    @command -v hf >/dev/null || { echo "error: hf CLI not found — install with: uv tool install huggingface-hub"; exit 1; }
+    mkdir -p "{{local_dir}}"
+    hf download unsloth/Phi-4-mini-reasoning-GGUF Phi-4-mini-reasoning-Q3_K_M.gguf --local-dir "{{local_dir}}"
+
+# Create the repo-relative symlink that points to the D: drive GGUF directory.
+# Required before running test-phi4 if the symlink does not already exist.
+phi4-reasoning-symlink:
+    ln -sfn /mnt/d/models/unsloth/Phi-4-mini-reasoning-GGUF models/unsloth/Phi-4-mini-reasoning-GGUF
+    @echo "symlink ready: models/unsloth/Phi-4-mini-reasoning-GGUF"
+
+# Phi-4 Mini reasoning smoke test — candle backend (in-process, slower, no cmake needed).
+# Downloads tokenizer.json from HuggingFace Hub on first run (~2 MB, cached).
+# Requires the model file: models/unsloth/Phi-4-mini-reasoning-GGUF/Phi-4-mini-reasoning-Q3_K_M.gguf
+test-phi4:
+    cargo test -p ledgerr-host --features local-llm --test phi4_smoke -- --nocapture
+
+# Phi-4 Mini reasoning smoke test — mistralrs backend (faster, correct partial RoPE).
+# Downloads tokenizer from HuggingFace Hub on first run (cached).
+# Requires the model file: models/unsloth/Phi-4-mini-reasoning-GGUF/Phi-4-mini-reasoning-Q3_K_M.gguf
+test-phi4-mistral:
+    cargo test -p ledgerr-host --features mistralrs-llm --test phi4_smoke -- --nocapture
+
+# Fine-tuning follow-up:
+# - install Unsloth in a CUDA-capable Python environment,
+# - prepare an instruction dataset from `book/src/`, `docs/`, and checked-in samples,
+# - fine-tune Phi-4 mini against documentation/operator workflows,
+# - export adapter artifacts and a local inference target without committing model weights.
+# Print the planned Unsloth fine-tuning workflow placeholder.
+unsloth-finetune-plan:
+    @echo "TODO: install Unsloth and add a reproducible Phi-4 mini documentation fine-tuning recipe."
+
 gh-secrets-help:
     @echo "Expected .env values (optional):"
     @echo "  CRATES_IO_TOKEN=..."

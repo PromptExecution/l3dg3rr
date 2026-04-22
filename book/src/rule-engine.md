@@ -18,9 +18,9 @@ The pipeline nodes map to Rust types:
 
 | Pipeline step | Rust type | Status |
 |---|---|---|
-| `load_rules` | `RuleRegistry::load_from_dir` | Stub (unimplemented) |
-| `select_applicable` | `RuleRegistry::select_rules_deterministic` | Stub (unimplemented) |
-| `run_waterfall` | `RuleRegistry::classify_waterfall` | Stub (unimplemented) |
+| `load_rules` | `RuleRegistry::load_from_dir` | Implemented for transaction rules |
+| `select_applicable` | `RuleRegistry::select_rules_deterministic` | Implemented keyword fallback |
+| `run_waterfall` | `RuleRegistry::classify_waterfall` | Implemented first-match waterfall |
 | `evaluate_confidence` | `ClassificationOutcome.confidence` | Implemented |
 | `emit_result` | `ClassifiedTransaction` / `ReviewFlag` | Implemented |
 
@@ -62,11 +62,13 @@ Rules are standalone `.rhai` files that implement a single `fn classify(tx)` fun
 
 See [docs/rhai-rules.md](../docs/rhai-rules.md) for the complete rule authoring guide, including field contracts, available built-ins, and worked examples for `foreign_income`, `self_employment`, and `fallback` rules.
 
-The three rules currently shipping with the system are:
+The baseline rules currently covered by the registry waterfall are:
 
-- `rules/foreign_income.rhai` — matches foreign-sourced income transactions
-- `rules/self_employment.rhai` — matches self-employment / Schedule C income
-- `rules/fallback.rhai` — catch-all returning `Unclassified` with `review: true`
+- `rules/classify_foreign_income.rhai` — matches foreign-sourced income transactions
+- `rules/classify_self_employment.rhai` — matches self-employment / Schedule C income
+- `rules/classify_fallback.rhai` — catch-all returning `Unclassified` with `review: true`
+
+Additional Schedule, FBAR/FATCA, crypto, AU GST, and AU CGT transaction rules are also loaded. `classify_document_shape.rhai` is excluded because it exposes `classify_document(doc)`, not the transaction `classify(tx)` entry point.
 
 ## Stub: Semantic Rule Selection
 

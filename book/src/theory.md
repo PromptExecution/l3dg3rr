@@ -10,7 +10,7 @@ This chapter documents the novel architecture patterns that power l3dg3rr's AI a
 - [Pipeline](./pipeline.md) - Type-state workflow
 - [Validation](./validation.md) - Confidence accumulation
 - [Visualization](./visualize.md) - Mermaid/HTML export
-- [Match Visualization Plan](./match-visualization-plan.md) - future branch rendering contract
+- [Match Visualization Plan](./match-visualization-plan.md) - multi-arm branch rendering contract
 - [Legal Verification](./legal.md) - Tax rule verification
 - [Constraints](./constraints.md) - Kasuari constraints
 
@@ -290,39 +290,30 @@ mod doc_tests {
 }
 ```
 
-## Multi-Jurisdiction Tax Rules (Executable)
+## Multi-Jurisdiction Tax Rules
 
 ### Jurisdiction Activation
 
 ```rust
-use ledger_core::legal::{LegalSolver, Jurisdiction, TaxRule};
+use ledger_core::legal::{us_schedule_c, LegalSolver, TransactionFacts, Z3Result};
 
-// US Tax Rules
-let us_rules = vec![
-    TaxRule::new("schedule_c_expense", Jurisdiction::US, 
-        "Business expense deduction",
-        |tx| tx.category == "BusinessExpense"),
-];
+let solver = LegalSolver::new();
+let rule = us_schedule_c::rule_ordinary_necessary();
+let mut facts = TransactionFacts::new();
+facts.is_business_activity = Some(true);
+facts.is_ordinary = Some(true);
+facts.is_necessary = Some(false);
 
-// AU Tax Rules  
-let au_rules = vec![
-    TaxRule::new("gst_credit", Jurisdiction::AU,
-        "GST input credit",
-        |tx| tx.gst_included && tx.amount > 100.0),
-];
+let result = solver.verify(&rule, &facts);
 
-// Verify against jurisdiction
-let solver = LegalSolver::with_rules(Jurisdiction::US, us_rules);
-let result = solver.verify(&transaction);
-
-match result.disposition {
-    Disposition::Unrecoverable => panic!("Fatal tax issue"),
-    Disposition::Recoverable => println!("Fix: {}", result.message),
-    Disposition::Advisory => println!("Suggestion: {}", result.message),
+match result {
+    Z3Result::Satisfied => println!("rule satisfied"),
+    Z3Result::Violated { witness } => println!("blocked: {witness}"),
+    Z3Result::Unknown => println!("more facts required"),
 }
 ```
 
-The visualization plan for this kind of multi-arm branch is documented in [Match Visualization Plan](./match-visualization-plan.md). Until the docs renderer grows first-class `match` support, branch-heavy examples should include a fan-out sample that keeps arm order stable across Mermaid and isometric views.
+The visualization plan for this kind of multi-arm branch is documented in [Match Visualization Plan](./match-visualization-plan.md). Branch-heavy examples should include a fan-out sample that keeps arm order stable across Mermaid and isometric views.
 
 ## Content-Hash Identity Model
 

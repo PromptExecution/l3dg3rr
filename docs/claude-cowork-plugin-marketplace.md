@@ -68,7 +68,7 @@ docker run -i --rm -v "$PWD:/workspace" -w /workspace tax-ledger:dev \
 Install local launcher package:
 
 ```bash
-pip install -e plugins/l3dg3rr-plugin-create/python
+uv pip install -e plugins/l3dg3rr-plugin-create/python
 ```
 
 Run:

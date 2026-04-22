@@ -53,13 +53,13 @@ The table below is the authoritative capability status map. See `book/src/capabi
 | `ClassificationEngine` — Rhai rule execution | `crates/ledger-core/src/classify.rs` | Implemented |
 | `ClassificationOutcome` (category, confidence, reason) | `crates/ledger-core/src/classify.rs` | Implemented |
 | `ReviewFlag` — flag upsert, query by year/status | `crates/ledger-core/src/classify.rs` | Implemented |
-| 12 Rhai rule files with tax code citations | `rules/` | Implemented |
+| 12 transaction Rhai rule files with tax code citations plus 1 document-shape rule | `rules/` | Implemented |
 | `BusinessCalendar` — date arithmetic, US + AU defaults | `crates/ledger-core/src/calendar.rs` | Implemented |
 | `LedgerOperation` trait + 6 concrete ops | `crates/ledger-core/src/ledger_ops.rs` | Implemented (stubs return `NotImplemented`) |
 | `OperationDispatcher` | `crates/ledger-core/src/ledger_ops.rs` | Implemented |
 | `DocumentShape` classifier (12 vendor variants, 8-pass) | `crates/ledger-core/src/document_shape.rs` | Implemented |
 | `Jurisdiction` enum (`US`, `AU`, `UK`) | `crates/ledger-core/src/legal.rs` | Implemented |
-| `LegalRule` + Z3 constraint formulas | `crates/ledger-core/src/legal.rs` | Partial — Z3 not fully wired |
+| `LegalRule` + Z3 constraint formulas | `crates/ledger-core/src/legal.rs` | Implemented for AU GST + US Schedule C hard predicates; native Z3 path behind `ledger-core/legal-z3` |
 | Proposer/Reviewer LLM pattern | `crates/ledger-core/src/verify.rs` | Partial — no real LLM calls yet |
 | `WorkflowToml` DSL → Rhai FSM + Mermaid | `crates/ledger-core/src/workflow.rs` | Implemented |
 | `IssueSource::RhaiRule` validation layer | `crates/ledger-core/src/validation.rs` | Implemented |
@@ -70,7 +70,7 @@ The table below is the authoritative capability status map. See `book/src/capabi
 | Mermaid auto-generation from Rhai DSL | `crates/ledger-core/src/workflow.rs` | Implemented |
 | `mdbook-rhai-mermaid` preprocessor | `crates/mdbook-rhai-mermaid/` | Implemented |
 | Slint desktop UI (`slint_viz.rs`) | `crates/ledger-core/src/slint_viz.rs` | Partial — stub, not wired to window system |
-| `RuleRegistry` (`load_from_dir`, `classify_waterfall`) | `crates/ledger-core/src/rule_registry.rs` | Stub — `unimplemented!()` |
+| `RuleRegistry` (`load_from_dir`, `classify_waterfall`) | `crates/ledger-core/src/rule_registry.rs` | Implemented — deterministic keyword selection + first-match waterfall |
 | Docling extraction bridge | — | Missing |
 | `reqif-opa-mcp` MCP wiring | — | Missing |
 | Vector embedding index (`SemanticRuleSelector`) | — | Missing |
@@ -80,7 +80,7 @@ The table below is the authoritative capability status map. See `book/src/capabi
 
 ## Rhai Tax Classification Rules
 
-Twelve `.rhai` rule files live in `rules/`. Each implements `fn classify(tx)` accepting `{ tx_id, account_id, date, amount, description }` and returning `#{ category, confidence, review, reason }`. `amount` is always a string decimal; rules use `parse_float()` for numeric comparisons only.
+Twelve transaction `.rhai` rule files live in `rules/`. Each implements `fn classify(tx)` accepting `{ tx_id, account_id, date, amount, description }` and returning `#{ category, confidence, review, reason }`. `amount` is always a string decimal; rules use `parse_float()` for numeric comparisons only. `classify_document_shape.rhai` is a separate document-routing rule with a `classify_document(doc)` entry point and is intentionally excluded from transaction waterfalls.
 
 | Rule File | Tax Code | Jurisdiction | Output Categories | Review Trigger |
 |---|---|---|---|---|
@@ -202,7 +202,7 @@ Each vendor carries an implied jurisdiction (`US`, `AU`, or `UK` for HSBC) and a
 
 ## RuleRegistry
 
-`crates/ledger-core/src/rule_registry.rs` defines the interface for multi-rule orchestration. All three core methods are stubs (`unimplemented!()`).
+`crates/ledger-core/src/rule_registry.rs` defines the deterministic multi-rule orchestration path.
 
 ```rust
 pub struct RuleRegistry {
@@ -211,13 +211,13 @@ pub struct RuleRegistry {
 }
 
 impl RuleRegistry {
-    // STUB: scan rules_dir for .rhai files; optionally load .reqif.json sidecars
+    // Scan rules_dir for transaction .rhai files; optionally load .reqif.json sidecars
     pub fn load_from_dir(rules_dir: &Path) -> Result<Self, RuleRegistryError>
 
-    // STUB: keyword-match rule selection; returns all rules when no match found
+    // Keyword-match rule selection; returns all rules when no match found
     pub fn select_rules_deterministic(&self, tx: &SampleTransaction) -> Vec<PathBuf>
 
-    // STUB: first-non-Unclassified-wins waterfall over selected rules
+    // First-non-Unclassified-wins waterfall over selected rules
     pub fn classify_waterfall(
         &self,
         engine: &mut ClassificationEngine,

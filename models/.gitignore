@@ -1,0 +1,5 @@
+# Ignore cached downloads and actual weight files — only track symlinks
+**/*.gguf
+**/*.bin
+**/*.safetensors
+.cache/
