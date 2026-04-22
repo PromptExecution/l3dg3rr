@@ -293,6 +293,12 @@ Treat this as a standing operational gate, not a one-time migration task.
   - Documentation hierarchy should lead with operator capabilities first, then application structure, then visualization internals.
   - Use Z3 for hard satisfiability/proof obligations and Kasuari for soft plausibility/layout constraints.
   - `ledger-core` keeps native Z3 behind the `legal-z3` feature because default local builds may not have `libz3` installed.
+- 2026-04-21: Rig integration boundary is host-owned.
+  - `crates/ledgerr-host/src/agent_runtime.rs` is the current Rig-backed text/structured-output adapter and implements `ledger_core::verify::ModelClient` for validation/review flows.
+  - Keep `ledger-core` deterministic and provider-agnostic; do not add direct Rig dependencies there.
+  - Model-call audit hooks should record metadata and outcomes, not raw prompt or response content.
+- 2026-04-21: Use `uv` for Python package and tool workflows.
+  - Do not document `pipx` or direct `pip install` as the preferred path; use `uv tool install ...` for Python CLIs and `uv pip ...` for environment-scoped installs.
 - 2026-04-17: issue `#22` established a code-first MCP contract path.
   - The published MCP surface now lives in `crates/ledgerr-mcp/src/contract.rs`; treat it as the only source of truth for parser shapes, generated JSON Schema, and checked-in operator docs/examples.
   - Regenerate `docs/mcp-capability-contract.md`, `docs/agent-mcp-runbook.md`, and `scripts/mcp_cli_demo.sh` via `cargo run -p xtask-mcpb -- generate-mcp-artifacts` after changing the published MCP surface.

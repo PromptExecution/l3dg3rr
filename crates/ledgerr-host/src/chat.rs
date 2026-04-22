@@ -1,10 +1,8 @@
-use rig::{
-    client::CompletionClient,
-    completion::{AssistantContent, CompletionModel, Message},
-    providers::openai,
-};
 use thiserror::Error;
 
+use crate::agent_runtime::{
+    AgentRuntime, AgentRuntimeError, ModelRequest, ModelRole, ModelTurn, RigAgentRuntime,
+};
 use crate::settings::ChatSettings;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,16 +28,18 @@ pub enum ChatError {
     MissingApiKey,
     #[error("message is empty")]
     EmptyMessage,
-    #[error("request client failed: {0}")]
-    Http(#[from] reqwest::Error),
     #[error("failed to create async runtime: {0}")]
-    Runtime(#[from] std::io::Error),
+    Runtime(std::io::Error),
     #[error("chat request failed: {0}")]
-    Rig(#[from] rig::completion::CompletionError),
+    Rig(rig::completion::CompletionError),
     #[error("chat client setup failed: {0}")]
-    RigHttp(#[from] rig::http_client::Error),
+    RigHttp(rig::http_client::Error),
     #[error("response did not contain an assistant message")]
     MissingAssistantMessage,
+    #[error("failed to parse structured model response: {0}")]
+    Parse(serde_json::Error),
+    #[error("local llm error: {0}")]
+    LocalLlm(String),
 }
 
 pub fn send_chat_message(
@@ -47,93 +47,45 @@ pub fn send_chat_message(
     history: &[ChatTurn],
     pending_message: &str,
 ) -> Result<String, ChatError> {
-    if settings.endpoint_url.trim().is_empty() {
-        return Err(ChatError::MissingEndpoint);
-    }
-    if settings.model.trim().is_empty() {
-        return Err(ChatError::MissingModel);
-    }
-    if settings.api_key.trim().is_empty() {
-        return Err(ChatError::MissingApiKey);
-    }
-    if pending_message.trim().is_empty() {
-        return Err(ChatError::EmptyMessage);
-    }
-
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()?;
-    runtime.block_on(send_chat_message_async(settings, history, pending_message))
+    let request = ModelRequest::text(pending_message)
+        .with_system_prompt(settings.system_prompt.clone())
+        .with_history(history.iter().map(model_turn));
+    let runtime = RigAgentRuntime::new(settings.clone());
+    let response = runtime.complete(request).map_err(ChatError::from)?;
+    Ok(response.assistant_text)
 }
 
-async fn send_chat_message_async(
-    settings: &ChatSettings,
-    history: &[ChatTurn],
-    pending_message: &str,
-) -> Result<String, ChatError> {
-    let client = openai::CompletionsClient::builder()
-        .api_key(settings.api_key.trim())
-        .base_url(normalize_base_url(settings.endpoint_url.trim()))
-        .build()?;
-    let model = client.completion_model(settings.model.trim());
-    let request = build_request(model.clone(), settings, history, pending_message);
-    let response = model.completion(request).await?;
-    extract_assistant_message(response.choice.into_iter()).ok_or(ChatError::MissingAssistantMessage)
-}
-
-fn build_request<M: CompletionModel>(
-    model: M,
-    settings: &ChatSettings,
-    history: &[ChatTurn],
-    pending_message: &str,
-) -> rig::completion::CompletionRequest {
-    let mut request = model.completion_request(Message::user(pending_message.trim()));
-
-    if !settings.system_prompt.trim().is_empty() {
-        request = request.preamble(settings.system_prompt.trim().to_string());
-    }
-
-    if !history.is_empty() {
-        request = request.messages(history.iter().map(history_message));
-    }
-
-    request.build()
-}
-
-fn history_message(turn: &ChatTurn) -> Message {
-    match turn.role {
-        ChatRole::System => Message::system(turn.content.trim()),
-        ChatRole::User => Message::user(turn.content.trim()),
-        ChatRole::Assistant => Message::assistant(turn.content.trim()),
+fn model_turn(turn: &ChatTurn) -> ModelTurn {
+    ModelTurn {
+        role: match turn.role {
+            ChatRole::System => ModelRole::System,
+            ChatRole::User => ModelRole::User,
+            ChatRole::Assistant => ModelRole::Assistant,
+        },
+        content: turn.content.clone(),
     }
 }
 
-fn normalize_base_url(endpoint_url: &str) -> String {
-    endpoint_url
-        .trim_end_matches('/')
-        .trim_end_matches("/chat/completions")
-        .trim_end_matches("/responses")
-        .to_string()
-}
-
-fn extract_assistant_message(
-    contents: impl IntoIterator<Item = AssistantContent>,
-) -> Option<String> {
-    contents
-        .into_iter()
-        .find_map(|content| match content {
-            AssistantContent::Text(text) => {
-                let trimmed = text.text.trim();
-                (!trimmed.is_empty()).then(|| trimmed.to_string())
-            }
-            _ => None,
-        })
+impl From<AgentRuntimeError> for ChatError {
+    fn from(value: AgentRuntimeError) -> Self {
+        match value {
+            AgentRuntimeError::MissingEndpoint => Self::MissingEndpoint,
+            AgentRuntimeError::MissingModel => Self::MissingModel,
+            AgentRuntimeError::MissingApiKey => Self::MissingApiKey,
+            AgentRuntimeError::EmptyMessage => Self::EmptyMessage,
+            AgentRuntimeError::Runtime(error) => Self::Runtime(error),
+            AgentRuntimeError::Rig(error) => Self::Rig(error),
+            AgentRuntimeError::RigHttp(error) => Self::RigHttp(error),
+            AgentRuntimeError::MissingAssistantMessage => Self::MissingAssistantMessage,
+            AgentRuntimeError::Parse(error) => Self::Parse(error),
+            AgentRuntimeError::LocalLlm(msg) => Self::LocalLlm(msg),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rig::{completion::AssistantContent, providers::openai};
 
     fn test_settings() -> ChatSettings {
         ChatSettings {
@@ -142,46 +94,6 @@ mod tests {
             model: "gpt-test".to_string(),
             system_prompt: "You are terse.".to_string(),
         }
-    }
-
-    #[test]
-    fn build_request_includes_system_history_and_pending_user_message() {
-        let history = vec![ChatTurn {
-            role: ChatRole::Assistant,
-            content: "Earlier answer".to_string(),
-        }];
-
-        let model = openai::Client::new("test-key")
-            .expect("test client")
-            .completions_api()
-            .completion_model("gpt-test");
-        let request = build_request(model, &test_settings(), &history, "What next?");
-        let messages: Vec<_> = request.chat_history.into_iter().collect();
-        assert_eq!(messages.len(), 3);
-        assert_eq!(messages[0], Message::system("You are terse."));
-        assert_eq!(messages[1], Message::assistant("Earlier answer"));
-        assert_eq!(messages[2], Message::user("What next?"));
-    }
-
-    #[test]
-    fn extract_assistant_message_prefers_text_content() {
-        let message = extract_assistant_message([
-            AssistantContent::text("  hello world  "),
-            AssistantContent::reasoning("ignored"),
-        ]);
-        assert_eq!(message.as_deref(), Some("hello world"));
-    }
-
-    #[test]
-    fn normalize_base_url_accepts_full_or_root_openai_urls() {
-        assert_eq!(
-            normalize_base_url("https://api.openai.com/v1/chat/completions"),
-            "https://api.openai.com/v1"
-        );
-        assert_eq!(
-            normalize_base_url("https://api.openai.com/v1/"),
-            "https://api.openai.com/v1"
-        );
     }
 
     #[test]
