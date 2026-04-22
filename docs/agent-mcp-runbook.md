@@ -39,18 +39,18 @@ Required order:
 ## Basic Happy Path
 
 ```json
-{"arguments":{"action":"pipeline_status"},"name":"ledgerr_documents"}
-{"arguments":{"action":"list_accounts"},"name":"ledgerr_documents"}
-{"arguments":{"action":"ingest_pdf","extracted_rows":[{"account_id":"WF-BH-CHK","amount":"-42.11","date":"2023-01-15","description":"Coffee Shop","source_ref":"wf-2023-01.rkyv"}],"journal_path":"/tmp/demo.beancount","pdf_path":"WF--BH-CHK--2023-01--statement.pdf","raw_context_bytes":[99,116,120],"workbook_path":"/tmp/demo.xlsx"},"name":"ledgerr_documents"}
-{"arguments":{"action":"get_raw_context","rkyv_ref":"wf-2023-01.rkyv"},"name":"ledgerr_documents"}
+{"name":"ledgerr_documents","arguments":{"action":"pipeline_status"}}
+{"name":"ledgerr_documents","arguments":{"action":"list_accounts"}}
+{"name":"ledgerr_documents","arguments":{"action":"ingest_pdf","pdf_path":"WF--BH-CHK--2023-01--statement.pdf","journal_path":"/tmp/demo.beancount","workbook_path":"/tmp/demo.xlsx","raw_context_bytes":[99,116,120],"extracted_rows":[{"account_id":"WF-BH-CHK","date":"2023-01-15","amount":"-42.11","description":"Coffee Shop","source_ref":"wf-2023-01.rkyv"}]}}
+{"name":"ledgerr_documents","arguments":{"action":"get_raw_context","rkyv_ref":"wf-2023-01.rkyv"}}
 ```
 
 ## Troubleshooting / Spinning Wheels
 
 ```json
-{"arguments":{"action":"resume","state_marker":"invalid-checkpoint"},"name":"ledgerr_workflow"}
-{"arguments":{"action":"commit","extracted_total":"95.00","posting_amounts":["-95.00","95.00"],"source_total":"100.00"},"name":"ledgerr_reconciliation"}
-{"arguments":{"action":"event_history","time_end":"2026-01-01","time_start":"2026-12-31"},"name":"ledgerr_audit"}
+{"name":"ledgerr_workflow","arguments":{"action":"resume","state_marker":"invalid-checkpoint"}}
+{"name":"ledgerr_reconciliation","arguments":{"action":"commit","source_total":"100.00","extracted_total":"95.00","posting_amounts":["-95.00","95.00"]}}
+{"name":"ledgerr_audit","arguments":{"action":"event_history","time_start":"2026-12-31","time_end":"2026-01-01"}}
 ```
 
 Expected blocked outcomes:
