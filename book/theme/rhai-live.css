@@ -425,10 +425,14 @@
 }
 
 .rhai-iso-label {
-    fill: #f8fafc;
+    fill: #0f172a;
     font-size: 13px;
     font-weight: 700;
     text-rendering: geometricPrecision;
+    paint-order: stroke;
+    stroke: #ffffff;
+    stroke-width: 3px;
+    stroke-linejoin: round;
 }
 
 .rhai-iso-label-center {
@@ -436,10 +440,15 @@
 }
 
 .rhai-iso-subtitle {
-    fill: rgba(248, 250, 252, 0.82);
+    fill: #475569;
     font-size: 10.5px;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
+    paint-order: stroke;
+    stroke: #ffffff;
+    stroke-width: 2.5px;
+    stroke-linejoin: round;
 }
 
 @media (max-width: 1000px) {
