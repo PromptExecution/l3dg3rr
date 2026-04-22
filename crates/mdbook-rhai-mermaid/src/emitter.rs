@@ -2,6 +2,7 @@
 use crate::parser::{Graph, NodeKind};
 
 /// Render the graph as a Mermaid flowchart string.
+/// Default/fallback match arms get a visual hint via label suffix.
 pub fn emit_mermaid(graph: &Graph) -> String {
     let mut out = String::from("flowchart TD\n");
 
@@ -18,10 +19,21 @@ pub fn emit_mermaid(graph: &Graph) -> String {
         }
     }
 
-    // 2. Edges.
+    // 2. Edges — default arms get a visual hint via label suffix.
     for edge in &graph.edges {
-        let line = match &edge.label {
-            Some(lbl) => format!("    {} -->|\"{}\"|{}\n", edge.from, escape_label(lbl), edge.to),
+        let lbl: Option<String> = match &edge.label {
+            Some(lbl) => {
+                if edge.is_default {
+                    Some(format!("{} (default)", lbl))
+                } else {
+                    Some(lbl.clone())
+                }
+            }
+            None if edge.is_default => Some("_".to_string()),
+            None => None,
+        };
+        let line = match lbl {
+            Some(l) => format!("    {} -->|\"{}\"|{}\n", edge.from, escape_label(&l), edge.to),
             None => format!("    {} --> {}\n", edge.from, edge.to),
         };
         out.push_str(&line);
@@ -57,7 +69,6 @@ mod tests {
         let src = "if confidence > 0.8 -> commit\n";
         let graph = parse(src);
         let out = emit_mermaid(&graph);
-        // Decision nodes use curly braces.
         assert!(out.contains('{'), "expected decision diamond syntax");
         assert!(out.contains("|\"true\"|"));
     }
@@ -92,5 +103,17 @@ mod tests {
         let graph = parse(src);
         let out = emit_mermaid(&graph);
         assert!(out.contains("&quot;needs quote&quot;"));
+    }
+
+    #[test]
+    fn test_emit_default_arm_annotation() {
+        let src = [
+            "match result.disposition => Disposition::Unrecoverable -> halt",
+            "match result.disposition => _ -> fallback",
+        ]
+        .join("\n");
+        let graph = parse(&src);
+        let out = emit_mermaid(&graph);
+        assert!(out.contains("(default)"), "expected default arm annotation");
     }
 }
