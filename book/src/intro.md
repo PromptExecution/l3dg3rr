@@ -1,6 +1,11 @@
 # Introduction
 
-`l3dg3rr` is a local-first financial document intelligence system for retroactive U.S. expat tax preparation. It ingests raw statements, classifies transactions with editable rules, verifies hard constraints, and exports an accountant-usable Excel workbook with audit history.
+```admonish info
+**l3dg3rr** is designed for US expats who need to reconcile complex financial histories across multiple jurisdictions (US, AU, UK) without compromising privacy.
+```
+
+`l3dg3rr` is a local-first financial document intelligence system
+ for retroactive U.S. expat tax preparation. It ingests raw statements, classifies transactions with editable rules, verifies hard constraints, and exports an accountant-usable Excel workbook with audit history.
 
 The system is built around an operator/agent workflow: agents do ingestion, classification, reconciliation, flagging, and evidence gathering; the human operator and CPA keep approval authority through Excel, notifications, and auditable review surfaces.
 

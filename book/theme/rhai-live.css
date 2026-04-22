@@ -1,5 +1,84 @@
+:root {
+    --content-max-width: 960px;
+    --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+#content {
+    max-width: var(--content-max-width);
+    margin: 0 auto;
+    padding: 2rem 1.5rem 5rem;
+    line-height: 1.65;
+    font-size: 1.05rem;
+}
+
+#content main h1 {
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 2rem;
+    border-bottom: none;
+    font-size: 2.8rem;
+    background: linear-gradient(135deg, #0f766e, #0369a1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+#content main h2 {
+    font-weight: 700;
+    margin-top: 3.5rem;
+    margin-bottom: 1.25rem;
+    border-bottom: 1px solid var(--rhai-line);
+    padding-bottom: 0.5rem;
+}
+
+#content main h3 {
+    font-weight: 600;
+    margin-top: 2.5rem;
+}
+
+.sidebar {
+    background: var(--sidebar-bg, #f6f8fa);
+    border-right: 1px solid var(--rhai-line);
+}
+
+.sidebar-scrollbox {
+    padding: 1rem 0;
+}
+
+.sidebar .chapter {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.sidebar .chapter li {
+    padding: 0.15rem 1rem;
+}
+
+.sidebar .chapter li a {
+    display: block;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    color: var(--fg);
+    font-weight: 500;
+    font-size: 0.94rem;
+    text-decoration: none;
+    transition: all 0.15s ease;
+}
+
+.sidebar .chapter li a:hover {
+    background: color-mix(in srgb, var(--sidebar-bg, #f6f8fa) 92%, #0f766e 8%);
+    color: #0f766e;
+}
+
+.sidebar .chapter li a.active {
+    background: #0f766e;
+    color: #ffffff;
+    font-weight: 700;
+    box-shadow: 0 4px 12px rgba(15, 118, 110, 0.2);
+}
+
 .rhai-diagram-shell {
-    --rhai-surface: color-mix(in srgb, var(--bg, #ffffff) 92%, #dbeafe 8%);
+    --rhai-surface: color-mix(in srgb, var(--bg, #ffffff) 92%, #f0f9ff 8%);
     --rhai-line: color-mix(in srgb, var(--searchbar-border-color, #d0d7de) 78%, #94a3b8 22%);
     --rhai-muted: color-mix(in srgb, var(--fg, #1f2328) 72%, #64748b 28%);
     --rhai-accent: #0f766e;
@@ -265,6 +344,52 @@
 
 .rhai-iso-bg {
     opacity: 0.95;
+}
+
+#content main table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 2rem 0;
+    border: 1px solid var(--rhai-line);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+#content main table th {
+    background: color-mix(in srgb, var(--sidebar-bg, #f6f8fa) 95%, #0f766e 5%);
+    font-weight: 700;
+    text-align: left;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--rhai-line);
+}
+
+#content main table td {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--rhai-line);
+    vertical-align: top;
+}
+
+#content main table tr:last-child td {
+    border-bottom: none;
+}
+
+#content main table tr:hover td {
+    background: color-mix(in srgb, var(--bg, #ffffff) 98%, #0f766e 2%);
+}
+
+#content main code {
+    background: color-mix(in srgb, var(--bg, #ffffff) 95%, #64748b 5%);
+    padding: 0.2rem 0.4rem;
+    border-radius: 6px;
+    font-size: 0.9em;
+}
+
+#content main pre {
+    border-radius: 12px;
+    padding: 1.25rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--rhai-line);
 }
 
 .rhai-iso-shadow-plane path {

@@ -119,11 +119,11 @@ jobs:
       - name: Install just
         run: cargo install just --locked
 
-      - name: Install mdbook
-        run: cargo install mdbook --locked
-
-      - name: Install mdbook-mermaid
-        run: cargo install mdbook-mermaid --locked
+      - name: Setup mdBook
+        uses: jontze/action-mdbook@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          use-mermaid: true
 
       - name: Install mdbook-rhai-mermaid
         run: cargo install --path crates/mdbook-rhai-mermaid
