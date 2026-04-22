@@ -92,13 +92,21 @@
     }
 
     function selectedViewMode() {
-        const stored = window.localStorage ? window.localStorage.getItem(STORAGE_KEY) : null;
-        return stored === "mermaid-2d" ? "mermaid-2d" : "isometric-3d";
+        try {
+            const stored = window.localStorage ? window.localStorage.getItem(STORAGE_KEY) : null;
+            return stored === "mermaid-2d" ? "mermaid-2d" : "isometric-3d";
+        } catch (_e) {
+            return "isometric-3d";
+        }
     }
 
     function persistViewMode(mode) {
-        if (window.localStorage) {
-            window.localStorage.setItem(STORAGE_KEY, mode);
+        try {
+            if (window.localStorage) {
+                window.localStorage.setItem(STORAGE_KEY, mode);
+            }
+        } catch (_e) {
+            // storage unavailable (private browsing, SecurityError) — ignore
         }
     }
 
