@@ -200,267 +200,291 @@ slint::slint! {
                         wrap: word-wrap;
                     }
 
+                    // Panel switcher: all panels share the same Rectangle container so
+                    // they stack at (0,0).  `visible` controls which one appears without
+                    // reserving layout space for the hidden panels.  Putting siblings in a
+                    // VerticalLayout causes invisible items with explicit heights to still
+                    // occupy their declared height, pushing visible panels off-screen.
                     Rectangle {
-                        visible: root.active_panel == 0;
-                        background: #ffffff;
-                        border-color: #d4dfe9;
-                        border-width: 1px;
-                        border-radius: 8px;
                         height: 740px;
 
-                        VerticalLayout {
-                            padding: 12px;
-                            spacing: 10px;
+                        // ── Chat ─────────────────────────────────────────────────────────
+                        Rectangle {
+                            visible: root.active_panel == 0;
+                            width: parent.width;
+                            height: parent.height;
+                            background: #ffffff;
+                            border-color: #d4dfe9;
+                            border-width: 1px;
+                            border-radius: 8px;
 
-                            Text {
-                                text: "Chat";
-                                color: #223344;
-                                font-size: 18px;
-                            }
-
-                            HorizontalLayout {
+                            VerticalLayout {
+                                padding: 12px;
                                 spacing: 10px;
-                                height: 150px;
 
-                                TextEdit {
-                                    text <=> root.draft_message_text;
-                                    enabled: !root.busy;
+                                Text {
+                                    text: "Chat";
+                                    color: #223344;
+                                    font-size: 18px;
                                 }
 
-                                VerticalLayout {
-                                    spacing: 8px;
-                                    width: 180px;
+                                HorizontalLayout {
+                                    spacing: 10px;
+                                    height: 150px;
 
-                                    Button {
-                                        text: root.busy ? "Sending..." : "Send Chat";
+                                    TextEdit {
+                                        text <=> root.draft_message_text;
                                         enabled: !root.busy;
-                                        clicked => { root.send_message(); }
                                     }
 
-                                    Button {
-                                        text: "Rhai Rule Prompt";
-                                        enabled: !root.busy;
-                                        clicked => { root.load_rhai_rule_prompt(); }
+                                    VerticalLayout {
+                                        spacing: 8px;
+                                        width: 180px;
+
+                                        Button {
+                                            text: root.busy ? "Sending..." : "Send Chat";
+                                            enabled: !root.busy;
+                                            clicked => { root.send_message(); }
+                                        }
+
+                                        Button {
+                                            text: "Rhai Rule Prompt";
+                                            enabled: !root.busy;
+                                            clicked => { root.load_rhai_rule_prompt(); }
+                                        }
                                     }
                                 }
-                            }
 
-                            Rectangle {
-                                background: #f8fbff;
-                                border-color: #d4dfe9;
-                                border-width: 1px;
-                                border-radius: 8px;
+                                Rectangle {
+                                    background: #f8fbff;
+                                    border-color: #d4dfe9;
+                                    border-width: 1px;
+                                    border-radius: 8px;
 
-                                VerticalLayout {
-                                    padding: 8px;
-                                    spacing: 6px;
+                                    VerticalLayout {
+                                        padding: 8px;
+                                        spacing: 6px;
 
-                                    Text { text: "Transcript"; color: #445566; }
+                                        Text { text: "Transcript"; color: #445566; }
 
-                                    ScrollView {
-                                        Text {
-                                            width: parent.width;
-                                            text: root.transcript_text;
-                                            color: #223344;
-                                            wrap: word-wrap;
+                                        ScrollView {
+                                            Text {
+                                                width: parent.width;
+                                                text: root.transcript_text;
+                                                color: #223344;
+                                                wrap: word-wrap;
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
 
-                    Rectangle {
-                        visible: root.active_panel == 1;
-                        background: #ffffff;
-                        border-color: #d4dfe9;
-                        border-width: 1px;
-                        border-radius: 8px;
-                        height: 740px;
+                        // ── Logs ──────────────────────────────────────────────────────────
+                        Rectangle {
+                            visible: root.active_panel == 1;
+                            width: parent.width;
+                            height: parent.height;
+                            background: #ffffff;
+                            border-color: #d4dfe9;
+                            border-width: 1px;
+                            border-radius: 8px;
 
-                        VerticalLayout {
-                            padding: 12px;
-                            spacing: 10px;
-                            alignment: start;
+                            VerticalLayout {
+                                padding: 12px;
+                                spacing: 10px;
+                                alignment: start;
 
-                            Text {
-                                text: "Logs";
-                                color: #223344;
-                                font-size: 18px;
-                            }
-
-                            HorizontalLayout {
-                                spacing: 6px;
-                                height: 32px;
-
-                                LogSelector {
-                                    label: "Transport";
-                                    selected: root.active_log_panel == 0;
-                                    clicked => { root.active_log_panel = 0; }
+                                Text {
+                                    text: "Logs";
+                                    color: #223344;
+                                    font-size: 18px;
                                 }
 
-                                LogSelector {
-                                    label: "Review";
-                                    selected: root.active_log_panel == 1;
-                                    clicked => { root.active_log_panel = 1; }
-                                }
-                            }
-
-                            Rectangle {
-                                visible: root.active_log_panel == 0;
-                                background: #f7f8fb;
-                                border-color: #d4dfe9;
-                                border-width: 1px;
-                                border-radius: 8px;
-                                height: 642px;
-
-                                VerticalLayout {
-                                    padding: 8px;
+                                HorizontalLayout {
                                     spacing: 6px;
+                                    height: 32px;
 
-                                    Text { text: "Rig/OpenAI Transport"; color: #445566; }
+                                    LogSelector {
+                                        label: "Transport";
+                                        selected: root.active_log_panel == 0;
+                                        clicked => { root.active_log_panel = 0; }
+                                    }
 
-                                    ScrollView {
-                                        Text {
-                                            width: parent.width;
-                                            text: root.rig_prompt_preview_text;
-                                            color: #223344;
-                                            wrap: word-wrap;
-                                        }
+                                    LogSelector {
+                                        label: "Review";
+                                        selected: root.active_log_panel == 1;
+                                        clicked => { root.active_log_panel = 1; }
                                     }
                                 }
-                            }
 
-                            Rectangle {
-                                visible: root.active_log_panel == 1;
-                                background: #fbfaf7;
-                                border-color: #ddd4c6;
-                                border-width: 1px;
-                                border-radius: 8px;
-                                height: 642px;
+                                // Log sub-panels: same stacking pattern, inner container
+                                Rectangle {
+                                    height: 642px;
 
-                                VerticalLayout {
-                                    padding: 8px;
-                                    spacing: 6px;
+                                    Rectangle {
+                                        visible: root.active_log_panel == 0;
+                                        width: parent.width;
+                                        height: parent.height;
+                                        background: #f7f8fb;
+                                        border-color: #d4dfe9;
+                                        border-width: 1px;
+                                        border-radius: 8px;
 
-                                    Text { text: "Review Diffsets"; color: #665533; }
+                                        VerticalLayout {
+                                            padding: 8px;
+                                            spacing: 6px;
 
-                                    ScrollView {
-                                        Text {
-                                            width: parent.width;
-                                            text: root.review_log_text;
-                                            color: #332a1c;
-                                            wrap: word-wrap;
+                                            Text { text: "Rig/OpenAI Transport"; color: #445566; }
+
+                                            ScrollView {
+                                                Text {
+                                                    width: parent.width;
+                                                    text: root.rig_prompt_preview_text;
+                                                    color: #223344;
+                                                    wrap: word-wrap;
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        visible: root.active_log_panel == 1;
+                                        width: parent.width;
+                                        height: parent.height;
+                                        background: #fbfaf7;
+                                        border-color: #ddd4c6;
+                                        border-width: 1px;
+                                        border-radius: 8px;
+
+                                        VerticalLayout {
+                                            padding: 8px;
+                                            spacing: 6px;
+
+                                            Text { text: "Review Diffsets"; color: #665533; }
+
+                                            ScrollView {
+                                                Text {
+                                                    width: parent.width;
+                                                    text: root.review_log_text;
+                                                    color: #332a1c;
+                                                    wrap: word-wrap;
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
 
-                    Rectangle {
-                        visible: root.active_panel == 2;
-                        background: #e4edf6;
-                        border-color: #c7d8ea;
-                        border-width: 1px;
-                        border-radius: 8px;
-                        height: 740px;
+                        // ── Settings ──────────────────────────────────────────────────────
+                        Rectangle {
+                            visible: root.active_panel == 2;
+                            width: parent.width;
+                            height: parent.height;
+                            background: #e4edf6;
+                            border-color: #c7d8ea;
+                            border-width: 1px;
+                            border-radius: 8px;
 
-                        VerticalLayout {
-                            padding: 12px;
-                            spacing: 8px;
-
-                            Text {
-                                text: "Settings";
-                                color: #223344;
-                                font-size: 18px;
-                            }
-
-                            Text { text: "Endpoint URL"; color: #445566; }
-                            LineEdit { text <=> root.endpoint_text; enabled: !root.busy; }
-
-                            Text { text: "Model"; color: #445566; }
-                            LineEdit { text <=> root.model_text; enabled: !root.busy; }
-
-                            Text { text: "API Key"; color: #445566; }
-                            LineEdit { text <=> root.api_key_text; enabled: !root.busy; }
-
-                            Text { text: "System Prompt"; color: #445566; }
-                            TextEdit {
-                                text <=> root.system_prompt_text;
-                                enabled: !root.busy;
-                                height: 160px;
-                            }
-
-                            HorizontalLayout {
+                            VerticalLayout {
+                                padding: 12px;
                                 spacing: 8px;
 
-                                Button {
-                                    text: "Use Internal Phi-4";
-                                    enabled: !root.busy;
-                                    clicked => { root.use_internal_phi(); }
+                                Text {
+                                    text: "Settings";
+                                    color: #223344;
+                                    font-size: 18px;
                                 }
 
-                                Button {
-                                    text: "Use Cloud Model";
+                                Text { text: "Endpoint URL"; color: #445566; }
+                                LineEdit { text <=> root.endpoint_text; enabled: !root.busy; }
+
+                                Text { text: "Model"; color: #445566; }
+                                LineEdit { text <=> root.model_text; enabled: !root.busy; }
+
+                                Text { text: "API Key"; color: #445566; }
+                                LineEdit { text <=> root.api_key_text; enabled: !root.busy; }
+
+                                Text { text: "System Prompt"; color: #445566; }
+                                TextEdit {
+                                    text <=> root.system_prompt_text;
                                     enabled: !root.busy;
-                                    clicked => { root.use_cloud_model(); }
+                                    height: 160px;
                                 }
 
-                                Button {
-                                    text: root.busy ? "Working..." : "Save Settings";
-                                    enabled: !root.busy;
-                                    clicked => { root.save_settings(); }
+                                HorizontalLayout {
+                                    spacing: 8px;
+
+                                    Button {
+                                        text: "Use Internal Phi-4";
+                                        enabled: !root.busy;
+                                        clicked => { root.use_internal_phi(); }
+                                    }
+
+                                    Button {
+                                        text: "Use Cloud Model";
+                                        enabled: !root.busy;
+                                        clicked => { root.use_cloud_model(); }
+                                    }
+
+                                    Button {
+                                        text: root.busy ? "Working..." : "Save Settings";
+                                        enabled: !root.busy;
+                                        clicked => { root.save_settings(); }
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    Rectangle {
-                        visible: root.active_panel == 3;
-                        background: #ffffff;
-                        border-color: #d4dfe9;
-                        border-width: 1px;
-                        border-radius: 8px;
-                        height: 740px;
+                        // ── Docs Playbook ─────────────────────────────────────────────────
+                        Rectangle {
+                            visible: root.active_panel == 3;
+                            width: parent.width;
+                            height: parent.height;
+                            background: #ffffff;
+                            border-color: #d4dfe9;
+                            border-width: 1px;
+                            border-radius: 8px;
 
-                        VerticalLayout {
-                            padding: 12px;
-                            spacing: 10px;
+                            VerticalLayout {
+                                padding: 12px;
+                                spacing: 10px;
 
-                            Text {
-                                text: "Docs Playbook";
-                                color: #223344;
-                                font-size: 18px;
-                            }
-
-                            Text {
-                                text: root.docs_status_text;
-                                color: #405466;
-                                wrap: word-wrap;
-                            }
-
-                            Button {
-                                text: "Open Docs Playbook";
-                                enabled: !root.busy;
-                                clicked => { root.open_docs_playbook(); }
-                            }
-
-                            Button {
-                                text: "Load Rhai Mutation Prompt";
-                                enabled: !root.busy;
-                                clicked => {
-                                    root.active_panel = 0;
-                                    root.load_rhai_rule_prompt();
-                                }
-                            }
-
-                            ScrollView {
                                 Text {
-                                    width: parent.width;
-                                    text: root.rig_prompt_preview_text;
+                                    text: "Docs Playbook";
                                     color: #223344;
+                                    font-size: 18px;
+                                }
+
+                                Text {
+                                    text: root.docs_status_text;
+                                    color: #405466;
                                     wrap: word-wrap;
+                                }
+
+                                Button {
+                                    text: "Open Docs Playbook";
+                                    enabled: !root.busy;
+                                    clicked => { root.open_docs_playbook(); }
+                                }
+
+                                Button {
+                                    text: "Load Rhai Mutation Prompt";
+                                    enabled: !root.busy;
+                                    clicked => {
+                                        root.active_panel = 0;
+                                        root.load_rhai_rule_prompt();
+                                    }
+                                }
+
+                                ScrollView {
+                                    Text {
+                                        width: parent.width;
+                                        text: root.rig_prompt_preview_text;
+                                        color: #223344;
+                                        wrap: word-wrap;
+                                    }
                                 }
                             }
                         }
