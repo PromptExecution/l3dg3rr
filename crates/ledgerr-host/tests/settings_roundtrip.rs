@@ -11,6 +11,12 @@ fn load_defaults_when_file_missing() {
         settings.toast_backend_preference,
         NotificationBackend::PowerShell
     );
+    assert_eq!(
+        settings.chat.endpoint_url,
+        "http://127.0.0.1:15115/v1/chat/completions"
+    );
+    assert_eq!(settings.chat.model, "phi-4-mini-reasoning");
+    assert_eq!(settings.chat.api_key, "local-tool-tray");
 }
 
 #[test]

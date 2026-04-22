@@ -1423,6 +1423,83 @@
         };
     }
 
+    const DEFAULT_RHAI_MUTATION_MODEL = "phi-4-mini-reasoning";
+
+    function normalizeInstruction(instruction) {
+        return String(instruction || "").trim();
+    }
+
+    function buildRhaiMutationPrompt(source, instruction, options) {
+        const modelName =
+            options && options.modelName ? String(options.modelName).trim() : DEFAULT_RHAI_MUTATION_MODEL;
+        const request = normalizeInstruction(instruction) || "Add a review-safe classification branch.";
+        return [
+            `Model target: ${modelName}`,
+            "",
+            "You are editing the l3dg3rr documentation Rhai diagram DSL.",
+            "Return a replacement DSL block first, then a concise explanation.",
+            "Use only supported lines:",
+            "- fn source() -> target",
+            "- if expression -> target",
+            "- match expr => Arm -> target",
+            "",
+            "Mutation request:",
+            request,
+            "",
+            "Current DSL:",
+            String(source || "").trim(),
+        ].join("\n");
+    }
+
+    function draftRhaiMutationFromChat(source, instruction, options) {
+        const text = String(source || "").trim();
+        const request = normalizeInstruction(instruction).toLowerCase();
+        const modelName =
+            options && options.modelName ? String(options.modelName).trim() : DEFAULT_RHAI_MUTATION_MODEL;
+        const lines = text ? text.split(/\r?\n/).filter(function (line) { return line.trim(); }) : [];
+        let addition;
+        let explanation;
+
+        if (request.includes("xero")) {
+            addition = [
+                "fn reconcile_rows() -> xero_match",
+                "if xero_match.confidence > 0.90 -> commit_workbook",
+                "if xero_match.confidence <= 0.90 -> operator_review",
+                "fn operator_review() -> commit_workbook",
+            ];
+            explanation =
+                "The draft inserts a supervised Xero reconciliation gate and keeps workbook commit behind either high-confidence match evidence or operator review.";
+        } else if (request.includes("match") || request.includes("disposition")) {
+            addition = [
+                "fn verify_result() -> match_disposition",
+                "match result.disposition => Disposition::Unrecoverable -> halt_pipeline",
+                "match result.disposition => Disposition::Recoverable -> repair_and_retry",
+                "match result.disposition => Disposition::Advisory -> record_note",
+            ];
+            explanation =
+                "The draft turns validation disposition into explicit match arms, which makes halt, repair, and advisory paths visible in both Mermaid and isometric views.";
+        } else {
+            addition = [
+                "if confidence > 0.85 -> commit_workbook",
+                "if confidence > 0.60 -> review_flag",
+                "if confidence <= 0.60 -> escalate_operator",
+                "fn review_flag() -> commit_workbook",
+            ];
+            explanation =
+                "The draft adds a medium-confidence review lane and keeps low-confidence classifications out of commit until an operator handles the escalation.";
+        }
+
+        const merged = lines
+            .concat(addition.filter(function (line) { return !lines.includes(line); }))
+            .join("\n");
+        return {
+            modelName,
+            source: merged,
+            explanation,
+            prompt: buildRhaiMutationPrompt(source, instruction, { modelName }),
+        };
+    }
+
     return {
         sanitizeId,
         escapeHtml,
@@ -1431,6 +1508,8 @@
         buildVisualizationModel,
         sceneToIsometricSvg,
         buildRenderFailure,
+        buildRhaiMutationPrompt,
+        draftRhaiMutationFromChat,
         isoProject,
     };
 });

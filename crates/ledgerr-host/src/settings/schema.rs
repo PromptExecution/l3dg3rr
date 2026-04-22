@@ -32,9 +32,9 @@ impl Default for ShowNotificationsFor {
 pub struct ChatSettings {
     #[serde(default = "default_chat_endpoint")]
     pub endpoint_url: String,
-    #[serde(default)]
+    #[serde(default = "default_chat_api_key")]
     pub api_key: String,
-    #[serde(default)]
+    #[serde(default = "default_chat_model")]
     pub model: String,
     #[serde(default = "default_chat_system_prompt")]
     pub system_prompt: String,
@@ -44,15 +44,23 @@ impl Default for ChatSettings {
     fn default() -> Self {
         Self {
             endpoint_url: default_chat_endpoint(),
-            api_key: String::new(),
-            model: String::new(),
+            api_key: default_chat_api_key(),
+            model: default_chat_model(),
             system_prompt: default_chat_system_prompt(),
         }
     }
 }
 
 fn default_chat_endpoint() -> String {
-    "https://api.openai.com/v1/chat/completions".to_string()
+    "http://127.0.0.1:15115/v1/chat/completions".to_string()
+}
+
+fn default_chat_api_key() -> String {
+    "local-tool-tray".to_string()
+}
+
+fn default_chat_model() -> String {
+    "phi-4-mini-reasoning".to_string()
 }
 
 fn default_chat_system_prompt() -> String {

@@ -186,11 +186,48 @@
         note.textContent =
             "Edit the supported Rhai diagram DSL (`fn ... -> ...`, `if ... -> ...`, `match expr => Arm -> target`) and regenerate. The isometric view animates layout shifts when the graph changes.";
 
+        const chat = document.createElement("section");
+        chat.className = "rhai-model-chat";
+
+        const chatTitle = document.createElement("div");
+        chatTitle.className = "rhai-model-chat-title";
+        chatTitle.textContent = "Rhai mutation prompt";
+
+        const chatPrompt = document.createElement("textarea");
+        chatPrompt.className = "rhai-model-chat-input";
+        chatPrompt.spellcheck = false;
+        chatPrompt.value =
+            "Add a medium-confidence review path and keep workbook commit behind review or high confidence.";
+
+        const chatActions = document.createElement("div");
+        chatActions.className = "rhai-model-chat-actions";
+
+        const preparePrompt = document.createElement("button");
+        preparePrompt.type = "button";
+        preparePrompt.className = "rhai-diagram-button";
+        preparePrompt.textContent = "Prepare Model Prompt";
+
+        const applyDraft = document.createElement("button");
+        applyDraft.type = "button";
+        applyDraft.className = "rhai-diagram-button";
+        applyDraft.textContent = "Apply Example Draft";
+
+        const chatOutput = document.createElement("pre");
+        chatOutput.className = "rhai-model-chat-output";
+
+        chatActions.appendChild(preparePrompt);
+        chatActions.appendChild(applyDraft);
+        chat.appendChild(chatTitle);
+        chat.appendChild(chatPrompt);
+        chat.appendChild(chatActions);
+        chat.appendChild(chatOutput);
+
         body.appendChild(editor);
         body.appendChild(preview);
         shell.appendChild(toolbar);
         shell.appendChild(body);
         shell.appendChild(note);
+        shell.appendChild(chat);
 
         sourcePre.classList.add(ORIGINAL_CLASS);
         previewPre.classList.add(ORIGINAL_CLASS);
@@ -251,6 +288,17 @@
         regenerate.addEventListener("click", update);
         reset.addEventListener("click", async function () {
             editor.value = originalSource;
+            await update();
+        });
+
+        preparePrompt.addEventListener("click", function () {
+            chatOutput.textContent = core.buildRhaiMutationPrompt(editor.value, chatPrompt.value);
+        });
+
+        applyDraft.addEventListener("click", async function () {
+            const draft = core.draftRhaiMutationFromChat(editor.value, chatPrompt.value);
+            editor.value = draft.source;
+            chatOutput.textContent = `Model example: ${draft.modelName}\n\n${draft.explanation}\n\nPrepared prompt:\n${draft.prompt}`;
             await update();
         });
 

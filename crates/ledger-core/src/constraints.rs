@@ -113,6 +113,7 @@ impl VendorConstraintSet {
 /// Invoice arithmetic constraints (total = subtotal + gst).
 #[derive(Debug, Clone, Default)]
 pub struct InvoiceConstraintSolver {
+    #[allow(dead_code)]
     constraint_count: usize,
 }
 
