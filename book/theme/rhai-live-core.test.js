@@ -134,3 +134,29 @@ test("render failure guidance points mermaid users to isometric fallback", funct
     assert.match(failure.hint, /Switch to isometric-3d/);
     assert.match(failure.detail, /window\.mermaid missing/);
 });
+
+test("builds a model prompt for Rhai DSL mutation", function () {
+    const prompt = core.buildRhaiMutationPrompt(
+        "fn ingest_pdf() -> classify_rows",
+        "Add a review branch",
+        { modelName: "phi-4-mini-reasoning" }
+    );
+
+    assert.match(prompt, /Model target: phi-4-mini-reasoning/);
+    assert.match(prompt, /Use only supported lines/);
+    assert.match(prompt, /fn ingest_pdf\(\) -> classify_rows/);
+    assert.match(prompt, /Add a review branch/);
+});
+
+test("drafts a review-safe Rhai mutation from chat instruction", function () {
+    const draft = core.draftRhaiMutationFromChat(
+        "fn classify_rows() -> score_confidence",
+        "Add medium confidence review handling"
+    );
+    const { graph } = core.parseRhaiDiagram(draft.source);
+
+    assert.match(draft.explanation, /medium-confidence review lane/);
+    assert.ok(draft.source.includes("if confidence > 0.60 -> review_flag"));
+    assert.ok(graph.nodes.has("review_flag"));
+    assert.ok(graph.nodes.has("escalate_operator"));
+});

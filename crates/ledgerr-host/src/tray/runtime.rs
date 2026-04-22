@@ -14,13 +14,6 @@ use crate::settings::{AppSettings, SettingsStore};
 
 use super::{tray_menu_labels, TrayCommand, TrayState};
 
-#[cfg(windows)]
-use windows_sys::Win32::Foundation::HWND;
-#[cfg(windows)]
-use windows_sys::Win32::UI::WindowsAndMessaging::{
-    DispatchMessageW, PeekMessageW, TranslateMessage, MSG, PM_REMOVE,
-};
-
 pub fn run(store: SettingsStore) -> Result<(), Box<dyn std::error::Error>> {
     let settings = store.load()?;
     let state = Arc::new(Mutex::new(TrayState::from_settings(&settings)));
@@ -274,17 +267,6 @@ fn run_tray_pump(
     control_rx: mpsc::Receiver<TrayControl>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     loop {
-        #[cfg(windows)]
-        {
-            let mut msg = MSG::default();
-            while unsafe { PeekMessageW(&mut msg, HWND::default(), 0, 0, PM_REMOVE) } != 0 {
-                unsafe {
-                    TranslateMessage(&msg);
-                    DispatchMessageW(&msg);
-                }
-            }
-        }
-
         match control_rx.recv_timeout(Duration::from_millis(50)) {
             Ok(TrayControl::SetState(state)) => {
                 let labels = tray_menu_labels(&state);
@@ -354,6 +336,14 @@ fn handle_command(
                 },
             };
             settings.last_test_result = Some(test_result);
+            store.save(&settings)?;
+
+            sync_state(state, &settings, tray);
+            Ok(false)
+        }
+        TrayCommand::ToggleStartMinimizedToTray(enabled) => {
+            let mut settings = store.load()?;
+            settings.start_minimized_to_tray = enabled;
             store.save(&settings)?;
 
             sync_state(state, &settings, tray);

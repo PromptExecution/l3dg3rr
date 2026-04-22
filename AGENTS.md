@@ -338,6 +338,17 @@ Treat this as a standing operational gate, not a one-time migration task.
   - Prefer worked sample blocks in visualization-heavy chapters over abstract prose. At minimum, include one happy-path sample and one branch-heavy sample that can be pasted into the live editor.
   - The future `match` operator contract is documented in `book/src/match-visualization-plan.md`; keep Mermaid and isometric semantics aligned to that plan instead of inventing per-view behavior.
   - When adding new modules, add corresponding chapter in `book/src/` and update `book/src/SUMMARY.md`.
+- 2026-04-22: docs Rhai mutation playground is model-prompt-first.
+  - The browser-side mdBook playground prepares constrained prompts and deterministic example drafts; it does not call an LLM directly from the browser.
+  - Keep the prompt contract limited to supported Rhai diagram DSL lines (`fn`, `if`, `match`) plus concise explanation text.
+  - Default examples should use the tool-tray local provider label (`phi-4-mini-reasoning`) unless a specific external model is configured in the host settings.
+- 2026-04-22: Slint host UI needs a tested Rust state seam.
+  - Keep chat transcript rendering, Rhai prompt seeding, and review diffset logging in `crates/ledgerr-host/src/chat.rs` so Linux tests exercise the UX behavior without launching Slint.
+  - `ledgerr-host` uses `unsafe_code = "deny"` instead of inheriting workspace `forbid` because Slint macro-generated code emits `allow(unsafe_code)` attributes; keep direct unsafe out of host code and keep `ledger-core` under the stricter workspace policy.
+- 2026-04-22: tool-tray internal webserver owns local chat and docs playbook routes.
+  - Use `crates/ledgerr-host/src/internal_openai.rs` for the localhost OpenAI-compatible contract: `/v1/models`, `/v1/chat/completions`, and `/docs/`.
+  - The Slint window should switch providers by setting tested `ChatSettings`: `phi-4-mini-reasoning` on `http://127.0.0.1:15115/v1/chat/completions` for local mode, or the cloud OpenAI-compatible URL for remote mode.
+  - Build mdBook assets before expecting `/docs/` to serve useful content; use `just host-playbook-window` for the packaged playbook launch path.
 
 
 <!-- GSD:profile-start -->

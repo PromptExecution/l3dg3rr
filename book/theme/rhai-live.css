@@ -168,6 +168,47 @@
     padding: 0.8rem 1rem 1rem;
 }
 
+.rhai-model-chat {
+    border-top: 1px solid var(--rhai-line);
+    padding: 0.9rem 1rem 1rem;
+    display: grid;
+    gap: 0.65rem;
+    background: color-mix(in srgb, var(--rhai-surface) 88%, #ffffff 12%);
+}
+
+.rhai-model-chat-title {
+    font-weight: 700;
+    color: inherit;
+}
+
+.rhai-model-chat-input {
+    min-height: 4.75rem;
+    resize: vertical;
+    border: 1px solid var(--rhai-line);
+    border-radius: 8px;
+    padding: 0.7rem;
+    font: 0.92rem/1.45 var(--font-family, system-ui);
+    color: inherit;
+    background: color-mix(in srgb, var(--bg, #ffffff) 94%, #ecfeff 6%);
+}
+
+.rhai-model-chat-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.rhai-model-chat-output {
+    margin: 0;
+    max-height: 18rem;
+    overflow: auto;
+    border: 1px solid var(--rhai-line);
+    border-radius: 8px;
+    padding: 0.75rem;
+    white-space: pre-wrap;
+    background: color-mix(in srgb, var(--bg, #ffffff) 90%, #f1f5f9 10%);
+}
+
 .rhai-diag-panel {
     margin-top: 0.85rem;
     border-top: 1px solid var(--rhai-line);

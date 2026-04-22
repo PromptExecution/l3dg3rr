@@ -25,9 +25,29 @@ wsl2-pwsh-build:
 wsl2-pwsh-run-tray:
     powershell.exe -NoProfile -Command '$env:PATH = "C:\Users\wendy\.cargo\bin;C:\msys64\mingw64\bin;" + $env:PATH; Set-Location "C:\Users\wendy\l3dg3rr"; cargo build -p ledgerr-host --bin host-tray | Out-Null; Get-Process host-tray -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Milliseconds 250; Start-Process -FilePath "C:\Users\wendy\l3dg3rr\target\debug\host-tray.exe" -WorkingDirectory "C:\Users\wendy\l3dg3rr"'
 
-# Rebuild and launch the separate Slint host window on Windows.
+# Rebuild and launch the separate Slint host window on Windows (no local LLM).
+# The internal endpoint falls back to the deterministic Phi-4 stub.
 wsl2-pwsh-run-window:
     powershell.exe -NoProfile -Command '$env:PATH = "C:\Users\wendy\.cargo\bin;C:\msys64\mingw64\bin;" + $env:PATH; Set-Location "C:\Users\wendy\l3dg3rr"; cargo build -p ledgerr-host --bin host-window | Out-Null; Start-Process -FilePath "C:\Users\wendy\l3dg3rr\target\debug\host-window.exe" -WorkingDirectory "C:\Users\wendy\l3dg3rr"'
+
+# Same as above but compiled with the real mistralrs Phi-4 Mini backend.
+# Requires the model GGUF at models/unsloth/Phi-4-mini-reasoning-GGUF/ (just phi4-reasoning-symlink).
+# First inference call writes a ~2 GB patched sidecar; subsequent calls reuse it.
+wsl2-pwsh-run-window-phi4:
+    powershell.exe -NoProfile -Command '$env:PATH = "C:\Users\wendy\.cargo\bin;C:\msys64\mingw64\bin;" + $env:PATH; Set-Location "C:\Users\wendy\l3dg3rr"; cargo build -p ledgerr-host --bin host-window --features mistralrs-llm | Out-Null; Start-Process -FilePath "C:\Users\wendy\l3dg3rr\target\debug\host-window.exe" -WorkingDirectory "C:\Users\wendy\l3dg3rr"'
+
+# Build the mdBook playbook assets, then launch the Slint host window whose
+# internal localhost server serves both `/v1/chat/completions` and `/docs/`.
+# Uses the deterministic Phi-4 stub backend (no GGUF required).
+host-playbook-window:
+    just docgen
+    just wsl2-pwsh-run-window
+
+# Same as host-playbook-window but with the real local Phi-4 Mini model.
+# Requires: just phi4-reasoning-symlink (model file on D: drive).
+host-playbook-window-phi4:
+    just docgen
+    just wsl2-pwsh-run-window-phi4
 
 # Build docs, start Windows-local HTTP server, and open browser for live Rhai diagram editing.
 wsl2-pwsh-docserve:
