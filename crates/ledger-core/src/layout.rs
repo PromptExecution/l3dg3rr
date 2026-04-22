@@ -11,6 +11,7 @@ pub fn iso_project(p: Vec3, scale: f32, origin: Vec2) -> Vec2 {
 
 pub struct ForceLayout {
     positions: HashMap<usize, Vec3>,
+    #[allow(dead_code)]
     velocities: HashMap<usize, Vec3>,
 }
 
@@ -26,10 +27,10 @@ impl ForceLayout {
 
     pub fn for_pipeline() -> Self {
         let nodes = create_pipeline_nodes();
-        let edges = create_pipeline_edges();
+        let _edges = create_pipeline_edges();
         let mut positions = HashMap::new();
         let velocities = HashMap::new();
-        for (i, node) in nodes.iter().enumerate() {
+        for (i, _node) in nodes.iter().enumerate() {
             let angle = (i as f32) * std::f32::consts::TAU / nodes.len() as f32;
             positions.insert(
                 i,

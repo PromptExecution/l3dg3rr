@@ -85,7 +85,7 @@ impl PipelineState<Ingested> {
 }
 
 impl PipelineState<Validated> {
-    pub fn classify(self, category: String) -> PipelineState<Classified> {
+    pub fn classify(self, _category: String) -> PipelineState<Classified> {
         PipelineState {
             document_id: self.document_id,
             source_ref: self.source_ref,
@@ -98,7 +98,7 @@ impl PipelineState<Validated> {
 }
 
 impl PipelineState<Classified> {
-    pub fn reconcile(self, xero_id: Option<String>) -> PipelineState<Reconciled> {
+    pub fn reconcile(self, _xero_id: Option<String>) -> PipelineState<Reconciled> {
         PipelineState {
             document_id: self.document_id,
             source_ref: self.source_ref,
@@ -365,6 +365,7 @@ impl ConstraintSolver for KasuariSolver {
 pub struct PipelineBuilder {
     jurisdiction: crate::legal::Jurisdiction,
     min_confidence: f32,
+    #[allow(dead_code)]
     max_retries: usize,
     enable_legal_verification: bool,
 }

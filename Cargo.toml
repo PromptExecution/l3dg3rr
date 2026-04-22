@@ -34,4 +34,7 @@ anyhow = "1"
 ledger-core = { path = "crates/ledger-core" }
 
 [workspace.lints.rust]
-unsafe_code = "forbid"
+# "deny" rather than "forbid" so proc-macro expansions (e.g. slint::slint!)
+# can emit #[allow(unsafe_code)] for their own generated unsafe blocks without
+# triggering E0453.  The rule is still enforced at error level everywhere.
+unsafe_code = "deny"

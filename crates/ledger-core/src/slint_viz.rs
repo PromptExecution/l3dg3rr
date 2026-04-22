@@ -3,7 +3,6 @@
 //! This module provides the texture bridge and UI components for rendering
 //! the animated pipeline graph in a Slint window on Windows.
 
-use crate::graph::NodeData;
 use crate::layout::ForceLayout;
 use crate::render::GraphRenderer;
 use std::sync::{Arc, RwLock};

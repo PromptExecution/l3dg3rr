@@ -151,7 +151,7 @@ impl MetaCtx {
         });
 
         // Promote recoverable issues into MetaFlags
-        for issue in issues.iter().filter(|i| {
+        for _issue in issues.iter().filter(|i| {
             matches!(i.disposition, Disposition::Recoverable)
         }) {
             next.flags.push(MetaFlag::LowUpstreamConf {
