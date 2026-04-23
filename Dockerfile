@@ -23,6 +23,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 COPY xtask ./xtask
 COPY docs ./docs
+COPY rules ./rules
 COPY scripts ./scripts
 
 RUN cargo test --workspace --all-features
