@@ -125,6 +125,9 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           use-mermaid: true
 
+      - name: Install mdbook binaries
+        run: cargo install mdbook mdbook-mermaid --locked
+
       - name: Install mdbook-admonish
         run: cargo install mdbook-admonish --locked
 
