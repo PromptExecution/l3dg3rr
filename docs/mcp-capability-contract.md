@@ -57,31 +57,31 @@ API layering:
 
 ```json
 {
-  "id": 3,
   "jsonrpc": "2.0",
+  "id": 3,
   "method": "tools/call",
   "params": {
+    "name": "ledgerr_documents",
     "arguments": {
       "action": "ingest_pdf",
-      "extracted_rows": [
-        {
-          "account_id": "WF-BH-CHK",
-          "amount": "-42.50",
-          "date": "2023-01-05",
-          "description": "Coffee Beans",
-          "source_ref": "wf-2023-01.rkyv"
-        }
-      ],
-      "journal_path": "/tmp/demo.beancount",
       "pdf_path": "WF--BH-CHK--2023-01--statement.pdf",
+      "journal_path": "/tmp/demo.beancount",
+      "workbook_path": "/tmp/demo.xlsx",
       "raw_context_bytes": [
         99,
         116,
         120
       ],
-      "workbook_path": "/tmp/demo.xlsx"
-    },
-    "name": "ledgerr_documents"
+      "extracted_rows": [
+        {
+          "account_id": "WF-BH-CHK",
+          "date": "2023-01-05",
+          "amount": "-42.50",
+          "description": "Coffee Beans",
+          "source_ref": "wf-2023-01.rkyv"
+        }
+      ]
+    }
   }
 }
 ```
@@ -90,20 +90,20 @@ API layering:
 
 ```json
 {
-  "id": 4,
   "jsonrpc": "2.0",
+  "id": 4,
   "method": "tools/call",
   "params": {
+    "name": "ledgerr_reconciliation",
     "arguments": {
       "action": "commit",
+      "source_total": "42.50",
       "extracted_total": "42.50",
       "posting_amounts": [
         "-42.50",
         "42.50"
-      ],
-      "source_total": "42.50"
-    },
-    "name": "ledgerr_reconciliation"
+      ]
+    }
   }
 }
 ```
@@ -119,17 +119,17 @@ API layering:
 
 ```json
 {
-  "id": 7,
   "jsonrpc": "2.0",
+  "id": 7,
   "method": "tools/call",
   "params": {
+    "name": "ledgerr_tax",
     "arguments": {
       "action": "evidence_chain",
-      "document_ref": "wf-2023-01.rkyv",
+      "ontology_path": "/tmp/ontology.json",
       "from_entity_id": "WF-BH-CHK",
-      "ontology_path": "/tmp/ontology.json"
-    },
-    "name": "ledgerr_tax"
+      "document_ref": "wf-2023-01.rkyv"
+    }
   }
 }
 ```
