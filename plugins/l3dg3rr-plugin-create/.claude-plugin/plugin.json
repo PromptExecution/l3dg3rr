@@ -32,16 +32,16 @@
       "args": [
         "run",
         "-p",
-        "turbo-mcp",
+        "ledgerr-mcp",
         "--bin",
-        "turbo-mcp-server"
+        "ledgerr-mcp-server"
       ],
       "env": {
         "RUST_LOG": "info"
       }
     },
     "l3dg3rr-binary": {
-      "command": "./target/release/turbo-mcp-server",
+      "command": "./target/release/ledgerr-mcp-server",
       "args": [],
       "env": {
         "RUST_LOG": "info"
@@ -61,9 +61,9 @@
         "cargo",
         "run",
         "-p",
-        "turbo-mcp",
+        "ledgerr-mcp",
         "--bin",
-        "turbo-mcp-server"
+        "ledgerr-mcp-server"
       ]
     },
     "l3dg3rr-python": {

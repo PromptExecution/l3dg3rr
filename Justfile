@@ -310,10 +310,10 @@ docgen-check:
     @if [ ! -x ~/.cargo/bin/mdbook-mermaid ]; then echo "error: mdbook-mermaid not found — run: cargo install mdbook-mermaid"; exit 1; fi
     @if [ ! -x ~/.cargo/bin/mdbook-rhai-mermaid ]; then cargo install --path crates/mdbook-rhai-mermaid --quiet; fi
     PATH="$HOME/.cargo/bin:$PATH" ~/.cargo/bin/mdbook build book
-    @echo "Checking for rendered SVG diagrams..."
-    @grep -q '<svg' book/book/theory.html && echo "✓ theory.html has SVG diagrams" || { echo "error: no SVG in theory.html"; exit 1; }
-    @grep -q '<svg' book/book/pipeline.html && echo "✓ pipeline.html has SVG diagrams" || { echo "error: no SVG in pipeline.html"; exit 1; }
-    @grep -q '<svg' book/book/visualize.html && echo "✓ visualize.html has SVG diagrams" || { echo "error: no SVG in visualize.html"; exit 1; }
+    @echo "Checking for generated Mermaid diagram blocks..."
+    @grep -q 'class="mermaid"' book/book/theory.html && echo "✓ theory.html has generated Mermaid diagrams" || { echo "error: no Mermaid diagrams in theory.html"; exit 1; }
+    @grep -q 'class="mermaid"' book/book/pipeline.html && echo "✓ pipeline.html has generated Mermaid diagrams" || { echo "error: no Mermaid diagrams in pipeline.html"; exit 1; }
+    @grep -q 'class="mermaid"' book/book/visualize.html && echo "✓ visualize.html has generated Mermaid diagrams" || { echo "error: no Mermaid diagrams in visualize.html"; exit 1; }
     @echo "Verifying cross-references..."
     @grep -q 'href="./graph.html"' book/book/intro.html && echo "✓ intro.html references graph.html" || exit 1
     @grep -q 'href="./validation.html"' book/book/pipeline.html && echo "✓ pipeline.html references validation.html" || exit 1
