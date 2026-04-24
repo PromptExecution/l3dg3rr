@@ -8,7 +8,7 @@ import sys
 
 def build_command(args: argparse.Namespace) -> list[str]:
     if args.mode == "cargo":
-        return ["cargo", "run", "-p", "turbo-mcp", "--bin", "turbo-mcp-server"]
+        return ["cargo", "run", "-p", "ledgerr-mcp", "--bin", "ledgerr-mcp-server"]
     if args.mode == "binary":
         return [args.binary]
     if args.mode == "docker":
@@ -25,15 +25,15 @@ def build_command(args: argparse.Namespace) -> list[str]:
             "cargo",
             "run",
             "-p",
-            "turbo-mcp",
+            "ledgerr-mcp",
             "--bin",
-            "turbo-mcp-server",
+            "ledgerr-mcp-server",
         ]
     raise ValueError(f"unsupported mode: {args.mode}")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Launch l3dg3rr turbo-mcp server")
+    parser = argparse.ArgumentParser(description="Launch l3dg3rr ledgerr-mcp server")
     parser.add_argument(
         "--mode",
         choices=["cargo", "binary", "docker"],
@@ -42,7 +42,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--binary",
-        default="./target/release/turbo-mcp-server",
+        default="./target/release/ledgerr-mcp-server",
         help="Path to compiled server binary when --mode binary",
     )
     parser.add_argument(

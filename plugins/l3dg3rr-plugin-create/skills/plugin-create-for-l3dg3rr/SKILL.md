@@ -18,20 +18,20 @@ Use this skill when setting up or troubleshooting `l3dg3rr` in Claude Cowork Plu
 ## MCP runtime choices
 
 - Cargo (default in plugin manifest):
-  - `cargo run -p turbo-mcp --bin turbo-mcp-server`
+  - `cargo run -p ledgerr-mcp --bin ledgerr-mcp-server`
 - Prebuilt binary:
-  - `./target/release/turbo-mcp-server`
+  - `./target/release/ledgerr-mcp-server`
 - Docker:
-  - `docker run -i --rm -v "$PWD:/workspace" -w /workspace tax-ledger:dev cargo run -p turbo-mcp --bin turbo-mcp-server`
+  - `docker run -i --rm -v "$PWD:/workspace" -w /workspace tax-ledger:dev cargo run -p ledgerr-mcp --bin ledgerr-mcp-server`
 - Python launcher (local package in plugin):
   - `python -m l3dg3rr_mcp_launcher --mode cargo`
 
 ## First-call validation
 
-1. `tools/list` and confirm at least one `l3dg3rr_*` tool appears.
-2. `tools/call l3dg3rr_get_pipeline_status {}`.
-3. `tools/call l3dg3rr_list_accounts {}`.
-4. If available, run one domain call such as `l3dg3rr_ontology_export_snapshot`.
+1. `tools/list` and confirm the 8 top-level `ledgerr_*` capability tools appear.
+2. `tools/call ledgerr_documents {"action":"pipeline_status"}`.
+3. `tools/call ledgerr_documents {"action":"list_accounts"}`.
+4. If available, run one domain call such as `tools/call ledgerr_ontology {"action":"export_snapshot"}`.
 
 For local plugin development and reload workflow (recommended):
 
