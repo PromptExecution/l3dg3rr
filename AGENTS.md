@@ -329,7 +329,7 @@ Treat this as a standing operational gate, not a one-time migration task.
   - Include "Related Chapters" section in each chapter for navigation.
   - Use Option/Result/Either monadic patterns in code examples to reflect real API style.
   - Theory of Operation chapter documents Novel Theory of Tool (NTTP) pattern.
-  - CI runs `just docgen-check` as part of docs job; validates SVG + cross-references.
+  - CI runs `just docgen-check` as part of docs job; validates generated Mermaid blocks, cross-references, live-editor JS syntax, and live-editor unit tests. Static mdBook output contains `<pre class="mermaid">`; SVG rendering happens in the browser/live editor.
   - `just docgen` - build local docs, `just docgen-check` - validate diagrams and links, `just docserve` - serve the built book locally with the live Rhai diagram editor.
   - Windows/WSL startup for live docs is memoized in `scripts/docserve-live.pwsh` and invoked via `just wsl2-pwsh-docserve`.
   - The live docs editor now has two synchronized render modes for supported Rhai diagram blocks: `isometric-3d` and `mermaid-2d`.
@@ -349,6 +349,10 @@ Treat this as a standing operational gate, not a one-time migration task.
   - Use `crates/ledgerr-host/src/internal_openai.rs` for the localhost OpenAI-compatible contract: `/v1/models`, `/v1/chat/completions`, and `/docs/`.
   - The Slint window should switch providers by setting tested `ChatSettings`: `phi-4-mini-reasoning` on `http://127.0.0.1:15115/v1/chat/completions` for local mode, or the cloud OpenAI-compatible URL for remote mode.
   - Build mdBook assets before expecting `/docs/` to serve useful content; use `just host-playbook-window` for the packaged playbook launch path.
+- 2026-04-24: README/product framing is bookkeeping-first with visual workflow graph as the organizing model.
+  - Describe `l3dg3rr` as a strongly typed, ontologically linked graph of scriptable visual-first workflows for supervised AI/LLM ETL into CPA-auditable bookkeeping artifacts.
+  - Keep README structure MECE: bookkeeping truth, typed domain model, ontology graph, scriptable policy, workflow control, visualization, MCP/agent boundary, and operator host.
+  - Clarify Rhai surfaces separately: transaction rules use `fn classify(tx)`, workflow compiler output may emit Rhai `switch`, and docs visualization uses the narrow `match expr => Arm -> target` DSL.
 
 
 <!-- GSD:profile-start -->

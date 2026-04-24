@@ -43,6 +43,7 @@
         report: { emoji: "📊", color: "#166534", polygon: [[-0.9, -0.6], [0.9, -0.6], [0.7, 0.8], [-0.7, 0.8]] },
         task: { emoji: "⚙️", color: "#475569", polygon: [[-0.9, -0.6], [0.9, -0.6], [0.9, 0.6], [-0.9, 0.6]] },
         event: { emoji: "📅", color: "#7e22ce", polygon: [[-0.8, -0.6], [-0.5, -0.6], [-0.5, -0.9], [-0.3, -0.9], [-0.3, -0.6], [0.3, -0.6], [0.3, -0.9], [0.5, -0.9], [0.5, -0.6], [0.8, -0.6], [0.8, 0.8], [-0.8, 0.8]] },
+        decision: { emoji: "❓", color: "#b91c1c", polygon: regularPolygon(4, 0.95) },
         
         // Process Idioms (Promoted to categories for unique shapes)
         ingest: { 
@@ -100,7 +101,7 @@
 
     function inferSemanticType(label, kind) {
         const normalized = String(label || "").toLowerCase();
-        if (kind === "decision" || kind === "match") return "logic";
+        if (kind === "decision" || kind === "match") return "decision";
         if (/\b(source|input|file|statement|blake3|routing|filename)\b/.test(normalized)) return "data";
         if (/\b(llm|ai|gpt|phi|reasoning|model|runtime)\b/.test(normalized)) return "intelligence";
         if (/\b(legal|rule|constraint|hard|law|code|solver|registry)\b/.test(normalized)) return "rule";
@@ -123,14 +124,24 @@
         const pipelineEdges = []; const conditionals = []; const matchArms = [];
         const diagnostics = [];
 
-        function addNode(id, label, kind) {
+        function addNode(id, label, kind, meta) {
             if (!graph.nodes.has(id)) {
                 graph.order.push(id);
-                graph.nodes.set(id, { id, label, kind, semanticType: inferSemanticType(label, kind) });
+                graph.nodes.set(id, Object.assign({
+                    id,
+                    identityKey: id,
+                    label,
+                    kind,
+                    semanticType: inferSemanticType(label, kind),
+                    armIndex: null,
+                    isDefault: false,
+                }, meta || {}));
             }
         }
 
-        function addEdge(from, to, label) { graph.edges.push({ from, to, label }); }
+        function addEdge(from, to, label, meta) {
+            graph.edges.push(Object.assign({ from, to, label, armIndex: null, isDefault: false }, meta || {}));
+        }
 
         function parseCondition(expr, target) {
             const ops = [">=", "<=", "!=", ">", "<", "=="];
@@ -145,6 +156,38 @@
             return null;
         }
 
+        function addDiagnostic(kind, index, message, line) {
+            diagnostics.push({ kind, line: index + 1, message, source: line });
+        }
+
+        function opToWord(op) {
+            return { ">": "gt", "<": "lt", ">=": "gte", "<=": "lte", "==": "eq", "!=": "ne" }[op] || "op";
+        }
+
+        function valToSafe(value) {
+            return String(value).replace(".", "_");
+        }
+
+        function isDefaultArm(arm) {
+            return ["_", "else", "otherwise", "default"].includes(String(arm || "").trim());
+        }
+
+        function emitThresholdChain(lhs, op, thresholds) {
+            const nodeIds = thresholds.map(function ([value]) {
+                return sanitizeId(`${lhs}_${opToWord(op)}_${valToSafe(value)}`);
+            });
+
+            thresholds.forEach(function ([value, target], i) {
+                const nodeId = nodeIds[i];
+                const label = `${lhs} ${op} ${value}`;
+                const targetId = sanitizeId(target);
+                addNode(nodeId, label, "decision");
+                addNode(targetId, target, "step");
+                addEdge(nodeId, targetId, "true");
+                if (i + 1 < nodeIds.length) addEdge(nodeId, nodeIds[i + 1], "false");
+            });
+        }
+
         String(source).split("\n").forEach(function (raw, index) {
             const line = raw.split("//")[0].trim(); if (!line) return;
             if (line.startsWith("fn ")) {
@@ -154,6 +197,8 @@
                     const t = p[1].trim();
                     if (n && t) { pipelineEdges.push([n, t]); return; }
                 }
+                addDiagnostic("error", index, "Malformed fn statement; expected `fn source() -> target`.", line);
+                return;
             }
             if (line.startsWith("if ")) {
                 const p = line.slice(3).split("->");
@@ -166,6 +211,8 @@
                         return;
                     }
                 }
+                addDiagnostic("error", index, "Malformed if statement; expected `if expression -> target`.", line);
+                return;
             }
             if (line.startsWith("match ")) {
                 const p1 = line.slice(6).split("=>");
@@ -173,7 +220,10 @@
                     const p2 = p1[1].split("->");
                     if (p2.length === 2) { matchArms.push({ expr: p1[0].trim(), arm: p2[0].trim(), target: p2[1].trim() }); return; }
                 }
+                addDiagnostic("error", index, "Malformed match statement; expected `match expr => Arm -> target`.", line);
+                return;
             }
+            addDiagnostic("info", index, "Ignored non-diagram Rhai line.", line);
         });
 
         pipelineEdges.forEach(function ([n, t]) {
@@ -181,16 +231,59 @@
             addNode(ni, n, "step"); addNode(ti, t, "step"); addEdge(ni, ti, null);
         });
 
+        const gtGroups = new Map();
+        const ltGroups = new Map();
+        const plainConds = [];
         conditionals.forEach(function (c) {
-            const ci = sanitizeId(c.lhs + c.op + c.rhs); const ti = sanitizeId(c.target);
-            addNode(ci, c.lhs + " " + c.op + " " + c.rhs, "decision"); addNode(ti, c.target, "step");
-            addEdge(ci, ti, "true");
+            if ((c.op === ">" || c.op === "<") && Number.isFinite(Number(c.rhs))) {
+                const groups = c.op === ">" ? gtGroups : ltGroups;
+                const group = groups.get(c.lhs) || [];
+                group.push([Number(c.rhs), c.target]);
+                groups.set(c.lhs, group);
+            } else {
+                plainConds.push(c);
+            }
         });
 
+        gtGroups.forEach(function (thresholds, lhs) {
+            thresholds.sort(function (a, b) { return b[0] - a[0]; });
+            emitThresholdChain(lhs, ">", thresholds);
+        });
+
+        ltGroups.forEach(function (thresholds, lhs) {
+            thresholds.sort(function (a, b) { return a[0] - b[0]; });
+            emitThresholdChain(lhs, "<", thresholds);
+        });
+
+        plainConds.forEach(function (c) {
+            if (!c.op) {
+                const ci = c.lhs; const ti = sanitizeId(c.target);
+                addNode(ci, c.lhs, "decision"); addNode(ti, c.target, "step");
+                addEdge(ci, ti, null);
+            } else {
+                const label = `${c.lhs} ${c.op} ${c.rhs}`;
+                const ci = sanitizeId(label); const ti = sanitizeId(c.target);
+                addNode(ci, label, "decision"); addNode(ti, c.target, "step");
+                addEdge(ci, ti, "true");
+            }
+        });
+
+        const matchGroups = new Map();
         matchArms.forEach(function (m) {
-            const mi = sanitizeId("match_" + m.expr); const ti = sanitizeId(m.target);
-            addNode(mi, "match " + m.expr, "match"); addNode(ti, m.target, "step");
-            addEdge(mi, ti, m.arm);
+            const group = matchGroups.get(m.expr) || [];
+            group.push(m);
+            matchGroups.set(m.expr, group);
+        });
+
+        matchGroups.forEach(function (arms, expr) {
+            const mi = "match_" + sanitizeId(expr);
+            addNode(mi, "match " + expr, "match");
+            arms.forEach(function (m, armIndex) {
+                const ti = sanitizeId(m.target);
+                const defaultArm = isDefaultArm(m.arm);
+                addNode(ti, m.target, "step", { armIndex, isDefault: defaultArm });
+                addEdge(mi, ti, m.arm, { armIndex, isDefault: defaultArm });
+            });
         });
 
         return { graph, diagnostics };
@@ -205,7 +298,8 @@
             else lines.push(`    ${n.id}["${label}"]`);
         });
         graph.edges.forEach(function (e) {
-            if (e.label) lines.push(`    ${e.from} -->|"${escapeLabel(e.label)}"|${e.to}`);
+            const label = e.label && e.isDefault ? `${e.label} (default)` : e.label;
+            if (label) lines.push(`    ${e.from} -->|"${escapeLabel(label)}"|${e.to}`);
             else lines.push(`    ${e.from} --> ${e.to}`);
         });
         return lines.join("\n");
@@ -233,11 +327,82 @@
                 positions.set(id, { x: l * settings.levelGap, y: lift, z: (i - center) * settings.laneGap });
             });
         });
+
+        graph.order.forEach(function (id) {
+            const node = graph.nodes.get(id);
+            if (!node || node.kind !== "match") return;
+            const matchPos = positions.get(id) || { x: 0, y: settings.decisionLift, z: 0 };
+            const arms = graph.edges
+                .filter(function (e) { return e.from === id; })
+                .sort(function (a, b) { return (a.armIndex || 0) - (b.armIndex || 0); });
+            arms.forEach(function (edge, index) {
+                const target = graph.nodes.get(edge.to);
+                if (!target) return;
+                const lift = target.semanticType === "human" ? settings.reviewLift : (target.semanticType === "storage" ? settings.commitLift : 0);
+                const armIndex = edge.armIndex == null ? index : edge.armIndex;
+                positions.set(edge.to, {
+                    x: matchPos.x + settings.levelGap,
+                    y: lift,
+                    z: matchPos.z + armIndex * settings.laneGap,
+                });
+            });
+        });
+
+        graph.order.forEach(function (id) {
+            const parents = incoming.get(id) || [];
+            if (parents.length < 2) return;
+            const sourceMatchIds = parents
+                .map(function (edge) { return (incoming.get(edge.from) || []).find(function (parentEdge) {
+                    const parentNode = graph.nodes.get(parentEdge.from);
+                    return parentNode && parentNode.kind === "match";
+                }); })
+                .filter(Boolean)
+                .map(function (edge) { return edge.from; });
+            if (!sourceMatchIds.length) return;
+            const first = sourceMatchIds[0];
+            if (!sourceMatchIds.every(function (matchId) { return matchId === first; })) return;
+            const matchPos = positions.get(first);
+            if (!matchPos) return;
+            const widestParentX = Math.max.apply(null, parents.map(function (edge) {
+                const pos = positions.get(edge.from);
+                return pos ? pos.x : 0;
+            }));
+            const current = positions.get(id) || { y: 0 };
+            positions.set(id, {
+                x: widestParentX + settings.levelGap,
+                y: current.y,
+                z: matchPos.z,
+            });
+        });
+
         return { positions, levels, settings };
     }
 
     function isoProject(pt, scale, origin) {
         return { x: origin.x + (pt.x - pt.z) * scale * 0.866, y: origin.y + (pt.x + pt.z) * scale * 0.5 - pt.y * scale };
+    }
+
+    function base64Encode(raw) {
+        if (typeof Buffer !== "undefined") return Buffer.from(raw, "utf8").toString("base64");
+        return btoa(unescape(encodeURIComponent(raw)));
+    }
+
+    function autogeneratedModelUri(node) {
+        const gltf = {
+            asset: { version: "2.0", generator: "l3dg3rr-rhai-live-core" },
+            scene: 0,
+            scenes: [{ nodes: [0] }],
+            nodes: [{ mesh: 0, name: node.id }],
+            meshes: [{
+                name: `${node.semanticType}-node`,
+                primitives: [{
+                    attributes: {},
+                    mode: 4,
+                    extras: { autogenerated: true, semanticType: node.semanticType },
+                }],
+            }],
+        };
+        return "data:model/gltf+json;base64," + base64Encode(JSON.stringify(gltf));
     }
 
     function buildVisualizationModel(graph, options) {
@@ -254,11 +419,15 @@
         const nodes = graph.order.map(function (id) {
             const n = graph.nodes.get(id); const pt = layout.positions.get(id);
             const meta = resolveSemanticMetadata(n.semanticType);
-            return {
+            const node = {
                 id: n.id, label: n.label, semanticType: n.semanticType,
+                x: pt.x, y: pt.y, z: pt.z,
+                armIndex: n.armIndex, isDefault: n.isDefault,
                 screen: isoProject(pt, s.scale, { x: origin.x + offset.x, y: origin.y + offset.y }),
                 color: meta.color, emoji: meta.emoji, polygon: meta.polygon
             };
+            node.modelUri = autogeneratedModelUri(node);
+            return node;
         });
 
         const nodeById = new Map(nodes.map(function (n) { return [n.id, n]; }));
@@ -298,8 +467,11 @@
         }).join("");
         const front = `<polygon points="${pts.map(function (p) { return `${p.x},${p.y}`; }).join(" ")}" fill="${tint(fill, 0.08)}" stroke="${stroke}" stroke-width="1.4" />`;
         const iconY = -2;
+        const movement = prev && (prev.screen.x !== n.screen.x || prev.screen.y !== n.screen.y)
+            ? `<animateTransform attributeName="transform" attributeType="XML" type="translate" from="${prev.screen.x.toFixed(1)} ${prev.screen.y.toFixed(1)}" to="${n.screen.x.toFixed(1)} ${n.screen.y.toFixed(1)}" dur="${s.animationMs}ms" begin="0s" fill="freeze" />`
+            : "";
 
-        return `<g class="rhai-iso-node" transform="translate(${n.screen.x.toFixed(1)} ${n.screen.y.toFixed(1)})">
+        return `<g class="rhai-iso-node" data-model-uri="${n.modelUri}" transform="translate(${n.screen.x.toFixed(1)} ${n.screen.y.toFixed(1)})">${movement}
             <g class="rhai-iso-volume">${depthFaces}${front}</g>
             <circle cx="0" cy="${iconY}" r="14" fill="${fill}" />
             <g class="rhai-iso-icon" fill="#f8fafc">
@@ -314,7 +486,8 @@
         const previousById = new Map((previousScene && previousScene.nodes ? previousScene.nodes : []).map(function (n) { return [n.id, n]; }));
         const defs = `<defs><pattern id="rhai-iso-grid" width="48" height="24" patternUnits="userSpaceOnUse" patternTransform="skewX(-30)"><path d="M 0 0 L 0 24 M 0 0 L 48 0" stroke="rgba(15, 23, 42, 0.08)" stroke-width="1" fill="none" /></pattern><marker id="rhai-iso-arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#475569" /></marker></defs>`;
         const edges = scene.edges.map(function (e) {
-            const label = e.label ? `<g class="rhai-iso-edge-label"><rect x="${(e.labelPoint.x - 30).toFixed(1)}" y="${(e.labelPoint.y - 11).toFixed(1)}" width="60" height="18" rx="9" fill="rgba(248,250,252,0.9)" /><text x="${e.labelPoint.x.toFixed(1)}" y="${(e.labelPoint.y + 1).toFixed(1)}" font-size="10" text-anchor="middle" dominant-baseline="middle">${escapeHtml(e.label)}</text></g>` : "";
+            const labelWidth = e.label ? Math.max(60, String(e.label).length * 7 + 24) : 60;
+            const label = e.label ? `<g class="rhai-iso-edge-label"><rect x="${(e.labelPoint.x - labelWidth / 2).toFixed(1)}" y="${(e.labelPoint.y - 11).toFixed(1)}" width="${labelWidth.toFixed(1)}" height="18" rx="9" fill="rgba(248,250,252,0.9)" /><text x="${e.labelPoint.x.toFixed(1)}" y="${(e.labelPoint.y + 1).toFixed(1)}" font-size="10" text-anchor="middle" dominant-baseline="middle">${escapeHtml(e.label)}</text></g>` : "";
             return `<g class="rhai-iso-edge"><path d="${e.path}" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#rhai-iso-arrow)" />${label}</g>`;
         }).join("");
         const nodes = scene.nodes.map(function (n) { return renderIsometricNode(n, previousById.get(n.id), scene.settings); }).join("");
