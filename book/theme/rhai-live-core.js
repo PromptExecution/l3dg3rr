@@ -100,21 +100,26 @@
     function escapeLabel(raw) { return escapeHtml(raw).replace(/"/g, "&quot;"); }
 
     function inferSemanticType(label, kind) {
-        const normalized = String(label || "").toLowerCase();
+        // Normalise underscores → spaces so that \b word boundaries fire on each
+        // segment of compound identifiers like "document_ingestion" or "cpa_review".
+        const normalized = String(label || "").toLowerCase().replace(/_/g, " ");
         if (kind === "decision" || kind === "match") return "decision";
         if (/\b(source|input|file|statement|blake3|routing|filename)\b/.test(normalized)) return "data";
         if (/\b(llm|ai|gpt|phi|reasoning|model|runtime)\b/.test(normalized)) return "intelligence";
         if (/\b(legal|rule|constraint|hard|law|code|solver|registry)\b/.test(normalized)) return "rule";
-        if (/\b(validate|verify|check|guard|candidate|gate|verify)\b/.test(normalized)) return "security";
+        // Prefix "validat" catches both "validate" and "validation" (noun form).
+        if (/\bvalidat|\b(verify|check|guard|candidate|gate)\b/.test(normalized)) return "security";
         if (/\b(review|approve|manual|operator|human|cpa|flags)\b/.test(normalized)) return "human";
-        if (/\b(commit|publish|write|persist|done|finish|committed|sidecar)\b/.test(normalized)) return "storage";
+        // "audit" and "history" map to storage — these are terminal archive nodes.
+        if (/\b(commit|publish|write|persist|done|finish|committed|sidecar|audit|history)\b/.test(normalized)) return "storage";
         if (/\b(export|workbook|excel|xlsx|output)\b/.test(normalized)) return "report";
         if (/\b(calendar|schedule|due|deadline)\b/.test(normalized)) return "event";
-        
-        // Match specific workflow verbs
-        if (/\b(ingest|load|parse|extract|docling|bridge)\b/.test(normalized)) return "ingest";
-        if (/\b(classify|label|tag|map|route|waterfall|selector|engine)\b/.test(normalized)) return "classify";
-        if (/\b(reconcile|match|balance|ledger|catalog|xero)\b/.test(normalized)) return "reconcile";
+
+        // Prefix matches handle noun/gerund forms: "ingestion", "classification",
+        // "reconciliation" alongside the base verb forms.
+        if (/\bingest|\b(load|parse|extract|docling|bridge)\b/.test(normalized)) return "ingest";
+        if (/\bclassif|\b(label|tag|map|route|waterfall|selector|engine)\b/.test(normalized)) return "classify";
+        if (/\breconcil|\b(match|balance|ledger|catalog|xero)\b/.test(normalized)) return "reconcile";
 
         return "task";
     }
