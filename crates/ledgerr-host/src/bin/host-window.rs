@@ -23,6 +23,7 @@ use ledgerr_host::settings::{default_settings_path, ChatSettings, SettingsStore}
 slint::slint! {
     import { Button, LineEdit, ScrollView, TextEdit } from "std-widgets.slint";
 
+    // ── Sidebar navigation item ────────────────────────────────────────────────
     component NavItem inherits Rectangle {
         in property <string> label;
         in property <string> mark;
@@ -63,11 +64,10 @@ slint::slint! {
             }
         }
 
-        TouchArea {
-            clicked => { root.clicked(); }
-        }
+        TouchArea { clicked => { root.clicked(); } }
     }
 
+    // ── Tab selector used in the Logs panel ───────────────────────────────────
     component LogSelector inherits Rectangle {
         in property <string> label;
         in property <bool> selected;
@@ -88,14 +88,42 @@ slint::slint! {
             vertical-alignment: center;
         }
 
+        TouchArea { clicked => { root.clicked(); } }
+    }
+
+    // ── Model selector pill used in the Chat header bar ───────────────────────
+    // `active` highlights the pill to indicate this is the currently selected model.
+    component ModelPill inherits Rectangle {
+        in property <string> label;
+        in property <bool> active;
+        in property <bool> enabled: true;
+        callback clicked();
+
+        height: 28px;
+        border-radius: 14px;
+        border-width: 1px;
+        border-color: root.active ? #2f7dde : #c8d4df;
+        background: root.active ? #e0ecfb : (root.enabled ? #f4f8fc : #f0f0f0);
+
+        Text {
+            text: root.label;
+            color: root.active ? #17416f : (root.enabled ? #607080 : #aaaaaa);
+            font-size: 12px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+
         TouchArea {
+            enabled: root.enabled;
             clicked => { root.clicked(); }
         }
     }
 
     export component HostWindow inherits Window {
-        width: 1120px;
-        height: 860px;
+        // Initial size; the window is resizable — all inner layouts use stretch
+        // so content adapts when the user drags the window larger or smaller.
+        width: 1200px;
+        height: 900px;
         title: "l3dg3rr";
 
         in-out property <string> version_text: "Version";
@@ -114,6 +142,10 @@ slint::slint! {
         in-out property <int> active_log_panel: 0;
         in-out property <string> docs_status_text;
 
+        // Derived: true when the endpoint is the built-in local Phi-4 server.
+        // Used to highlight the correct ModelPill without extra Rust state.
+        property <bool> using_internal_phi: root.model_text == "phi-4-mini-reasoning";
+
         callback save_settings();
         callback send_message();
         callback load_rhai_rule_prompt();
@@ -121,10 +153,13 @@ slint::slint! {
         callback use_cloud_model();
         callback open_docs_playbook();
 
+        // ── Root background fills the entire window ───────────────────────────
         Rectangle {
             background: #f3f7fb;
 
             HorizontalLayout {
+
+                // ── Sidebar ───────────────────────────────────────────────────
                 Rectangle {
                     width: root.sidebar_collapsed ? 68px : 220px;
                     background: #203647;
@@ -184,31 +219,41 @@ slint::slint! {
                     }
                 }
 
+                // ── Main content column ───────────────────────────────────────
                 VerticalLayout {
                     padding: 16px;
-                    spacing: 12px;
+                    spacing: 8px;
 
-                    Text {
-                        text: "l3dg3rr tool tray";
-                        color: #114477;
-                        font-size: 26px;
+                    // App header row: title left, status right
+                    HorizontalLayout {
+                        height: 36px;
+                        alignment: space-between;
+
+                        Text {
+                            text: "l3dg3rr tool tray";
+                            color: #0f2d4a;
+                            font-size: 22px;
+                            vertical-alignment: center;
+                        }
+
+                        Text {
+                            text: root.status_text;
+                            color: #405566;
+                            font-size: 12px;
+                            horizontal-alignment: right;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
                     }
 
-                    Text {
-                        text: root.status_text;
-                        color: #223344;
-                        wrap: word-wrap;
-                    }
-
-                    // Panel switcher: all panels share the same Rectangle container so
-                    // they stack at (0,0).  `visible` controls which one appears without
-                    // reserving layout space for the hidden panels.  Putting siblings in a
-                    // VerticalLayout causes invisible items with explicit heights to still
-                    // occupy their declared height, pushing visible panels off-screen.
+                    // Panel switcher: all panels share one stacking Rectangle so
+                    // visible:false on a sibling does not consume layout space.
+                    // vertical-stretch: 1 makes this Rectangle fill the remaining
+                    // window height so all panels scale when the window is resized.
                     Rectangle {
-                        height: 740px;
+                        vertical-stretch: 1;
 
-                        // ── Chat ─────────────────────────────────────────────────────────
+                        // ── Chat ─────────────────────────────────────────────
                         Rectangle {
                             visible: root.active_panel == 0;
                             width: parent.width;
@@ -219,30 +264,143 @@ slint::slint! {
                             border-radius: 8px;
 
                             VerticalLayout {
-                                padding: 12px;
+                                padding: 16px;
                                 spacing: 10px;
 
-                                Text {
-                                    text: "Chat";
-                                    color: #223344;
-                                    font-size: 18px;
+                                // ── Chat header: title + active-model badge ───
+                                HorizontalLayout {
+                                    height: 36px;
+                                    alignment: space-between;
+
+                                    Text {
+                                        text: "Chat";
+                                        color: #0f2d4a;
+                                        font-size: 20px;
+                                        vertical-alignment: center;
+                                    }
+
+                                    // Active model badge — shows exactly which model
+                                    // will receive the next message.
+                                    Rectangle {
+                                        width: 280px;
+                                        height: 28px;
+                                        border-radius: 14px;
+                                        border-width: 1px;
+                                        border-color: #2f7dde;
+                                        background: root.using_internal_phi ? #e0ecfb : #fff8e8;
+
+                                        HorizontalLayout {
+                                            padding-left: 12px;
+                                            padding-right: 12px;
+                                            spacing: 6px;
+
+                                            Text {
+                                                text: root.using_internal_phi ? "⚡" : "☁";
+                                                font-size: 13px;
+                                                vertical-alignment: center;
+                                            }
+
+                                            Text {
+                                                text: root.model_text == "" ? "No model — go to Settings" : root.model_text;
+                                                color: #17416f;
+                                                font-size: 12px;
+                                                vertical-alignment: center;
+                                                overflow: elide;
+                                            }
+                                        }
+                                    }
                                 }
 
+                                // ── Model quick-select bar ────────────────────
+                                // Switch models without leaving the Chat panel.
+                                // The highlighted pill is the currently active model.
                                 HorizontalLayout {
-                                    spacing: 10px;
-                                    height: 150px;
+                                    height: 32px;
+                                    spacing: 8px;
+                                    alignment: start;
+
+                                    Text {
+                                        text: "Model:";
+                                        color: #607080;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                        width: 48px;
+                                    }
+
+                                    ModelPill {
+                                        width: 180px;
+                                        label: "⚡ Internal Phi-4 Mini";
+                                        active: root.using_internal_phi;
+                                        enabled: !root.busy;
+                                        clicked => { root.use_internal_phi(); }
+                                    }
+
+                                    ModelPill {
+                                        width: 150px;
+                                        label: "☁ Cloud / OpenAI";
+                                        active: !root.using_internal_phi && root.model_text != "";
+                                        enabled: !root.busy;
+                                        clicked => { root.use_cloud_model(); }
+                                    }
+
+                                    Text {
+                                        visible: !root.using_internal_phi && root.model_text != "";
+                                        text: "— edit endpoint & key in Settings";
+                                        color: #8099aa;
+                                        font-size: 11px;
+                                        vertical-alignment: center;
+                                    }
+                                }
+
+                                // ── Transcript (stretches to fill) ────────────
+                                Rectangle {
+                                    vertical-stretch: 1;
+                                    background: #f6f9fd;
+                                    border-color: #d4dfe9;
+                                    border-width: 1px;
+                                    border-radius: 8px;
+
+                                    VerticalLayout {
+                                        padding: 12px;
+                                        spacing: 4px;
+
+                                        Text {
+                                            text: "Transcript";
+                                            color: #607080;
+                                            font-size: 11px;
+                                        }
+
+                                        ScrollView {
+                                            vertical-stretch: 1;
+                                            Text {
+                                                width: parent.width;
+                                                text: root.transcript_text;
+                                                color: #1a2b3c;
+                                                font-size: 13px;
+                                                wrap: word-wrap;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // ── Input area (fixed height at bottom) ───────
+                                HorizontalLayout {
+                                    spacing: 12px;
+                                    height: 120px;
 
                                     TextEdit {
+                                        horizontal-stretch: 1;
                                         text <=> root.draft_message_text;
                                         enabled: !root.busy;
                                     }
 
                                     VerticalLayout {
                                         spacing: 8px;
-                                        width: 180px;
+                                        width: 160px;
+                                        alignment: start;
 
                                         Button {
-                                            text: root.busy ? "Sending..." : "Send Chat";
+                                            text: root.busy ? "Sending…" : "Send";
                                             enabled: !root.busy;
                                             clicked => { root.send_message(); }
                                         }
@@ -254,33 +412,10 @@ slint::slint! {
                                         }
                                     }
                                 }
-
-                                Rectangle {
-                                    background: #f8fbff;
-                                    border-color: #d4dfe9;
-                                    border-width: 1px;
-                                    border-radius: 8px;
-
-                                    VerticalLayout {
-                                        padding: 8px;
-                                        spacing: 6px;
-
-                                        Text { text: "Transcript"; color: #445566; }
-
-                                        ScrollView {
-                                            Text {
-                                                width: parent.width;
-                                                text: root.transcript_text;
-                                                color: #223344;
-                                                wrap: word-wrap;
-                                            }
-                                        }
-                                    }
-                                }
                             }
                         }
 
-                        // ── Logs ──────────────────────────────────────────────────────────
+                        // ── Logs ─────────────────────────────────────────────
                         Rectangle {
                             visible: root.active_panel == 1;
                             width: parent.width;
@@ -291,19 +426,19 @@ slint::slint! {
                             border-radius: 8px;
 
                             VerticalLayout {
-                                padding: 12px;
+                                padding: 16px;
                                 spacing: 10px;
-                                alignment: start;
 
                                 Text {
                                     text: "Logs";
-                                    color: #223344;
-                                    font-size: 18px;
+                                    color: #0f2d4a;
+                                    font-size: 20px;
                                 }
 
                                 HorizontalLayout {
                                     spacing: 6px;
                                     height: 32px;
+                                    alignment: start;
 
                                     LogSelector {
                                         label: "Transport";
@@ -318,9 +453,10 @@ slint::slint! {
                                     }
                                 }
 
-                                // Log sub-panels: same stacking pattern, inner container
+                                // Log sub-panels use the same stacking pattern and
+                                // stretch to fill remaining space in the outer panel.
                                 Rectangle {
-                                    height: 642px;
+                                    vertical-stretch: 1;
 
                                     Rectangle {
                                         visible: root.active_log_panel == 0;
@@ -332,16 +468,18 @@ slint::slint! {
                                         border-radius: 8px;
 
                                         VerticalLayout {
-                                            padding: 8px;
+                                            padding: 12px;
                                             spacing: 6px;
 
-                                            Text { text: "Rig/OpenAI Transport"; color: #445566; }
+                                            Text { text: "Rig / OpenAI Transport"; color: #445566; font-size: 12px; }
 
                                             ScrollView {
+                                                vertical-stretch: 1;
                                                 Text {
                                                     width: parent.width;
                                                     text: root.rig_prompt_preview_text;
                                                     color: #223344;
+                                                    font-size: 13px;
                                                     wrap: word-wrap;
                                                 }
                                             }
@@ -358,16 +496,18 @@ slint::slint! {
                                         border-radius: 8px;
 
                                         VerticalLayout {
-                                            padding: 8px;
+                                            padding: 12px;
                                             spacing: 6px;
 
-                                            Text { text: "Review Diffsets"; color: #665533; }
+                                            Text { text: "Review Diffsets"; color: #665533; font-size: 12px; }
 
                                             ScrollView {
+                                                vertical-stretch: 1;
                                                 Text {
                                                     width: parent.width;
                                                     text: root.review_log_text;
                                                     color: #332a1c;
+                                                    font-size: 13px;
                                                     wrap: word-wrap;
                                                 }
                                             }
@@ -377,44 +517,46 @@ slint::slint! {
                             }
                         }
 
-                        // ── Settings ──────────────────────────────────────────────────────
+                        // ── Settings ──────────────────────────────────────────
                         Rectangle {
                             visible: root.active_panel == 2;
                             width: parent.width;
                             height: parent.height;
-                            background: #e4edf6;
+                            background: #e8f0f8;
                             border-color: #c7d8ea;
                             border-width: 1px;
                             border-radius: 8px;
 
                             VerticalLayout {
-                                padding: 12px;
+                                padding: 16px;
                                 spacing: 8px;
 
                                 Text {
                                     text: "Settings";
-                                    color: #223344;
-                                    font-size: 18px;
+                                    color: #0f2d4a;
+                                    font-size: 20px;
                                 }
 
-                                Text { text: "Endpoint URL"; color: #445566; }
+                                Text { text: "Endpoint URL"; color: #445566; font-size: 12px; }
                                 LineEdit { text <=> root.endpoint_text; enabled: !root.busy; }
 
-                                Text { text: "Model"; color: #445566; }
+                                Text { text: "Model"; color: #445566; font-size: 12px; }
                                 LineEdit { text <=> root.model_text; enabled: !root.busy; }
 
-                                Text { text: "API Key"; color: #445566; }
+                                Text { text: "API Key"; color: #445566; font-size: 12px; }
                                 LineEdit { text <=> root.api_key_text; enabled: !root.busy; }
 
-                                Text { text: "System Prompt"; color: #445566; }
+                                Text { text: "System Prompt"; color: #445566; font-size: 12px; }
                                 TextEdit {
                                     text <=> root.system_prompt_text;
                                     enabled: !root.busy;
-                                    height: 160px;
+                                    vertical-stretch: 1;
+                                    min-height: 120px;
                                 }
 
                                 HorizontalLayout {
                                     spacing: 8px;
+                                    alignment: start;
 
                                     Button {
                                         text: "Use Internal Phi-4";
@@ -429,7 +571,7 @@ slint::slint! {
                                     }
 
                                     Button {
-                                        text: root.busy ? "Working..." : "Save Settings";
+                                        text: root.busy ? "Working…" : "Save Settings";
                                         enabled: !root.busy;
                                         clicked => { root.save_settings(); }
                                     }
@@ -437,7 +579,7 @@ slint::slint! {
                             }
                         }
 
-                        // ── Docs Playbook ─────────────────────────────────────────────────
+                        // ── Docs Playbook ─────────────────────────────────────
                         Rectangle {
                             visible: root.active_panel == 3;
                             width: parent.width;
@@ -448,13 +590,13 @@ slint::slint! {
                             border-radius: 8px;
 
                             VerticalLayout {
-                                padding: 12px;
+                                padding: 16px;
                                 spacing: 10px;
 
                                 Text {
                                     text: "Docs Playbook";
-                                    color: #223344;
-                                    font-size: 18px;
+                                    color: #0f2d4a;
+                                    font-size: 20px;
                                 }
 
                                 Text {
@@ -463,27 +605,47 @@ slint::slint! {
                                     wrap: word-wrap;
                                 }
 
-                                Button {
-                                    text: "Open Docs Playbook";
-                                    enabled: !root.busy;
-                                    clicked => { root.open_docs_playbook(); }
-                                }
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    height: 36px;
+                                    alignment: start;
 
-                                Button {
-                                    text: "Load Rhai Mutation Prompt";
-                                    enabled: !root.busy;
-                                    clicked => {
-                                        root.active_panel = 0;
-                                        root.load_rhai_rule_prompt();
+                                    Button {
+                                        text: "Open Docs Playbook";
+                                        enabled: !root.busy;
+                                        clicked => { root.open_docs_playbook(); }
+                                    }
+
+                                    Button {
+                                        text: "Load Rhai Mutation Prompt";
+                                        enabled: !root.busy;
+                                        clicked => {
+                                            root.active_panel = 0;
+                                            root.load_rhai_rule_prompt();
+                                        }
                                     }
                                 }
 
-                                ScrollView {
-                                    Text {
-                                        width: parent.width;
-                                        text: root.rig_prompt_preview_text;
-                                        color: #223344;
-                                        wrap: word-wrap;
+                                Rectangle {
+                                    vertical-stretch: 1;
+                                    background: #f6f9fd;
+                                    border-color: #d4dfe9;
+                                    border-width: 1px;
+                                    border-radius: 6px;
+
+                                    VerticalLayout {
+                                        padding: 10px;
+
+                                        ScrollView {
+                                            vertical-stretch: 1;
+                                            Text {
+                                                width: parent.width;
+                                                text: root.rig_prompt_preview_text;
+                                                color: #223344;
+                                                font-size: 13px;
+                                                wrap: word-wrap;
+                                            }
+                                        }
                                     }
                                 }
                             }
