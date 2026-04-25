@@ -120,10 +120,10 @@ slint::slint! {
     }
 
     export component HostWindow inherits Window {
-        // Initial size; the window is resizable — all inner layouts use stretch
-        // so content adapts when the user drags the window larger or smaller.
-        width: 1200px;
-        height: 900px;
+        // Size and position are set from Rust via window.set_size() /
+        // set_position() after reading the OS work area — this keeps the window
+        // resizable (hardcoding width/height in the DSL locks the size) and
+        // prevents overflow on any screen resolution.
         title: "l3dg3rr";
 
         in-out property <string> version_text: "Version";
@@ -668,6 +668,7 @@ fn main() -> Result<(), slint::PlatformError> {
     }
 
     let app = HostWindow::new()?;
+    apply_initial_window_geometry(&app.window());
     app.set_version_text(format!("Version {}", env!("CARGO_PKG_VERSION")).into());
     app.set_status_text(format!("Editing {}", store.path().display()).into());
     app.set_endpoint_text(settings.chat.endpoint_url.clone().into());
@@ -989,6 +990,74 @@ fn ensure_internal_endpoint(
         }
         Err(error) => Err(error.to_string()),
     }
+}
+
+/// Set window size and center it within the OS work area (screen minus taskbar).
+///
+/// Hardcoding `width`/`height` in the Slint DSL freezes the window at that size
+/// and prevents the user from resizing it. Setting size programmatically via
+/// `window.set_size()` leaves the resize handle active while still giving the
+/// window a sensible initial footprint.
+///
+/// We read the Windows work area via `SystemParametersInfoW(SPI_GETWORKAREA)`
+/// to get the usable rectangle (excludes taskbar and any docked toolbars), then
+/// size the window to 88 % of that area (capped at 1280×840) and center it.
+/// The Slint `scale_factor()` converts physical pixels → logical coordinates so
+/// the math is correct on any DPI / scaling configuration.
+#[cfg(windows)]
+#[allow(unsafe_code)]
+fn apply_initial_window_geometry(window: &slint::Window) {
+    #[repr(C)]
+    #[derive(Default)]
+    struct Rect {
+        left: i32,
+        top: i32,
+        right: i32,
+        bottom: i32,
+    }
+
+    #[link(name = "user32")]
+    extern "system" {
+        fn SystemParametersInfoW(
+            action: u32,
+            param: u32,
+            pv: *mut std::ffi::c_void,
+            ini: u32,
+        ) -> i32;
+    }
+
+    const SPI_GETWORKAREA: u32 = 0x0030;
+    let mut work = Rect::default();
+    // SAFETY: Rect is repr(C) and sized exactly as RECT; pointer is valid for the call duration.
+    let ok = unsafe {
+        SystemParametersInfoW(
+            SPI_GETWORKAREA,
+            0,
+            &mut work as *mut _ as *mut _,
+            0,
+        )
+    };
+
+    // Fall back to a safe default if the API call fails.
+    if ok == 0 {
+        work = Rect { left: 0, top: 0, right: 1920, bottom: 1040 };
+    }
+
+    let scale = window.scale_factor();
+    let work_w = (work.right - work.left) as f32 / scale;
+    let work_h = (work.bottom - work.top) as f32 / scale;
+    let work_x = work.left as f32 / scale;
+    let work_y = work.top as f32 / scale;
+
+    let win_w = (work_w * 0.88).min(1280.0).max(800.0);
+    let win_h = (work_h * 0.88).min(840.0).max(600.0);
+    let win_x = work_x + (work_w - win_w) / 2.0;
+    let win_y = work_y + (work_h - win_h) / 2.0;
+
+    window.set_size(slint::WindowSize::Logical(slint::LogicalSize::new(win_w, win_h)));
+    window.set_position(slint::WindowPosition::Logical(slint::LogicalPosition::new(
+        win_x, win_y,
+    )));
 }
 
 #[cfg(not(windows))]
