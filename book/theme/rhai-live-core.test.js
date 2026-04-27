@@ -160,3 +160,32 @@ test("drafts a review-safe Rhai mutation from chat instruction", function () {
     assert.ok(graph.nodes.has("review_flag"));
     assert.ok(graph.nodes.has("escalate_operator"));
 });
+
+test("Core Functional Shape nodes resolve to canonical visual types", function () {
+    // Verifies that noun forms and underscore-compound names get the correct
+    // semanticType — not the plain "task" rectangle fallback.
+    const src = [
+        "fn source_documents() -> document_ingestion",
+        "fn document_ingestion() -> validation",
+        "fn validation() -> classification",
+        "fn classification() -> legal_verification",
+        "fn legal_verification() -> reconciliation",
+        "fn reconciliation() -> workbook_export",
+        "fn workbook_export() -> cpa_review",
+        "fn cpa_review() -> audit_history",
+    ].join("\n");
+
+    const { graph } = core.parseRhaiDiagram(src);
+    const scene = core.buildVisualizationModel(graph, {});
+    const byId = new Map(scene.nodes.map((n) => [n.id, n]));
+
+    assert.equal(byId.get("source_documents").semanticType,    "data");
+    assert.equal(byId.get("document_ingestion").semanticType,  "ingest");
+    assert.equal(byId.get("validation").semanticType,          "security");
+    assert.equal(byId.get("classification").semanticType,      "classify");
+    assert.equal(byId.get("legal_verification").semanticType,  "rule");
+    assert.equal(byId.get("reconciliation").semanticType,      "reconcile");
+    assert.equal(byId.get("workbook_export").semanticType,     "report");
+    assert.equal(byId.get("cpa_review").semanticType,          "human");
+    assert.equal(byId.get("audit_history").semanticType,       "storage");
+});
