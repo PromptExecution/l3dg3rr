@@ -72,6 +72,7 @@ fn ingest_statement_rows_writes_git_friendly_journal_once() {
         .ingest_statement_rows(IngestStatementRowsRequest {
             journal_path: journal_path.clone(),
             workbook_path: workbook_path.clone(),
+            ontology_path: None,
             rows: rows.clone(),
         })
         .unwrap();
@@ -79,6 +80,7 @@ fn ingest_statement_rows_writes_git_friendly_journal_once() {
         .ingest_statement_rows(IngestStatementRowsRequest {
             journal_path: journal_path.clone(),
             workbook_path,
+            ontology_path: None,
             rows,
         })
         .unwrap();
@@ -104,6 +106,7 @@ fn ingest_pdf_validates_filename_and_ingests_rows() {
             pdf_path: "WF--BH-CHK--2023-01--statement.pdf".to_string(),
             journal_path,
             workbook_path,
+            ontology_path: None,
             raw_context_bytes: Some(b"ctx".to_vec()),
             extracted_rows: vec![TransactionInput {
                 account_id: "WF-BH-CHK".to_string(),

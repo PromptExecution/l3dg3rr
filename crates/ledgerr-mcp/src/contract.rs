@@ -287,6 +287,8 @@ pub enum DocumentsArgs {
         journal_path: PathBuf,
         workbook_path: PathBuf,
         #[serde(default, skip_serializing_if = "Option::is_none")]
+        ontology_path: Option<PathBuf>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         raw_context_bytes: Option<Vec<u8>>,
         #[serde(default)]
         extracted_rows: Vec<TransportRow>,
@@ -294,6 +296,8 @@ pub enum DocumentsArgs {
     IngestRows {
         journal_path: PathBuf,
         workbook_path: PathBuf,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        ontology_path: Option<PathBuf>,
         rows: Vec<TransportRow>,
     },
     IngestImage {

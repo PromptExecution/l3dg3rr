@@ -39,6 +39,7 @@ fn restart_01_persists_ingest_review_audit_state_and_idempotency() {
             .ingest_statement_rows(IngestStatementRowsRequest {
                 journal_path: journal_path.clone(),
                 workbook_path: workbook_path.clone(),
+                ontology_path: None,
                 rows: vec![row.clone()],
             })
             .expect("ingest");
@@ -60,6 +61,7 @@ fn restart_01_persists_ingest_review_audit_state_and_idempotency() {
         .ingest_statement_rows(IngestStatementRowsRequest {
             journal_path: journal_path.clone(),
             workbook_path: workbook_path.clone(),
+            ontology_path: None,
             rows: vec![row],
         })
         .expect("reingest after restart");
@@ -113,6 +115,7 @@ fn restart_02_persists_event_history_and_replay_state() {
             .ingest_statement_rows(IngestStatementRowsRequest {
                 journal_path: journal_path.clone(),
                 workbook_path: workbook_path.clone(),
+                ontology_path: None,
                 rows: vec![row.clone()],
             })
             .expect("ingest");

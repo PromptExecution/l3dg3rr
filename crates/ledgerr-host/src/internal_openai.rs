@@ -150,7 +150,36 @@ impl InternalChatBackend for Phi4LocalFallbackBackend {
             .map(|message| message.content_text())
             .unwrap_or_default();
 
-        let response = if user.contains("fn ") || user.contains("if ") || user.contains("match ") {
+        let response = if user.contains("audit_playbook")
+            || user.contains("audit playbook")
+            || user.contains("visual evidence graph")
+        {
+            serde_json::json!({
+                "playbook": "audit_playbook",
+                "mode": "deterministic_fallback",
+                "steps": [
+                    "ingest_rows",
+                    "classify_transactions",
+                    "phi4_edge_proposals",
+                    "operator_review",
+                    "workbook_export",
+                    "evidence_chain",
+                    "visual_audit_graph"
+                ],
+                "requires_model_assets": false
+            })
+            .to_string()
+        } else if user.contains("\"job\":\"classify_transaction\"")
+            || user.contains("classify_transaction") && user.contains("return_schema")
+        {
+            serde_json::json!({
+                "category": "Meals",
+                "confidence": 0.72,
+                "reason": "deterministic Phi-4 fallback classification",
+                "suggested_tags": ["#phi4-fallback"]
+            })
+            .to_string()
+        } else if user.contains("fn ") || user.contains("if ") || user.contains("match ") {
             [
                 "fn classify_rows() -> score_confidence",
                 "if confidence > 0.85 -> commit_workbook",
@@ -718,6 +747,9 @@ fn default_phi4_model_path() -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent_runtime::{
+        ClassifyTransactionJob, TransactionClassificationOutput, PHI4_TYPED_JOB_SYSTEM_PROMPT,
+    };
 
     #[derive(Debug)]
     struct FixedBackend;
@@ -814,6 +846,71 @@ mod tests {
 
         assert!(response.contains("if confidence > 0.60 -> review_flag"));
         assert!(response.contains("review-safe"));
+    }
+
+    #[test]
+    fn fallback_backend_generates_valid_typed_classification_json() {
+        let job = ClassifyTransactionJob {
+            tx_id: "tx_123".to_string(),
+            account_id: "WF-BH-CHK".to_string(),
+            date: "2024-01-31".to_string(),
+            amount: "-12.34".to_string(),
+            description: "Cafe lunch".to_string(),
+        };
+        let model_request = job.to_model_request().expect("model request");
+        let request = OpenAiChatRequest {
+            model: INTERNAL_PHI_MODEL.to_string(),
+            messages: vec![
+                OpenAiChatMessage {
+                    role: "system".to_string(),
+                    content: PHI4_TYPED_JOB_SYSTEM_PROMPT.into(),
+                },
+                OpenAiChatMessage {
+                    role: "user".to_string(),
+                    content: model_request.user_message.into(),
+                },
+            ],
+            max_tokens: model_request.max_tokens,
+            stream: false,
+        };
+
+        let response = Phi4LocalFallbackBackend::default()
+            .complete(&request)
+            .expect("fallback should respond");
+        let output: TransactionClassificationOutput =
+            serde_json::from_str(&response).expect("typed json");
+
+        output.validate().expect("valid typed output");
+        assert_eq!(output.category, "Meals");
+        assert_eq!(output.suggested_tags, ["#phi4-fallback"]);
+    }
+
+    #[test]
+    fn internal_phi_fallback_runs_audit_playbook_prompt() {
+        let request = OpenAiChatRequest {
+            model: INTERNAL_PHI_MODEL.to_string(),
+            messages: vec![OpenAiChatMessage {
+                role: "user".to_string(),
+                content: "Run the audit playbook and return the visual evidence graph steps."
+                    .into(),
+            }],
+            max_tokens: Some(256),
+            stream: false,
+        };
+
+        let response = Phi4LocalFallbackBackend::default()
+            .complete(&request)
+            .expect("fallback should respond");
+        let payload: serde_json::Value = serde_json::from_str(&response).expect("json response");
+
+        assert_eq!(payload["playbook"], "audit_playbook");
+        assert_eq!(payload["mode"], "deterministic_fallback");
+        assert_eq!(payload["requires_model_assets"], false);
+        assert!(payload["steps"]
+            .as_array()
+            .expect("steps")
+            .iter()
+            .any(|step| step == "visual_audit_graph"));
     }
 
     #[test]

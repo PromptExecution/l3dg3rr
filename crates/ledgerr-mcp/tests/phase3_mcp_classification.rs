@@ -71,6 +71,7 @@ fn mcp_03_query_flags_returns_review_queue_by_year_and_status() {
             pdf_path: "WF--BH-CHK--2023-01--statement.pdf".to_string(),
             journal_path,
             workbook_path,
+            ontology_path: None,
             raw_context_bytes: Some(b"ctx".to_vec()),
             extracted_rows: vec![TransactionInput {
                 account_id: "WF-BH-CHK".to_string(),

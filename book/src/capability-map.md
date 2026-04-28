@@ -30,6 +30,128 @@ fn xero_catalog() -> reconciliation_candidates
 fn ledgerr_mcp_contract() -> agent_runtime
 ```
 
+## PRD-4 Phase 1: Canonical Ontology Core
+
+The first PRD-4 implementation slice makes `ledger-core` the canonical owner of
+ontology artifact and relation primitives while preserving the legacy MCP storage
+shape for compatibility.
+
+```rhai
+fn ledger_core_types() -> artifact_kind
+fn ledger_core_types() -> relation_kind
+fn artifact_kind() -> ontology_snapshot
+fn relation_kind() -> ontology_snapshot
+fn ontology_snapshot() -> mcp_transport_adapter
+fn ontology_snapshot() -> visual_audit_graph
+```
+
+## PRD-4 Phase 2: Automatic Artifact Relationship Emission
+
+The second PRD-4 implementation slice makes ontology facts emerge from normal
+pipeline work: ingest, classification, validation, workbook projection, audit
+events, and integration links emit typed artifact relationships instead of
+requiring manual ontology upserts.
+
+```rhai
+fn ingest_pdf() -> document_artifact
+fn ingest_pdf() -> raw_context_artifact
+fn document_artifact() -> extracted_row_artifact
+fn extracted_row_artifact() -> transaction_artifact
+fn transaction_artifact() -> classification_artifact
+fn classification_artifact() -> validation_artifact
+fn validation_artifact() -> workbook_row_artifact
+fn workbook_row_artifact() -> audit_event_artifact
+```
+
+## PRD-4 Phase 3: Visual Audit Graph
+
+The third PRD-4 implementation slice turns canonical ontology snapshots into the
+supported Rhai diagram DSL so the same graph can be rendered by Mermaid and the
+isometric live editor without hand-written diagram source.
+
+```rhai
+fn ontology_snapshot() -> filter_graph
+match filter.kind => Transaction -> transaction_evidence_view
+match filter.kind => Document -> document_lineage_view
+match filter.kind => XeroEntity -> xero_reconciliation_view
+match filter.kind => ModelJob -> model_proposal_view
+match filter.kind => _ -> full_snapshot_view
+fn transaction_evidence_view() -> mermaid_2d
+fn transaction_evidence_view() -> isometric_3d
+```
+
+## PRD-4 Phase 4: Typed Phi-4 Job Runtime
+
+The fourth PRD-4 implementation slice keeps model integration host-owned and
+schema-bound: Phi-4 receives a typed job request, returns only JSON, and the host
+validates the response before any ontology proposal can become an auditable fact.
+
+```rhai
+fn typed_model_job() -> host_agent_runtime
+fn host_agent_runtime() -> phi4_local_endpoint
+fn phi4_local_endpoint() -> structured_json_response
+fn structured_json_response() -> schema_validation
+fn schema_validation() -> invariant_validation
+fn invariant_validation() -> ontology_proposal
+fn ontology_proposal() -> operator_or_policy_gate
+fn operator_or_policy_gate() -> committed_ontology_edge
+```
+
+## PRD-4 Phase 5: Proposal Review and Commit
+
+The fifth PRD-4 implementation slice gives model-suggested ontology relations a
+deterministic lifecycle. Phi-4 can propose an edge, but Rust validation, policy
+thresholds, and operator approval decide whether that edge becomes committed
+ontology state.
+
+```rhai
+fn phi4_proposal() -> parse_typed_output
+fn parse_typed_output() -> rust_invariant_check
+if confidence >= 0.90 -> policy_gate
+if confidence < 0.90 -> operator_review
+fn policy_gate() -> committed_edge
+fn operator_review() -> approved_edge
+fn operator_review() -> rejected_proposal
+fn approved_edge() -> committed_edge
+fn rejected_proposal() -> audit_event
+```
+
+## PRD-4 Phase 6: Local Semantic Retrieval
+
+The sixth PRD-4 implementation slice introduces a local retrieval index for rule
+and evidence candidates. The first implementation uses deterministic lexical
+records as the fallback index so later model embeddings can improve ranking
+without changing candidate IDs, provenance, or Rhai authority.
+
+```rhai
+fn document_chunk() -> embedding_record
+fn transaction_description() -> embedding_record
+fn rule_registry() -> embedding_record
+fn embedding_record() -> local_vector_index
+fn local_vector_index() -> candidate_context
+fn candidate_context() -> phi4_typed_job
+fn phi4_typed_job() -> validated_classification
+fn validated_classification() -> ontology_edge
+```
+
+## PRD-4 Phase 7: End-to-End Audit Playbook
+
+The seventh PRD-4 implementation slice ties a sample statement flow to the
+operator-facing proof surface: ingest creates the transaction identity, workbook
+export and audit events preserve it, ontology explains it, and the visual graph
+shows the path for CPA review.
+
+```rhai
+fn sample_statement() -> ingest_rows
+fn ingest_rows() -> classify_transactions
+fn classify_transactions() -> phi4_edge_proposals
+fn phi4_edge_proposals() -> operator_review
+fn operator_review() -> workbook_export
+fn workbook_export() -> evidence_chain
+fn evidence_chain() -> visual_audit_graph
+fn visual_audit_graph() -> cpa_review
+```
+
 ## Component Status Table
 
 | Component | Module | Status | Notes |

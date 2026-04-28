@@ -16,6 +16,7 @@ fn mcp_01_ingest_pdf_returns_deterministic_tx_ids_from_real_ingest() {
             pdf_path: "WF--BH-CHK--2023-01--statement.pdf".to_string(),
             journal_path: dir.path().join("ledger.beancount"),
             workbook_path: dir.path().join("tax-ledger.xlsx"),
+            ontology_path: None,
             raw_context_bytes: Some(b"abc".to_vec()),
             extracted_rows: vec![TransactionInput {
                 account_id: "WF-BH-CHK".to_string(),

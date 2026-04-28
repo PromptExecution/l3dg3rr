@@ -73,6 +73,7 @@ pub struct ListAccountsResponse {
 pub struct IngestStatementRowsRequest {
     pub journal_path: PathBuf,
     pub workbook_path: PathBuf,
+    pub ontology_path: Option<PathBuf>,
     pub rows: Vec<TransactionInput>,
 }
 
@@ -87,6 +88,7 @@ pub struct IngestPdfRequest {
     pub pdf_path: String,
     pub journal_path: PathBuf,
     pub workbook_path: PathBuf,
+    pub ontology_path: Option<PathBuf>,
     pub raw_context_bytes: Option<Vec<u8>>,
     pub extracted_rows: Vec<TransactionInput>,
 }
@@ -1123,6 +1125,10 @@ impl TurboLedgerTools for TurboLedgerService {
         }
         drop(classification);
 
+        if let Some(ontology_path) = request.ontology_path.as_deref() {
+            emit_ingest_ontology_edges(ontology_path, &request.rows)?;
+        }
+
         for row in &request.rows {
             let tx_id = deterministic_tx_id(row);
             let mut payload = BTreeMap::new();
@@ -1222,6 +1228,7 @@ impl TurboLedgerTools for TurboLedgerService {
         let response = self.ingest_statement_rows(IngestStatementRowsRequest {
             journal_path: request.journal_path,
             workbook_path: request.workbook_path,
+            ontology_path: request.ontology_path,
             rows: request.extracted_rows,
         })?;
         Ok(IngestPdfResponse {
@@ -2145,6 +2152,65 @@ fn save_document_registry(
     let json =
         serde_json::to_string_pretty(registry).map_err(|e| ToolError::Internal(e.to_string()))?;
     std::fs::write(path, json).map_err(|e| ToolError::Internal(e.to_string()))
+}
+
+pub fn default_ontology_path_for_workbook(workbook: &std::path::Path) -> PathBuf {
+    let file_name = workbook
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("ledger.xlsx");
+    workbook.with_file_name(format!("{file_name}.ontology.json"))
+}
+
+fn emit_ingest_ontology_edges(
+    ontology_path: &std::path::Path,
+    rows: &[TransactionInput],
+) -> Result<(), ToolError> {
+    if rows.is_empty() {
+        return Ok(());
+    }
+
+    let mut store = OntologyStore::load(&ontology_path)?;
+
+    for row in rows {
+        let tx_id = deterministic_tx_id(row);
+        let mut doc_attrs = BTreeMap::new();
+        doc_attrs.insert("source_ref".to_string(), row.source_ref.clone());
+
+        let mut tx_attrs = BTreeMap::new();
+        tx_attrs.insert("tx_id".to_string(), tx_id.clone());
+        tx_attrs.insert("account_id".to_string(), row.account_id.clone());
+        tx_attrs.insert("date".to_string(), row.date.clone());
+        tx_attrs.insert("amount".to_string(), row.amount.clone());
+        tx_attrs.insert("description".to_string(), row.description.clone());
+
+        let entity_ids = store
+            .upsert_entities(vec![
+                OntologyEntityInput {
+                    kind: OntologyEntityKind::Document,
+                    attrs: doc_attrs,
+                },
+                OntologyEntityInput {
+                    kind: OntologyEntityKind::Transaction,
+                    attrs: tx_attrs,
+                },
+            ])?
+            .entity_ids;
+
+        let mut provenance = BTreeMap::new();
+        provenance.insert("emitter".to_string(), "ingest_statement_rows".to_string());
+        provenance.insert("source_ref".to_string(), row.source_ref.clone());
+        provenance.insert("tx_id".to_string(), tx_id);
+
+        store.upsert_edges(vec![OntologyEdgeInput {
+            from: entity_ids[0].clone(),
+            to: entity_ids[1].clone(),
+            relation: "documents_transaction".to_string(),
+            provenance,
+        }])?;
+    }
+
+    store.persist(ontology_path)
 }
 
 // ── New TurboLedgerService methods ────────────────────────────────────────────

@@ -69,7 +69,7 @@ use rig::{
     completion::{AssistantContent, CompletionModel, Message},
     providers::openai,
 };
-use serde::de::DeserializeOwned;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::settings::ChatSettings;
@@ -234,8 +234,76 @@ pub enum AgentRuntimeError {
     MissingAssistantMessage,
     #[error("failed to parse structured model response: {0}")]
     Parse(#[from] serde_json::Error),
+    #[error("typed model output failed validation: {0}")]
+    InvalidTypedOutput(String),
     #[error("local llm error: {0}")]
     LocalLlm(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ClassifyTransactionJob {
+    pub tx_id: String,
+    pub account_id: String,
+    pub date: String,
+    pub amount: String,
+    pub description: String,
+}
+
+impl ClassifyTransactionJob {
+    pub fn to_model_request(&self) -> Result<ModelRequest, AgentRuntimeError> {
+        let payload = serde_json::to_string(&serde_json::json!({
+            "job": "classify_transaction",
+            "transaction": self,
+            "return_schema": {
+                "category": "non-empty string",
+                "confidence": "number in [0,1]",
+                "reason": "string or null",
+                "suggested_tags": ["string"]
+            }
+        }))?;
+
+        Ok(ModelRequest::text(payload)
+            .with_system_prompt(PHI4_TYPED_JOB_SYSTEM_PROMPT)
+            .with_max_tokens(256))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct TransactionClassificationOutput {
+    pub category: String,
+    pub confidence: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    #[serde(default)]
+    pub suggested_tags: Vec<String>,
+}
+
+impl TransactionClassificationOutput {
+    pub fn validate(&self) -> Result<(), AgentRuntimeError> {
+        if self.category.trim().is_empty() {
+            return Err(AgentRuntimeError::InvalidTypedOutput(
+                "category must be non-empty".to_string(),
+            ));
+        }
+        if !self.confidence.is_finite() || !(0.0..=1.0).contains(&self.confidence) {
+            return Err(AgentRuntimeError::InvalidTypedOutput(
+                "confidence must be a finite number in [0,1]".to_string(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+pub const PHI4_TYPED_JOB_SYSTEM_PROMPT: &str = "\
+You are l3dg3rr's local Phi-4 typed-job worker. Return only valid JSON matching the requested schema. Do not include markdown.";
+
+pub fn run_classify_transaction_job<R: AgentRuntime>(
+    runtime: &R,
+    job: &ClassifyTransactionJob,
+) -> Result<TransactionClassificationOutput, AgentRuntimeError> {
+    let output: TransactionClassificationOutput = runtime.extract(job.to_model_request()?)?;
+    output.validate()?;
+    Ok(output)
 }
 
 #[derive(Debug, Clone)]
@@ -454,6 +522,24 @@ mod tests {
     use rig::{completion::AssistantContent, providers::openai};
     use serde::Deserialize;
 
+    #[derive(Debug)]
+    struct FixedJsonRuntime {
+        response: &'static str,
+    }
+
+    impl AgentRuntime for FixedJsonRuntime {
+        fn complete(&self, request: ModelRequest) -> Result<ModelResponse, AgentRuntimeError> {
+            assert_eq!(
+                request.system_prompt.as_deref(),
+                Some(PHI4_TYPED_JOB_SYSTEM_PROMPT)
+            );
+            assert_eq!(request.max_tokens, Some(256));
+            Ok(ModelResponse {
+                assistant_text: self.response.to_string(),
+            })
+        }
+    }
+
     fn test_settings() -> ChatSettings {
         ChatSettings {
             endpoint_url: "https://example.test/v1/chat/completions".to_string(),
@@ -557,6 +643,77 @@ mod tests {
                 answer: "yes".to_string()
             }
         );
+    }
+
+    #[test]
+    fn classify_transaction_job_builds_typed_request() {
+        let job = ClassifyTransactionJob {
+            tx_id: "tx_123".to_string(),
+            account_id: "WF-BH-CHK".to_string(),
+            date: "2024-01-31".to_string(),
+            amount: "-12.34".to_string(),
+            description: "Cafe lunch".to_string(),
+        };
+
+        let request = job.to_model_request().expect("model request");
+
+        assert_eq!(
+            request.system_prompt.as_deref(),
+            Some(PHI4_TYPED_JOB_SYSTEM_PROMPT)
+        );
+        assert_eq!(request.max_tokens, Some(256));
+        assert!(request
+            .user_message
+            .contains("\"job\":\"classify_transaction\""));
+        assert!(request.user_message.contains("\"tx_id\":\"tx_123\""));
+        assert!(request
+            .user_message
+            .contains("\"confidence\":\"number in [0,1]\""));
+    }
+
+    #[test]
+    fn typed_classification_output_validation_rejects_invalid_values() {
+        let empty_category = TransactionClassificationOutput {
+            category: " ".to_string(),
+            confidence: 0.5,
+            reason: None,
+            suggested_tags: Vec::new(),
+        };
+        assert!(matches!(
+            empty_category.validate(),
+            Err(AgentRuntimeError::InvalidTypedOutput(_))
+        ));
+
+        let bad_confidence = TransactionClassificationOutput {
+            category: "Meals".to_string(),
+            confidence: 1.5,
+            reason: None,
+            suggested_tags: Vec::new(),
+        };
+        assert!(matches!(
+            bad_confidence.validate(),
+            Err(AgentRuntimeError::InvalidTypedOutput(_))
+        ));
+    }
+
+    #[test]
+    fn run_classify_transaction_job_extracts_and_validates_json() {
+        let runtime = FixedJsonRuntime {
+            response: r##"{"category":"Meals","confidence":0.81,"reason":"lunch vendor","suggested_tags":["#meal"]}"##,
+        };
+        let job = ClassifyTransactionJob {
+            tx_id: "tx_123".to_string(),
+            account_id: "WF-BH-CHK".to_string(),
+            date: "2024-01-31".to_string(),
+            amount: "-12.34".to_string(),
+            description: "Cafe lunch".to_string(),
+        };
+
+        let output = run_classify_transaction_job(&runtime, &job).expect("typed output");
+
+        assert_eq!(output.category, "Meals");
+        assert_eq!(output.confidence, 0.81);
+        assert_eq!(output.suggested_tags, ["#meal"]);
     }
 
     #[test]

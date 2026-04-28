@@ -739,6 +739,7 @@ fn invariant_classify_ingested_confidence_is_decimal_exact() {
         pdf_path: "WF--BH-CHK--2023-01--statement.pdf".to_string(),
         journal_path: dir.path().join("ledger.beancount"),
         workbook_path: dir.path().join("tax.xlsx"),
+        ontology_path: None,
         raw_context_bytes: Some(b"ctx".to_vec()),
         extracted_rows: vec![TransactionInput {
             account_id: "WF-BH-CHK".to_string(),
@@ -804,6 +805,7 @@ fn invariant_query_flags_confidence_is_decimal_exact() {
         pdf_path: "WF--BH-CHK--2023-01--statement.pdf".to_string(),
         journal_path: dir.path().join("ledger.beancount"),
         workbook_path: dir.path().join("tax.xlsx"),
+        ontology_path: None,
         raw_context_bytes: Some(b"ctx".to_vec()),
         extracted_rows: vec![TransactionInput {
             account_id: "WF-BH-CHK".to_string(),
