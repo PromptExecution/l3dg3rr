@@ -8,6 +8,8 @@ ONTOLOGY_PATH="${ONTOLOGY_PATH:-$DEMO_ROOT/demo.ontology.json}"
 SOURCE_REF="${SOURCE_REF:-wf-2023-01.rkyv}"
 MODE="${1:-basic}"
 
+mkdir -p "$DEMO_ROOT"
+
 if [[ "$MODE" == "basic" ]]; then
   cargo run -q -p ledgerr-mcp --bin ledgerr-mcp-server <<EOF
 {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"demo","version":"0.1.0"}}}
