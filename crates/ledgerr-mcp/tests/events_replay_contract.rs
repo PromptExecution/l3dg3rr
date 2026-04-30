@@ -34,6 +34,7 @@ fn evt_02_replay_reconstructs_stable_state_across_runs() {
         .ingest_statement_rows(IngestStatementRowsRequest {
             journal_path: temp.path().join("ledger.beancount"),
             workbook_path: temp.path().join("tax-ledger.xlsx"),
+            ontology_path: None,
             rows: vec![row],
         })
         .expect("ingest");
@@ -139,6 +140,7 @@ fn evt_02_replay_filtering_by_tx_and_document_is_deterministic() {
         .ingest_statement_rows(IngestStatementRowsRequest {
             journal_path: temp.path().join("ledger.beancount"),
             workbook_path: temp.path().join("tax-ledger.xlsx"),
+            ontology_path: None,
             rows,
         })
         .expect("ingest");

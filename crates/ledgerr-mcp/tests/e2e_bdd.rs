@@ -23,6 +23,7 @@ fn bdd_e2e_ingest_statement_and_retrieve_evidence_context() {
         pdf_path: "WF--BH-CHK--2023-01--statement.pdf".to_string(),
         journal_path: journal_path.clone(),
         workbook_path: workbook_path.clone(),
+        ontology_path: None,
         raw_context_bytes: Some(b"raw-evidence-bytes".to_vec()),
         extracted_rows: vec![TransactionInput {
             account_id: "WF-BH-CHK".to_string(),
@@ -69,6 +70,7 @@ fn bdd_e2e_reingest_is_idempotent_across_mcp_and_artifacts() {
         pdf_path: "WF--BH-CHK--2023-01--statement.pdf".to_string(),
         journal_path: journal_path.clone(),
         workbook_path: workbook_path.clone(),
+        ontology_path: None,
         raw_context_bytes: Some(b"raw-evidence-bytes".to_vec()),
         extracted_rows: vec![TransactionInput {
             account_id: "WF-BH-CHK".to_string(),
@@ -104,6 +106,7 @@ fn bdd_e2e_rejects_non_contract_pdf_filename() {
         pdf_path: "not-contract.pdf".to_string(),
         journal_path: tmp.path().join("ledger.beancount"),
         workbook_path: tmp.path().join("tax-ledger.xlsx"),
+        ontology_path: None,
         raw_context_bytes: Some(b"ctx".to_vec()),
         extracted_rows: vec![TransactionInput {
             account_id: "WF-BH-CHK".to_string(),
@@ -137,6 +140,7 @@ fn bdd_e2e_allows_missing_raw_bytes_if_source_ref_already_exists() {
         pdf_path: "WF--BH-CHK--2023-01--statement.pdf".to_string(),
         journal_path: tmp.path().join("ledger.beancount"),
         workbook_path: tmp.path().join("tax-ledger.xlsx"),
+        ontology_path: None,
         raw_context_bytes: None,
         extracted_rows: vec![TransactionInput {
             account_id: "WF-BH-CHK".to_string(),
@@ -173,6 +177,7 @@ fn bdd_e2e_requires_raw_bytes_when_source_ref_missing() {
         pdf_path: "WF--BH-CHK--2023-01--statement.pdf".to_string(),
         journal_path: tmp.path().join("ledger.beancount"),
         workbook_path: tmp.path().join("tax-ledger.xlsx"),
+        ontology_path: None,
         raw_context_bytes: None,
         extracted_rows: vec![TransactionInput {
             account_id: "WF-BH-CHK".to_string(),

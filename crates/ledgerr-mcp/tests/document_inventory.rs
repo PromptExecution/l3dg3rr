@@ -34,6 +34,7 @@ fn document_inventory_lists_ready_ingested_and_invalid_documents_deterministical
         .ingest_statement_rows(IngestStatementRowsRequest {
             journal_path: tmp.path().join("ledger.beancount"),
             workbook_path: workbook_path.clone(),
+            ontology_path: None,
             rows: vec![TransactionInput {
                 account_id: "WF-BH-CHK".to_string(),
                 date: "2023-01-15".to_string(),

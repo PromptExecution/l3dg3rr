@@ -15,7 +15,10 @@
 //! The Python sidecar at <https://github.com/PromptExecution/reqif-opa-mcp> produces
 //! `RequirementCandidate` JSON objects that are deserialized into `ReqIfCandidate` here.
 
-use std::path::{Path, PathBuf};
+use std::{
+    collections::BTreeSet,
+    path::{Path, PathBuf},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -41,6 +44,34 @@ fn is_transaction_rule(path: &Path) -> bool {
     };
 
     src.contains("fn classify(")
+}
+
+fn semantic_candidate_id(source_kind: &str, source_ref: &str, text: &str) -> String {
+    let canonical = format!(
+        "semantic_candidate|{}|{}|{}",
+        source_kind.trim(),
+        source_ref.trim(),
+        text.trim()
+    );
+    blake3::hash(canonical.as_bytes()).to_hex().to_string()
+}
+
+fn semantic_tokens(text: &str) -> BTreeSet<String> {
+    text.split(|c: char| !c.is_ascii_alphanumeric())
+        .filter_map(|token| {
+            let token = token.trim().to_ascii_lowercase();
+            (token.len() >= 3).then_some(token)
+        })
+        .collect()
+}
+
+fn lexical_similarity(query: &BTreeSet<String>, candidate: &BTreeSet<String>) -> f64 {
+    if query.is_empty() || candidate.is_empty() {
+        return 0.0;
+    }
+    let intersection = query.intersection(candidate).count() as f64;
+    let union = query.union(candidate).count() as f64;
+    intersection / union
 }
 
 // ============================================================================
@@ -100,6 +131,21 @@ pub struct DocumentChunk {
     pub semantic_id: String,
     /// Page anchors `[page_number, offset_chars]` into the source PDF.
     pub anchors: Vec<[u32; 2]>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SemanticCandidate {
+    pub id: String,
+    pub rule_path: PathBuf,
+    pub source_kind: String,
+    pub source_ref: String,
+    pub text: String,
+}
+
+#[derive(Debug, Clone)]
+struct SemanticIndexEntry {
+    candidate: SemanticCandidate,
+    tokens: BTreeSet<String>,
 }
 
 // ============================================================================
@@ -175,6 +221,8 @@ pub struct RuleRegistry {
     /// Optional `ReqIfCandidate` objects associated with each rule, indexed
     /// parallel to `rule_paths`. `None` if no sidecar JSON was found.
     candidates: Vec<Option<ReqIfCandidate>>,
+    /// Local deterministic lexical index used until model embeddings are wired.
+    semantic_index: Vec<SemanticIndexEntry>,
 }
 
 impl RuleRegistry {
@@ -226,6 +274,7 @@ impl RuleRegistry {
         Ok(Self {
             rule_paths,
             candidates,
+            semantic_index: Vec::new(),
         })
     }
 
@@ -370,20 +419,121 @@ impl RuleRegistry {
             .filter(|candidate| candidate.is_some())
             .count()
     }
+
+    /// Return stable semantic candidate identifiers in index order.
+    pub fn semantic_candidate_ids(&self) -> Vec<String> {
+        self.semantic_index
+            .iter()
+            .map(|entry| entry.candidate.id.clone())
+            .collect()
+    }
+
+    /// Return semantic candidates in index order.
+    pub fn semantic_candidates(&self) -> Vec<SemanticCandidate> {
+        self.semantic_index
+            .iter()
+            .map(|entry| entry.candidate.clone())
+            .collect()
+    }
 }
 
 impl SemanticRuleSelector for RuleRegistry {
-    fn select_rules_semantic(&self, _tx: &SampleTransaction, _top_k: usize) -> Vec<PathBuf> {
-        unimplemented!(
-            "SemanticRuleSelector::select_rules_semantic — requires embedding infrastructure \
-             (local ONNX / fastembed-rs / candle model); use select_rules_deterministic until available"
-        )
+    fn select_rules_semantic(&self, tx: &SampleTransaction, top_k: usize) -> Vec<PathBuf> {
+        if top_k == 0 || self.semantic_index.is_empty() {
+            return self.select_rules_deterministic(tx);
+        }
+
+        let query = semantic_tokens(&format!("{} {}", tx.account_id, tx.description));
+        let mut scored = self
+            .semantic_index
+            .iter()
+            .map(|entry| {
+                (
+                    lexical_similarity(&query, &entry.tokens),
+                    entry.candidate.id.as_str(),
+                    entry.candidate.rule_path.clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+        scored.sort_by(|a, b| {
+            b.0.total_cmp(&a.0)
+                .then_with(|| a.1.cmp(b.1))
+                .then_with(|| a.2.cmp(&b.2))
+        });
+
+        let mut selected = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        const MIN_LEXICAL_SIMILARITY: f64 = 0.05;
+        for (score, _id, path) in scored {
+            if score < MIN_LEXICAL_SIMILARITY {
+                continue;
+            }
+            if seen.insert(path.clone()) {
+                selected.push(path);
+            }
+            if selected.len() >= top_k {
+                break;
+            }
+        }
+
+        if selected.is_empty() {
+            self.select_rules_deterministic(tx)
+        } else {
+            selected
+        }
     }
 
     fn build_embedding_index(&mut self) -> Result<(), RuleRegistryError> {
-        unimplemented!(
-            "SemanticRuleSelector::build_embedding_index — requires embedding model; \
-             blocked until embedding infrastructure is wired"
-        )
+        let mut entries = Vec::new();
+        for (rule_path, candidate) in self.rule_paths.iter().zip(self.candidates.iter()) {
+            let source_ref = rule_path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("unknown_rule")
+                .to_string();
+            let text = if let Some(candidate) = candidate {
+                format!(
+                    "{} {} {} {}",
+                    candidate.key, candidate.section, candidate.text, candidate.rationale
+                )
+            } else {
+                std::fs::read_to_string(rule_path)?
+            };
+            let id = semantic_candidate_id("rule", &source_ref, &text);
+            entries.push(SemanticIndexEntry {
+                tokens: semantic_tokens(&format!("{source_ref} {text}")),
+                candidate: SemanticCandidate {
+                    id,
+                    rule_path: rule_path.clone(),
+                    source_kind: "rule".to_string(),
+                    source_ref,
+                    text,
+                },
+            });
+        }
+        entries.sort_by(|a, b| {
+            a.candidate
+                .id
+                .cmp(&b.candidate.id)
+                .then_with(|| a.candidate.rule_path.cmp(&b.candidate.rule_path))
+        });
+        self.semantic_index = entries;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn semantic_candidate_ids_are_stable() {
+        let first = semantic_candidate_id("rule", "classify_schedule_c.rhai", "client invoice");
+        let second = semantic_candidate_id("rule", "classify_schedule_c.rhai", "client invoice");
+        let different = semantic_candidate_id("rule", "classify_schedule_e.rhai", "client invoice");
+
+        assert_eq!(first, second);
+        assert_ne!(first, different);
+        assert_eq!(first.len(), 64);
     }
 }

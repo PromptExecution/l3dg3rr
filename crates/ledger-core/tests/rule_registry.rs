@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use ledger_core::classify::{ClassificationEngine, SampleTransaction};
-use ledger_core::rule_registry::RuleRegistry;
+use ledger_core::rule_registry::{RuleRegistry, SemanticRuleSelector};
 
 fn rules_dir() -> PathBuf {
     let manifest =
@@ -107,4 +107,58 @@ fn classify_waterfall_preserves_fallback_unclassified_reason() {
     assert_eq!(outcome.confidence, 0.0);
     assert!(outcome.needs_review);
     assert!(outcome.reason.contains("Mystery payment"));
+}
+
+#[test]
+fn semantic_candidate_ids_are_stable_after_rebuild() {
+    let mut first = RuleRegistry::load_from_dir(&rules_dir()).expect("rules directory loads");
+    first
+        .build_embedding_index()
+        .expect("local lexical index builds");
+    let mut second = RuleRegistry::load_from_dir(&rules_dir()).expect("rules directory loads");
+    second
+        .build_embedding_index()
+        .expect("local lexical index builds");
+
+    assert_eq!(
+        first.semantic_candidate_ids(),
+        second.semantic_candidate_ids()
+    );
+    assert_eq!(first.semantic_candidate_ids().len(), first.rule_count());
+}
+
+#[test]
+fn semantic_selector_preserves_deterministic_fallback() {
+    let mut registry = RuleRegistry::load_from_dir(&rules_dir()).expect("rules directory loads");
+    registry
+        .build_embedding_index()
+        .expect("local lexical index builds");
+    let tx = sample("Mystery payment", "WF--BH-CHK--2024-02", "99.00");
+
+    let semantic = registry.select_rules_semantic(&tx, 5);
+    let deterministic = registry.select_rules_deterministic(&tx);
+
+    assert_eq!(file_names(&semantic), file_names(&deterministic));
+}
+
+#[test]
+fn rule_registry_waterfall_remains_authoritative_with_semantic_index() {
+    let mut registry = RuleRegistry::load_from_dir(&rules_dir()).expect("rules directory loads");
+    registry
+        .build_embedding_index()
+        .expect("local lexical index builds");
+    let mut engine = ClassificationEngine::default();
+    let tx = sample(
+        "Client invoice #INV-042 consulting services",
+        "WF--BH-CHK--2024-02",
+        "3500.00",
+    );
+
+    let selected = registry.select_rules_semantic(&tx, 3);
+    let outcome = registry
+        .classify_waterfall(&mut engine, &tx)
+        .expect("waterfall classifies");
+
+    assert!(!selected.is_empty());
+    assert_eq!(outcome.category, "SelfEmployment");
 }

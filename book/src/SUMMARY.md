@@ -5,6 +5,7 @@
 # Operator Capabilities
 
 - [Capability Map](./capability-map.md)
+- [Audit Playbook](./audit-playbook.md)
 - [Document Ingestion](./document-ingestion.md)
 - [Rule Engine](./rule-engine.md)
 - [Validation](./validation.md)
@@ -35,8 +36,3 @@
 - [Renderer](./render.md)
 - [Slint Visualization](./slint_viz.md)
 - [Match Visualization Plan](./match-visualization-plan.md)
-- [Business Calendar](./calendar.md)
-- [Ledger Operations](./ledger-ops.md)
-- [Capability Map](./capability-map.md)
-- [Type Compatibility](./type-compatibility.md)
-- [Concept Affinity](./concept-affinity.md)

@@ -339,6 +339,7 @@ pub fn handle_documents_tool(service: &TurboLedgerService, arguments: &Value) ->
             pdf_path,
             journal_path,
             workbook_path,
+            ontology_path,
             raw_context_bytes,
             extracted_rows,
         } => handle_ingest_pdf(
@@ -347,6 +348,7 @@ pub fn handle_documents_tool(service: &TurboLedgerService, arguments: &Value) ->
                 "pdf_path": pdf_path,
                 "journal_path": journal_path,
                 "workbook_path": workbook_path,
+                "ontology_path": ontology_path,
                 "raw_context_bytes": raw_context_bytes,
                 "extracted_rows": extracted_rows,
             }),
@@ -355,12 +357,14 @@ pub fn handle_documents_tool(service: &TurboLedgerService, arguments: &Value) ->
         DocumentsArgs::IngestRows {
             journal_path,
             workbook_path,
+            ontology_path,
             rows,
         } => handle_ingest_statement_rows(
             service,
             &json!({
                 "journal_path": journal_path,
                 "workbook_path": workbook_path,
+                "ontology_path": ontology_path,
                 "rows": rows,
             }),
             None,
@@ -911,6 +915,10 @@ fn parse_ingest_pdf_request(arguments: &Value) -> Result<IngestPdfRequest, ToolE
     let pdf_path = required_str(arguments, "pdf_path")?.to_string();
     let journal_path = PathBuf::from(required_str(arguments, "journal_path")?);
     let workbook_path = PathBuf::from(required_str(arguments, "workbook_path")?);
+    let ontology_path = arguments
+        .get("ontology_path")
+        .and_then(Value::as_str)
+        .map(PathBuf::from);
     let raw_context_bytes = parse_optional_bytes(arguments.get("raw_context_bytes"))?;
     let extracted_rows = match arguments.get("extracted_rows") {
         None | Some(Value::Null) => Vec::new(),
@@ -921,6 +929,7 @@ fn parse_ingest_pdf_request(arguments: &Value) -> Result<IngestPdfRequest, ToolE
         pdf_path,
         journal_path,
         workbook_path,
+        ontology_path,
         raw_context_bytes,
         extracted_rows,
     })
@@ -931,11 +940,16 @@ fn parse_ingest_statement_rows_request(
 ) -> Result<IngestStatementRowsRequest, ToolError> {
     let journal_path = PathBuf::from(required_str(arguments, "journal_path")?);
     let workbook_path = PathBuf::from(required_str(arguments, "workbook_path")?);
+    let ontology_path = arguments
+        .get("ontology_path")
+        .and_then(Value::as_str)
+        .map(PathBuf::from);
     let rows = parse_rows(arguments.get("rows"), "rows")?;
 
     Ok(IngestStatementRowsRequest {
         journal_path,
         workbook_path,
+        ontology_path,
         rows,
     })
 }
@@ -2097,19 +2111,7 @@ fn parse_ontology_upsert_entities_request(
     let entities = entities_json
         .iter()
         .map(|e| {
-            let kind = match e.get("kind").and_then(Value::as_str) {
-                Some("Document") => crate::OntologyEntityKind::Document,
-                Some("Account") => crate::OntologyEntityKind::Account,
-                Some("Institution") => crate::OntologyEntityKind::Institution,
-                Some("Transaction") => crate::OntologyEntityKind::Transaction,
-                Some("TaxCategory") => crate::OntologyEntityKind::TaxCategory,
-                Some("EvidenceReference") => crate::OntologyEntityKind::EvidenceReference,
-                _ => {
-                    return Err(ToolError::InvalidInput(
-                        "missing or invalid `kind` in entity (must be Document, Account, Institution, Transaction, TaxCategory, or EvidenceReference)".to_string(),
-                    ))
-                }
-            };
+            let kind = parse_ontology_entity_kind(e.get("kind").and_then(Value::as_str))?;
             let mut attrs = std::collections::BTreeMap::new();
             if let Some(id) = e.get("id").and_then(Value::as_str) {
                 attrs.insert("id".to_string(), id.to_string());
@@ -2168,4 +2170,22 @@ fn parse_ontology_upsert_edges_request(
         ontology_path,
         edges,
     })
+}
+
+fn parse_ontology_entity_kind(raw: Option<&str>) -> Result<crate::OntologyEntityKind, ToolError> {
+    match raw {
+        Some("Document") => Ok(crate::OntologyEntityKind::Document),
+        Some("Account") => Ok(crate::OntologyEntityKind::Account),
+        Some("Institution") => Ok(crate::OntologyEntityKind::Institution),
+        Some("Transaction") => Ok(crate::OntologyEntityKind::Transaction),
+        Some("TaxCategory") => Ok(crate::OntologyEntityKind::TaxCategory),
+        Some("EvidenceReference") => Ok(crate::OntologyEntityKind::EvidenceReference),
+        Some("XeroContact") => Ok(crate::OntologyEntityKind::XeroContact),
+        Some("XeroBankAccount") => Ok(crate::OntologyEntityKind::XeroBankAccount),
+        Some("XeroInvoice") => Ok(crate::OntologyEntityKind::XeroInvoice),
+        Some("WorkflowTag") => Ok(crate::OntologyEntityKind::WorkflowTag),
+        _ => Err(ToolError::InvalidInput(
+            "missing or invalid `kind` in entity (must be Document, Account, Institution, Transaction, TaxCategory, EvidenceReference, XeroContact, XeroBankAccount, XeroInvoice, or WorkflowTag)".to_string(),
+        )),
+    }
 }

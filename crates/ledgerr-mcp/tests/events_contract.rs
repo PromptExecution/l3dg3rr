@@ -33,6 +33,7 @@ fn evt_01_lifecycle_actions_append_typed_events_without_mutating_prior_entries()
         .ingest_statement_rows(IngestStatementRowsRequest {
             journal_path: temp.path().join("ledger.beancount"),
             workbook_path: temp.path().join("tax-ledger.xlsx"),
+            ontology_path: None,
             rows: vec![row],
         })
         .expect("ingest");
@@ -104,6 +105,7 @@ fn evt_01_replaying_same_operation_produces_stable_payload_and_identity_inputs()
         .ingest_statement_rows(IngestStatementRowsRequest {
             journal_path: temp.path().join("ledger.beancount"),
             workbook_path: temp.path().join("tax-ledger.xlsx"),
+            ontology_path: None,
             rows: vec![row],
         })
         .expect("ingest");

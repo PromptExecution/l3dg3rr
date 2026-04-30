@@ -60,10 +60,64 @@ fn documents_contract_accepts_legacy_account_alias() {
     .expect("documents args parse");
 
     match parsed {
-        DocumentsArgs::IngestRows { rows, .. } => {
+        DocumentsArgs::IngestRows {
+            ontology_path,
+            rows,
+            ..
+        } => {
+            assert_eq!(ontology_path, None);
             assert_eq!(rows.len(), 1);
             assert_eq!(rows[0].account.as_deref(), Some("WF-BH-CHK"));
             assert_eq!(rows[0].account_id, None);
+        }
+        other => panic!("unexpected variant: {other:?}"),
+    }
+}
+
+#[test]
+fn documents_contract_accepts_optional_ontology_path_for_ingest() {
+    let rows = contract::parse_documents(&json!({
+        "action": "ingest_rows",
+        "journal_path": "/tmp/demo.beancount",
+        "workbook_path": "/tmp/demo.xlsx",
+        "ontology_path": "/tmp/demo.ontology.json",
+        "rows": [{
+            "account_id": "WF-BH-CHK",
+            "date": "2023-01-15",
+            "amount": "-42.11",
+            "description": "Coffee Shop",
+            "source_ref": "wf-2023-01.rkyv"
+        }]
+    }))
+    .expect("documents ingest rows args parse");
+
+    match rows {
+        DocumentsArgs::IngestRows { ontology_path, .. } => {
+            assert_eq!(
+                ontology_path,
+                Some(PathBuf::from("/tmp/demo.ontology.json"))
+            );
+        }
+        other => panic!("unexpected variant: {other:?}"),
+    }
+
+    let pdf = contract::parse_documents(&json!({
+        "action": "ingest_pdf",
+        "pdf_path": "WF--BH-CHK--2023-01--statement.pdf",
+        "journal_path": "/tmp/demo.beancount",
+        "workbook_path": "/tmp/demo.xlsx",
+        "ontology_path": "/tmp/demo.ontology.json",
+        "raw_context_bytes": [99, 116, 120],
+        "extracted_rows": []
+    }))
+    .expect("documents ingest pdf args parse");
+
+    match pdf {
+        DocumentsArgs::IngestPdf { ontology_path, .. } => {
+            assert_eq!(
+                ontology_path,
+                Some(PathBuf::from("/tmp/demo.ontology.json"))
+            );
         }
         other => panic!("unexpected variant: {other:?}"),
     }

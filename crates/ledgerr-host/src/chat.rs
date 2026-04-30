@@ -115,6 +115,8 @@ pub enum ChatError {
     MissingAssistantMessage,
     #[error("failed to parse structured model response: {0}")]
     Parse(serde_json::Error),
+    #[error("typed model output failed validation: {0}")]
+    InvalidTypedOutput(String),
     #[error("local llm error: {0}")]
     LocalLlm(String),
 }
@@ -374,6 +376,7 @@ impl From<AgentRuntimeError> for ChatError {
             AgentRuntimeError::RigHttp(error) => Self::RigHttp(error),
             AgentRuntimeError::MissingAssistantMessage => Self::MissingAssistantMessage,
             AgentRuntimeError::Parse(error) => Self::Parse(error),
+            AgentRuntimeError::InvalidTypedOutput(msg) => Self::InvalidTypedOutput(msg),
             AgentRuntimeError::LocalLlm(msg) => Self::LocalLlm(msg),
         }
     }

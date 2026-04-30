@@ -338,6 +338,15 @@ Treat this as a standing operational gate, not a one-time migration task.
   - Prefer worked sample blocks in visualization-heavy chapters over abstract prose. At minimum, include one happy-path sample and one branch-heavy sample that can be pasted into the live editor.
   - The future `match` operator contract is documented in `book/src/match-visualization-plan.md`; keep Mermaid and isometric semantics aligned to that plan instead of inventing per-view behavior.
   - When adding new modules, add corresponding chapter in `book/src/` and update `book/src/SUMMARY.md`.
+- 2026-04-27: PRD-4 Phase 1 established `ledger-core::ontology` as the canonical ontology primitive layer while preserving MCP legacy storage shape.
+  - Keep `ledgerr-mcp` ontology files backward-compatible with `{ entities, edges }` and legacy `entity|...` / `edge|...` Blake3 ID prefixes unless a deliberate migration is planned.
+  - PRD-4 Phase 2 ingest ontology emission is opt-in through `ontology_path` on ingest requests; do not write ontology sidecars implicitly from workbook paths unless product policy changes.
+  - PRD-4 Phase 4 typed Phi-4 jobs start in `crates/ledgerr-host/src/agent_runtime.rs`; the local fallback in `internal_openai.rs` must satisfy the same JSON-only schema contract as a real model.
+  - PRD-4 Phase 5 proposal lifecycle lives in `ledger-core::proposal`; model proposals must be validated before commit and low-confidence or mutating relations require explicit operator approval.
+  - PRD-4 Phase 6 semantic retrieval starts as a deterministic local lexical index in `RuleRegistry`; future embedding backends must preserve stable candidate IDs and keep `classify_waterfall` authoritative.
+  - PRD-4 Phase 7 audit playbook must keep workbook rows, ontology facts, lifecycle events, and visual graph examples tied to the same deterministic transaction IDs.
+  - `book/src/SUMMARY.md` must not list the same chapter file twice; mdBook fails closed on duplicate paths before diagram checks run.
+  - Current validated docs toolchain is `mdbook 0.4.52`, `mdbook-mermaid 0.16.0`, and `mdbook-admonish 1.20.0` with admonish assets version `3.1.0`.
 - 2026-04-22: docs Rhai mutation playground is model-prompt-first.
   - The browser-side mdBook playground prepares constrained prompts and deterministic example drafts; it does not call an LLM directly from the browser.
   - Keep the prompt contract limited to supported Rhai diagram DSL lines (`fn`, `if`, `match`) plus concise explanation text.

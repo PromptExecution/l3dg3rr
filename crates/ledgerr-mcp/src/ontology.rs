@@ -1,43 +1,15 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::Path;
 
+use ledger_core::ontology::{
+    artifact_content_hash, relation_content_hash, Artifact, ArtifactKind, OntologySnapshot,
+    Relation,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::ToolError;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum OntologyEntityKind {
-    Document,
-    Account,
-    Institution,
-    Transaction,
-    TaxCategory,
-    EvidenceReference,
-    // Xero-linked entity kinds
-    XeroContact,
-    XeroBankAccount,
-    XeroInvoice,
-    // Tagging
-    WorkflowTag,
-}
-
-impl OntologyEntityKind {
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::Document => "document",
-            Self::Account => "account",
-            Self::Institution => "institution",
-            Self::Transaction => "transaction",
-            Self::TaxCategory => "tax_category",
-            Self::EvidenceReference => "evidence_reference",
-            Self::XeroContact => "xero_contact",
-            Self::XeroBankAccount => "xero_bank_account",
-            Self::XeroInvoice => "xero_invoice",
-            Self::WorkflowTag => "workflow_tag",
-        }
-    }
-}
+pub type OntologyEntityKind = ArtifactKind;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OntologyEntityInput {
@@ -133,6 +105,33 @@ impl OntologyStore {
         let payload =
             serde_json::to_string_pretty(self).map_err(|e| ToolError::Internal(e.to_string()))?;
         std::fs::write(path, payload).map_err(|e| ToolError::Internal(e.to_string()))
+    }
+
+    pub fn to_core_snapshot(&self) -> OntologySnapshot {
+        let mut snapshot = OntologySnapshot {
+            artifacts: self
+                .entities
+                .iter()
+                .map(|entity| Artifact {
+                    id: entity.id.clone(),
+                    kind: entity.kind,
+                    attrs: entity.attrs.clone(),
+                })
+                .collect(),
+            relations: self
+                .edges
+                .iter()
+                .map(|edge| Relation {
+                    id: edge.id.clone(),
+                    from: edge.from.clone(),
+                    to: edge.to.clone(),
+                    relation: edge.relation.clone(),
+                    provenance: edge.provenance.clone(),
+                })
+                .collect(),
+        };
+        snapshot.sort_deterministic();
+        snapshot
     }
 
     pub fn upsert_entities(
@@ -282,14 +281,7 @@ impl OntologyStore {
 }
 
 pub fn entity_content_hash(kind: OntologyEntityKind, attrs: &BTreeMap<String, String>) -> String {
-    let mut canonical = format!("entity|{}", kind.as_str());
-    for (key, value) in attrs {
-        canonical.push('|');
-        canonical.push_str(key);
-        canonical.push('=');
-        canonical.push_str(value);
-    }
-    content_hash(&canonical)
+    artifact_content_hash(kind, attrs)
 }
 
 pub fn edge_content_hash(
@@ -298,16 +290,9 @@ pub fn edge_content_hash(
     relation: &str,
     provenance: &BTreeMap<String, String>,
 ) -> String {
-    let mut canonical = format!("edge|{}|{}|{}", from, to, relation);
-    for (key, value) in provenance {
-        canonical.push('|');
-        canonical.push_str(key);
-        canonical.push('=');
-        canonical.push_str(value);
-    }
-    content_hash(&canonical)
+    relation_content_hash(from, to, relation, provenance)
 }
 
 pub fn content_hash(canonical: &str) -> String {
-    blake3::hash(canonical.as_bytes()).to_hex().to_string()
+    ledger_core::ontology::content_hash(canonical)
 }

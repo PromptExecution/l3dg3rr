@@ -24,6 +24,7 @@ fn rel_03_e2e_mvp_flow_ingest_classify_audit_schedule() {
             pdf_path: "WF--BH-CHK--2023-01--statement.pdf".to_string(),
             journal_path: tmp.path().join("ledger.beancount"),
             workbook_path: tmp.path().join("tax-ledger.xlsx"),
+            ontology_path: None,
             raw_context_bytes: Some(b"ctx".to_vec()),
             extracted_rows: vec![TransactionInput {
                 account_id: "WF-BH-CHK".to_string(),
