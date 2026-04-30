@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>l3dg3rr</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Sidebar -->
+    <nav id="sidebar">
+      <button id="collapse-btn" class="nav-item" title="Collapse sidebar">
+        <span class="mark">&lt;</span>
+        <span class="label">Collapse</span>
+      </button>
+
+      <button class="nav-item" data-panel="0">
+        <span class="mark">AI</span>
+        <span class="label">Chat</span>
+      </button>
+
+      <button class="nav-item" data-panel="1">
+        <span class="mark">LG</span>
+        <span class="label">Logs</span>
+      </button>
+
+      <button class="nav-item" data-panel="2">
+        <span class="mark">ST</span>
+        <span class="label">Settings</span>
+      </button>
+
+      <button class="nav-item" data-panel="3">
+        <span class="mark">DK</span>
+        <span class="label">Docs Playbook</span>
+      </button>
+
+      <hr class="sidebar-divider" />
+
+      <div id="version-text" class="version-label"></div>
+    </nav>
+
+    <!-- Main content -->
+    <div id="main">
+      <!-- App header -->
+      <div id="app-header">
+        <span id="app-title">l3dg3rr tool tray</span>
+        <span id="status-bar"></span>
+      </div>
+
+      <!-- Panel 0: Chat -->
+      <div id="panel-0" class="panel card">
+        <div class="panel-header">
+          <span class="panel-title">Chat</span>
+          <div id="model-badge" class="model-badge phi">
+            <span id="model-badge-icon">&#9889;</span>
+            <span id="model-badge-text">No model — go to Settings</span>
+          </div>
+        </div>
+
+        <!-- Model quick-select bar -->
+        <div class="model-bar">
+          <span class="model-bar-label">Model:</span>
+          <button id="pill-phi" class="model-pill" title="Switch to Internal Phi-4">
+            &#9889; Internal Phi-4 Mini
+          </button>
+          <button id="pill-foundry" class="model-pill" title="Switch to Windows AI / Foundry Local">
+            Windows AI / Foundry
+          </button>
+          <button id="pill-cloud" class="model-pill" title="Switch to Cloud / OpenAI">
+            &#9729; Cloud / OpenAI
+          </button>
+          <span id="cloud-hint" class="cloud-hint hidden">— edit endpoint &amp; key in Settings</span>
+        </div>
+
+        <!-- Transcript -->
+        <div id="transcript-wrap" class="transcript-wrap">
+          <div class="log-label">Transcript</div>
+          <div id="transcript" class="transcript-content"></div>
+        </div>
+
+        <!-- Input area -->
+        <div class="input-area">
+          <textarea id="draft-input" rows="5" placeholder="Type a message..."></textarea>
+          <div class="input-actions">
+            <button id="send-btn">Send</button>
+            <button id="rhai-btn">Rhai Rule Prompt</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel 1: Logs -->
+      <div id="panel-1" class="panel card hidden">
+        <div class="panel-title-row">
+          <span class="panel-title">Logs</span>
+        </div>
+        <div class="log-tabs">
+          <button class="log-tab active" data-log="0">Transport</button>
+          <button class="log-tab" data-log="1">Review</button>
+        </div>
+        <div id="log-panel-0" class="log-subpanel transport-bg">
+          <div class="log-label">Rig / OpenAI Transport</div>
+          <div id="rig-log" class="log-content"></div>
+        </div>
+        <div id="log-panel-1" class="log-subpanel review-bg hidden">
+          <div class="log-label review-label">Review Diffsets</div>
+          <div id="review-log" class="log-content"></div>
+        </div>
+      </div>
+
+      <!-- Panel 2: Settings -->
+      <div id="panel-2" class="panel card hidden settings-bg">
+        <span class="panel-title">Settings</span>
+
+        <label class="field-label" for="input-endpoint">Endpoint URL</label>
+        <input id="input-endpoint" type="text" class="field-input" />
+
+        <label class="field-label" for="input-model">Model</label>
+        <input id="input-model" type="text" class="field-input" />
+
+        <label class="field-label" for="input-api-key">API Key</label>
+        <input id="input-api-key" type="text" class="field-input" />
+
+        <label class="field-label" for="input-system-prompt">System Prompt</label>
+        <textarea id="input-system-prompt" class="field-input system-prompt-area" rows="6"></textarea>
+
+        <div class="settings-actions">
+          <button id="btn-use-phi">Use Internal Phi-4</button>
+          <button id="btn-use-foundry">Use Windows AI</button>
+          <button id="btn-use-cloud">Use Cloud Model</button>
+          <button id="btn-save-settings">Save Settings</button>
+        </div>
+      </div>
+
+      <!-- Panel 3: Docs Playbook -->
+      <div id="panel-3" class="panel card hidden">
+        <span class="panel-title">Docs Playbook</span>
+        <p id="docs-status-text" class="docs-status"></p>
+        <div class="docs-actions">
+          <button id="btn-open-docs">Open Docs Playbook</button>
+          <button id="btn-load-rhai-mutation">Load Rhai Mutation Prompt</button>
+        </div>
+        <div class="docs-preview-wrap">
+          <div id="docs-rig-log" class="log-content"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>

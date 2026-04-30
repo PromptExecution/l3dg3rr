@@ -18,6 +18,9 @@ pub const INTERNAL_DOCS_URL: &str = "http://127.0.0.1:15115/docs/";
 pub const INTERNAL_PHI_MODEL: &str = "phi-4-mini-reasoning";
 pub const INTERNAL_LOCAL_API_KEY: &str = "local-tool-tray";
 pub const DEFAULT_CLOUD_CHAT_URL: &str = "https://api.openai.com/v1/chat/completions";
+pub const FOUNDRY_LOCAL_MODEL: &str = "phi-4-mini";
+pub const FOUNDRY_LOCAL_API_KEY: &str = "local-foundry";
+pub const FOUNDRY_LOCAL_DEFAULT_CHAT_URL: &str = "http://localhost:5272/v1/chat/completions";
 
 #[derive(Debug, Error)]
 pub enum InternalOpenAiError {
@@ -76,6 +79,116 @@ pub fn cloud_chat_settings(system_prompt: impl Into<String>) -> ChatSettings {
         model: String::new(),
         system_prompt: system_prompt.into(),
     }
+}
+
+pub fn foundry_local_chat_settings(
+    system_prompt: impl Into<String>,
+) -> Result<ChatSettings, String> {
+    let endpoint = discover_foundry_local_endpoint()?.unwrap_or_else(|| {
+        FOUNDRY_LOCAL_DEFAULT_CHAT_URL
+            .trim_end_matches("/v1/chat/completions")
+            .to_string()
+    });
+
+    Ok(ChatSettings {
+        endpoint_url: foundry_chat_url(&endpoint),
+        api_key: FOUNDRY_LOCAL_API_KEY.to_string(),
+        model: FOUNDRY_LOCAL_MODEL.to_string(),
+        system_prompt: system_prompt.into(),
+    })
+}
+
+pub fn foundry_local_status() -> String {
+    match discover_foundry_local_endpoint() {
+        Ok(Some(endpoint)) => format!(
+            "foundry_local: available\nmodel: {FOUNDRY_LOCAL_MODEL}\nopenai_endpoint: {}",
+            foundry_chat_url(&endpoint)
+        ),
+        Ok(None) => format!(
+            "foundry_local: status command returned no endpoint\nmodel: {FOUNDRY_LOCAL_MODEL}\nfallback_endpoint: {FOUNDRY_LOCAL_DEFAULT_CHAT_URL}"
+        ),
+        Err(error) => format!(
+            "foundry_local: unavailable ({error})\nmodel: {FOUNDRY_LOCAL_MODEL}\nsetup: just windows-ai-install && just windows-ai-setup"
+        ),
+    }
+}
+
+pub fn discover_foundry_local_endpoint() -> Result<Option<String>, String> {
+    if let Ok(endpoint) = std::env::var("LEDGERR_FOUNDRY_LOCAL_ENDPOINT") {
+        let trimmed = endpoint.trim();
+        if !trimmed.is_empty() {
+            return Ok(Some(normalize_foundry_endpoint(trimmed)));
+        }
+    }
+
+    let output = Command::new("foundry")
+        .args(["service", "status"])
+        .output()
+        .map_err(|error| format!("failed to run `foundry service status`: {error}"))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let combined = format!("{stdout}\n{stderr}");
+
+    if !output.status.success() {
+        return Err(format!(
+            "`foundry service status` exited with {}: {}",
+            output.status,
+            combined.trim()
+        ));
+    }
+
+    let Some(endpoint) = parse_foundry_endpoint(&combined) else {
+        return Ok(None);
+    };
+
+    Ok(Some(
+        discover_foundry_rest_endpoint(&endpoint).unwrap_or(endpoint),
+    ))
+}
+
+pub(crate) fn parse_foundry_endpoint(raw: &str) -> Option<String> {
+    raw.split(|ch: char| ch.is_whitespace() || matches!(ch, '"' | '\'' | ',' | '[' | ']'))
+        .find_map(|token| {
+            let endpoint = token
+                .trim_matches(|ch| matches!(ch, '.' | ';' | ')' | '('))
+                .trim_end_matches('/');
+            if endpoint.starts_with("http://") || endpoint.starts_with("https://") {
+                Some(normalize_foundry_endpoint(endpoint))
+            } else {
+                None
+            }
+        })
+}
+
+fn discover_foundry_rest_endpoint(endpoint: &str) -> Option<String> {
+    #[derive(Deserialize)]
+    #[serde(rename_all = "PascalCase")]
+    struct FoundryStatus {
+        endpoints: Vec<String>,
+    }
+
+    let status_url = format!("{}/openai/status", normalize_foundry_endpoint(endpoint));
+    let status = reqwest::blocking::get(status_url).ok()?.json::<FoundryStatus>().ok()?;
+    status
+        .endpoints
+        .into_iter()
+        .find(|endpoint| endpoint.starts_with("http://") || endpoint.starts_with("https://"))
+        .map(|endpoint| normalize_foundry_endpoint(&endpoint))
+}
+
+fn normalize_foundry_endpoint(endpoint: &str) -> String {
+    endpoint
+        .trim()
+        .trim_end_matches('/')
+        .trim_end_matches("/v1/chat/completions")
+        .trim_end_matches("/v1")
+        .trim_end_matches("/openai")
+        .to_string()
+}
+
+fn foundry_chat_url(endpoint: &str) -> String {
+    format!("{}/v1/chat/completions", normalize_foundry_endpoint(endpoint))
 }
 
 pub fn internal_phi_backend_status() -> String {
@@ -924,6 +1037,37 @@ mod tests {
         assert_eq!(cloud.endpoint_url, DEFAULT_CLOUD_CHAT_URL);
         assert!(cloud.model.is_empty());
         assert!(cloud.api_key.is_empty());
+    }
+
+    #[test]
+    fn foundry_endpoint_parser_accepts_cli_and_rest_status_shapes() {
+        let cli = r#"
+            Foundry Local service is running
+            Endpoint: http://localhost:58123
+        "#;
+        assert_eq!(
+            parse_foundry_endpoint(cli).as_deref(),
+            Some("http://localhost:58123")
+        );
+
+        let rest = r#"{ "Endpoints": ["http://127.0.0.1:5272"], "PipeName": "inference_agent" }"#;
+        assert_eq!(
+            parse_foundry_endpoint(rest).as_deref(),
+            Some("http://127.0.0.1:5272")
+        );
+    }
+
+    #[test]
+    fn foundry_endpoint_parser_normalizes_openai_paths() {
+        assert_eq!(
+            parse_foundry_endpoint("endpoint: http://localhost:5272/v1/chat/completions")
+                .as_deref(),
+            Some("http://localhost:5272")
+        );
+        assert_eq!(
+            parse_foundry_endpoint("endpoint: http://localhost:5272/openai").as_deref(),
+            Some("http://localhost:5272")
+        );
     }
 
     #[test]

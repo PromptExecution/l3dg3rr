@@ -356,8 +356,10 @@ Treat this as a standing operational gate, not a one-time migration task.
   - `ledgerr-host` uses `unsafe_code = "deny"` instead of inheriting workspace `forbid` because Slint macro-generated code emits `allow(unsafe_code)` attributes; keep direct unsafe out of host code and keep `ledger-core` under the stricter workspace policy.
 - 2026-04-22: tool-tray internal webserver owns local chat and docs playbook routes.
   - Use `crates/ledgerr-host/src/internal_openai.rs` for the localhost OpenAI-compatible contract: `/v1/models`, `/v1/chat/completions`, and `/docs/`.
-  - The Slint window should switch providers by setting tested `ChatSettings`: `phi-4-mini-reasoning` on `http://127.0.0.1:15115/v1/chat/completions` for local mode, or the cloud OpenAI-compatible URL for remote mode.
+  - The Slint window should switch providers by setting tested `ChatSettings`: `phi-4-mini-reasoning` on `http://127.0.0.1:15115/v1/chat/completions` for local mode, `phi-4-mini` against the discovered Windows AI / Foundry Local endpoint when explicitly selected, or the cloud OpenAI-compatible URL for remote mode.
   - Build mdBook assets before expecting `/docs/` to serve useful content; use `just host-playbook-window` for the packaged playbook launch path.
+  - Windows AI / Foundry Local is selectable only, not auto-selected. Use `just windows-ai-install`, `just windows-ai-setup`, and `just windows-ai-smoke` as the verified PowerShell setup path before demoing it.
+  - Do not hardcode Foundry Local port `5272` in host logic; discover the dynamic endpoint from `foundry service status` or `/openai/status`.
 - 2026-04-24: README/product framing is bookkeeping-first with visual workflow graph as the organizing model.
   - Describe `l3dg3rr` as a strongly typed, ontologically linked graph of scriptable visual-first workflows for supervised AI/LLM ETL into CPA-auditable bookkeeping artifacts.
   - Keep README structure MECE: bookkeeping truth, typed domain model, ontology graph, scriptable policy, workflow control, visualization, MCP/agent boundary, and operator host.

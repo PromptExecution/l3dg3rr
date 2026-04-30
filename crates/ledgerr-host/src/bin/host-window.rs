@@ -11,10 +11,10 @@ use ledgerr_host::chat::{
 };
 #[cfg(windows)]
 use ledgerr_host::internal_openai::{
-    cloud_chat_settings, docs_playbook_status, internal_phi_backend_status,
-    internal_phi_chat_settings, open_internal_docs_in_browser,
+    cloud_chat_settings, docs_playbook_status, foundry_local_chat_settings, foundry_local_status,
+    internal_phi_backend_status, internal_phi_chat_settings, open_internal_docs_in_browser,
     start_default_internal_openai_endpoint, InternalOpenAiError, InternalOpenAiHandle,
-    INTERNAL_OPENAI_CHAT_URL,
+    FOUNDRY_LOCAL_MODEL, INTERNAL_OPENAI_CHAT_URL,
 };
 #[cfg(windows)]
 use ledgerr_host::settings::{default_settings_path, ChatSettings, SettingsStore};
@@ -144,12 +144,14 @@ slint::slint! {
 
         // Derived: true when the endpoint is the built-in local Phi-4 server.
         // Used to highlight the correct ModelPill without extra Rust state.
-        property <bool> using_internal_phi: root.model_text == "phi-4-mini-reasoning";
+        property <bool> using_internal_phi: root.model_text == "phi-4-mini-reasoning" && root.api_key_text == "local-tool-tray";
+        property <bool> using_foundry_local: root.model_text == "phi-4-mini" && root.api_key_text == "local-foundry";
 
         callback save_settings();
         callback send_message();
         callback load_rhai_rule_prompt();
         callback use_internal_phi();
+        callback use_foundry_local();
         callback use_cloud_model();
         callback open_docs_playbook();
 
@@ -287,7 +289,7 @@ slint::slint! {
                                         border-radius: 14px;
                                         border-width: 1px;
                                         border-color: #2f7dde;
-                                        background: root.using_internal_phi ? #e0ecfb : #fff8e8;
+                                        background: root.using_internal_phi ? #e0ecfb : (root.using_foundry_local ? #e8f8ef : #fff8e8);
 
                                         HorizontalLayout {
                                             padding-left: 12px;
@@ -295,7 +297,7 @@ slint::slint! {
                                             spacing: 6px;
 
                                             Text {
-                                                text: root.using_internal_phi ? "⚡" : "☁";
+                                                text: root.using_internal_phi ? "⚡" : (root.using_foundry_local ? "WA" : "☁");
                                                 font-size: 13px;
                                                 vertical-alignment: center;
                                             }
@@ -336,15 +338,23 @@ slint::slint! {
                                     }
 
                                     ModelPill {
+                                        width: 190px;
+                                        label: "Windows AI / Foundry";
+                                        active: root.using_foundry_local;
+                                        enabled: !root.busy;
+                                        clicked => { root.use_foundry_local(); }
+                                    }
+
+                                    ModelPill {
                                         width: 150px;
                                         label: "☁ Cloud / OpenAI";
-                                        active: !root.using_internal_phi && root.model_text != "";
+                                        active: !root.using_internal_phi && !root.using_foundry_local && root.model_text != "";
                                         enabled: !root.busy;
                                         clicked => { root.use_cloud_model(); }
                                     }
 
                                     Text {
-                                        visible: !root.using_internal_phi && root.model_text != "";
+                                        visible: !root.using_internal_phi && !root.using_foundry_local && root.model_text != "";
                                         text: "— edit endpoint & key in Settings";
                                         color: #8099aa;
                                         font-size: 11px;
@@ -565,6 +575,12 @@ slint::slint! {
                                     }
 
                                     Button {
+                                        text: "Use Windows AI";
+                                        enabled: !root.busy;
+                                        clicked => { root.use_foundry_local(); }
+                                    }
+
+                                    Button {
                                         text: "Use Cloud Model";
                                         enabled: !root.busy;
                                         clicked => { root.use_cloud_model(); }
@@ -737,6 +753,36 @@ fn main() -> Result<(), slint::PlatformError> {
                 Err(error) => {
                     app.set_status_text(
                         format!("Failed to start internal Phi-4 endpoint: {error}").into(),
+                    );
+                }
+            }
+        });
+    }
+
+    {
+        let app_handle = app.as_weak();
+        app.on_use_foundry_local(move || {
+            let Some(app) = app_handle.upgrade() else {
+                return;
+            };
+
+            match foundry_local_chat_settings(app.get_system_prompt_text().to_string()) {
+                Ok(chat) => {
+                    apply_chat_settings_to_window(&app, &chat);
+                    app.set_rig_prompt_preview_text(foundry_local_status().into());
+                    app.set_status_text(
+                        format!(
+                            "Chat is set to Windows AI / Foundry Local with model {FOUNDRY_LOCAL_MODEL}."
+                        )
+                        .into(),
+                    );
+                }
+                Err(error) => {
+                    app.set_status_text(
+                        format!(
+                            "Failed to discover Windows AI / Foundry Local: {error}. Run `just windows-ai-install` then `just windows-ai-setup`."
+                        )
+                        .into(),
                     );
                 }
             }
