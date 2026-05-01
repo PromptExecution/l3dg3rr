@@ -262,11 +262,15 @@ pub fn cloud_chat_settings(system_prompt: impl Into<String>) -> ChatSettings {
 pub fn foundry_local_chat_settings(
     system_prompt: impl Into<String>,
 ) -> Result<ChatSettings, String> {
-    let endpoint = discover_foundry_local_endpoint()?.unwrap_or_else(|| {
-        FOUNDRY_LOCAL_DEFAULT_CHAT_URL
-            .trim_end_matches("/v1/chat/completions")
-            .to_string()
-    });
+    let endpoint = match discover_foundry_local_endpoint()? {
+        Some(ep) => ep,
+        None => {
+            return Err(
+                "Foundry Local not running. Run: just windows-ai-install && just windows-ai-setup"
+                    .to_string(),
+            );
+        }
+    };
 
     Ok(ChatSettings {
         endpoint_url: foundry_chat_url(&endpoint),
@@ -340,6 +344,8 @@ pub(crate) fn parse_foundry_endpoint(raw: &str) -> Option<String> {
 }
 
 fn discover_foundry_rest_endpoint(endpoint: &str) -> Option<String> {
+    use std::time::Duration;
+
     #[derive(Deserialize)]
     #[serde(rename_all = "PascalCase")]
     struct FoundryStatus {
@@ -347,7 +353,12 @@ fn discover_foundry_rest_endpoint(endpoint: &str) -> Option<String> {
     }
 
     let status_url = format!("{}/openai/status", normalize_foundry_endpoint(endpoint));
-    let status = reqwest::blocking::get(status_url).ok()?.json::<FoundryStatus>().ok()?;
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .connect_timeout(Duration::from_secs(1))
+        .build()
+        .ok()?;
+    let status = client.get(&status_url).send().ok()?.json::<FoundryStatus>().ok()?;
     status
         .endpoints
         .into_iter()
@@ -1404,6 +1415,11 @@ mod tests {
     }
     
 }
+
+/// Resolve active ChatSettings from the AppSettings model_provider field.
+///
+/// Returns the resolved settings and an optional warning if a fallback occurred.
+/// The caller decides whether to surface the warning or swallow it.
 pub fn resolve_chat_settings(
     settings: &crate::settings::AppSettings,
 ) -> (ChatSettings, Option<ProviderReadiness>) {
