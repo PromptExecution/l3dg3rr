@@ -344,8 +344,13 @@ test-fast:
     cargo test --workspace --all-targets --all-features \
         -- --skip phi4_produces_output --skip phi4_mistral_produces_output
 
-# Cocogitto release recipe (major|minor|patch, defaults to patch)
-# Creates the version bump commit + tag, pushes to origin, and creates a GitHub release.
+# Cocogitto release recipe (major|minor|patch, defaults to patch).
+#
+# Odd/even minor version policy (Ubuntu-style):
+#   Even minor (1.0, 1.2, 1.4, 1.8 …) — Stable. Full test gate incl. phi4 inference.
+#                                          GitHub release created. LTS supported.
+#   Odd minor  (1.1, 1.3, 1.5, 1.7 …) — Dev/Experimental. Fast test gate only.
+#                                          No GitHub release. No LTS support.
 release version="patch": ensure-cog
     #!/bin/bash
     set -euo pipefail
@@ -354,24 +359,49 @@ release version="patch": ensure-cog
         major|minor|patch) ;;
         *) echo "Invalid version: {{version}} (use major, minor, or patch)" && exit 1 ;;
     esac
-    echo "Running pre-release checks (fast suite — model-inference tests excluded)..."
-    cargo test --workspace --all-targets --all-features \
-        -- --skip phi4_produces_output --skip phi4_mistral_produces_output
+
+    # Determine what the next version will be to apply odd/even policy.
+    CURRENT=$(cog get-version)
+    CURRENT_MINOR=$(echo "$CURRENT" | cut -d. -f2)
+    if [ "{{version}}" = "minor" ]; then
+        NEXT_MINOR=$(( CURRENT_MINOR + 1 ))
+    elif [ "{{version}}" = "major" ]; then
+        NEXT_MINOR=0
+    else
+        NEXT_MINOR=$CURRENT_MINOR
+    fi
+    IS_EVEN=$(( NEXT_MINOR % 2 == 0 ))
+
+    if [ "$IS_EVEN" -eq 1 ]; then
+        echo "Stable (even minor) release — running full test suite including phi4 inference..."
+        cargo test --workspace --all-targets --all-features
+    else
+        echo "Dev (odd minor) release — running fast test suite (phi4 inference skipped)..."
+        cargo test --workspace --all-targets --all-features \
+            -- --skip phi4_produces_output --skip phi4_mistral_produces_output
+    fi
+
     ./scripts/e2e_mvp.sh
     echo "Bumping {{version}} version with cocogitto..."
     cog bump --{{version}}
     cog changelog
     echo "Pushing branch and tags..."
     git push --follow-tags
-    TAG=$(PATH="${HOME}/.cargo/bin:${PATH}" cog get-version | sed 's/^/v/')
-    echo "Creating GitHub release for ${TAG}..."
-    NOTES=$(awk "/^## ${TAG//./\\.}/,/^## v[0-9]/" CHANGELOG.md \
-        | grep -v "^## v[0-9]" | sed '/^[[:space:]]*$/d' | head -80)
-    gh release create "${TAG}" \
-        --title "${TAG}" \
-        --notes "${NOTES:-See CHANGELOG.md for details.}" \
-        --latest
-    echo "Release ${TAG} created: https://github.com/PromptExecution/l3dg3rr/releases/tag/${TAG}"
+    TAG=$(cog get-version | sed 's/^/v/')
+
+    if [ "$IS_EVEN" -eq 1 ]; then
+        echo "Stable release — creating GitHub release for ${TAG}..."
+        NOTES=$(awk "/^## ${TAG//./\\.}/,/^## v[0-9]/" CHANGELOG.md \
+            | grep -v "^## v[0-9]" | sed '/^[[:space:]]*$/d' | head -80)
+        gh release create "${TAG}" \
+            --title "${TAG} (stable)" \
+            --notes "${NOTES:-See CHANGELOG.md for details.}" \
+            --latest
+        echo "GitHub release created: https://github.com/PromptExecution/l3dg3rr/releases/tag/${TAG}"
+    else
+        echo "Dev release — no GitHub release created for odd minor ${TAG}."
+        echo "Tag ${TAG} pushed. Use 'just release minor' again to reach next stable even minor."
+    fi
 
 # Show current version
 v: ensure-cog

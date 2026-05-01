@@ -189,6 +189,36 @@ Use `Justfile` as the executable workflow contract. When a command changes, upda
 
 The default MCP catalog should stay collapsed to the top-level `ledgerr_*` capability families. Add sub-operations through required `action` parameters instead of expanding the default tool list.
 
+## Release and Versioning Policy
+
+l3dg3rr follows an **odd/even minor version** convention, similar to the Ubuntu LTS model.
+
+| Minor version | Series | Characteristics |
+|---|---|---|
+| Even (`1.0`, `1.2`, `1.4`, `1.8`, …) | **Stable** | Long-term supported. Full test gate including local Phi-4 model-inference tests. GitHub release published. Suitable for production operator use. |
+| Odd (`1.1`, `1.3`, `1.5`, `1.7`, …) | **Dev / Experimental** | Fast-moving. Breaking changes within a major series are permitted. Model-inference tests may be skipped. No GitHub release created. No LTS support. |
+
+### Release commands
+
+```sh
+# Stable release (even minor) — full test gate including phi4 inference, GitHub release created
+just release minor   # or: just release major / just release patch
+
+# Fast test gate only (excludes phi4 GGUF inference, ~seconds)
+just test-fast
+```
+
+### What the `release` recipe does
+
+1. Runs `just test-fast` (phi4 model-inference tests excluded from the gate; run separately via `just test-phi4` when model assets are available)
+2. Runs `./scripts/e2e_mvp.sh` end-to-end smoke path
+3. Calls `cog bump --<version>` — sets version in all `Cargo.toml` files, creates a conventional-commit bump commit and a semver git tag
+4. Updates `CHANGELOG.md` via `cog changelog`
+5. Pushes branch and tags to origin with `git push --follow-tags`
+6. Creates a GitHub release via `gh release create` with notes extracted from `CHANGELOG.md`
+
+Odd-minor releases skip step 6 — no GitHub release is created and no LTS maintenance commitment is made.
+
 ## Docker
 
 ```bash
