@@ -196,7 +196,7 @@ l3dg3rr follows an **odd/even minor version** convention, similar to the Ubuntu 
 | Minor version | Series | Characteristics |
 |---|---|---|
 | Even (`1.0`, `1.2`, `1.4`, `1.8`, …) | **Stable** | Long-term supported. Full test gate including local Phi-4 model-inference tests. GitHub release published. Suitable for production operator use. |
-| Odd (`1.1`, `1.3`, `1.5`, `1.7`, …) | **Dev / Experimental** | Fast-moving. Breaking changes within a major series are permitted. Model-inference tests may be skipped. No GitHub release created. No LTS support. |
+| Odd (`1.1`, `1.3`, `1.5`, `1.7`, …) | **Dev / Experimental** | Fast-moving. Breaking changes within a major series are permitted. Model-inference tests may be skipped. GitHub pre-release only (created by CI from the pushed tag). No LTS support. |
 
 ### Release commands
 
