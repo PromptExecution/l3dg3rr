@@ -309,7 +309,7 @@ mod tests {
         let tx = test_tx();
         let cls = test_cls(tx.tx_id.clone());
 
-        builder.build_full_chain(doc, rows, tx, cls).unwrap();
+        builder.build_full_chain(doc, rows, tx, cls);
 
         assert_eq!(graph.node_count(), 4);
         assert_eq!(graph.edge_count(), 3);
