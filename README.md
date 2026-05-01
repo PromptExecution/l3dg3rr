@@ -201,7 +201,9 @@ l3dg3rr follows an **odd/even minor version** convention, similar to the Ubuntu 
 ### Release commands
 
 ```sh
-# Stable release (even minor) — full test gate including phi4 inference, GitHub release created
+# Release bump — outcome depends on the next version:
+# - even minor => stable release, full test gate including phi4 inference, GitHub release created
+# - odd minor => dev/experimental release, fast gate only, no stable GitHub release
 just release minor   # or: just release major / just release patch
 
 # Fast test gate only (excludes phi4 GGUF inference, ~seconds)
