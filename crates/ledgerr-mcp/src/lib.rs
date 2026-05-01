@@ -570,7 +570,9 @@ impl TurboLedgerService {
         persist_state_to_path(&self.state_sidecar_path(), &snapshot)?;
         // Persist evidence graph alongside the main state.
         if let Ok(evidence) = self.evidence.lock() {
-            let _ = arc_kit_au::EvidenceStore::new(self.evidence_path()).save(&evidence);
+            if let Err(e) = arc_kit_au::EvidenceStore::new(self.evidence_path()).save(&evidence) {
+                tracing::warn!(error = %e, "evidence graph persistence failed");
+            }
         }
         Ok(())
     }
@@ -1139,9 +1141,11 @@ impl TurboLedgerService {
 
         // Use the idempotent builder — fails gracefully with tracing::warn!.
         let mut builder = arc_kit_au::EvidenceBuilder::new(&mut evidence);
+        let doc_id = doc.node_id();
         builder.ensure_document(doc);
 
-        // Create extracted row evidence.
+        // Create extracted row evidence. Clone doc_id for row reference since NodeId is move.
+        let doc_ref = doc_id.clone();
         let amount = rust_decimal::Decimal::from_str_exact(&row.amount).map_err(|_| {
             ToolError::InvalidInput(format!("bad amount in evidence emission: {}", row.amount))
         })?;
@@ -1150,10 +1154,10 @@ impl TurboLedgerService {
             date: row.date.clone(),
             amount,
             description: row.description.clone(),
-            source_document: doc_id, // set after we know doc_id
+            source_document: doc_ref,
             extraction_confidence: arc_kit_au::Confidence::from(1.0),
         };
-        let row_ids = builder.ensure_extracted_rows(&doc.node_id(), vec![ext_row]);
+        let row_ids = builder.ensure_extracted_rows(&doc_id, vec![ext_row]);
 
         // Create transaction evidence.
         let tx = Transaction {
@@ -1280,7 +1284,9 @@ impl TurboLedgerTools for TurboLedgerService {
             let tx_id = deterministic_tx_id(row);
             // Only emit for newly inserted transactions.
             if inserted.iter().any(|tx| tx.tx_id == tx_id) {
-                let _ = self.emit_ingest_evidence(row, &tx_id);
+                if let Err(e) = self.emit_ingest_evidence(row, &tx_id) {
+                    tracing::warn!(error = %e, tx_id, "evidence emission failed during ingest");
+                }
             }
         }
 

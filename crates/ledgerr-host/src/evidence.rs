@@ -55,19 +55,27 @@ pub struct TodayQueue {
 impl TodayQueue {
     pub fn from_state(evidence: &EvidenceState, settings: &AppSettings) -> Self {
         let providers = provider_status(settings);
-        let gaps = &evidence.gaps;
-        let blocked = gaps.iter().filter(|g| g.is_critical()).count();
-        let ready = gaps.iter().filter(|g| !g.is_critical()).count();
-        let exported = evidence
-            .graph
-            .nodes_of_type(NodeType::WorkbookRow)
-            .len();
+        let summary = evidence.graph.work_queue_summary();
+        let blocked = summary.blocked;
+        let ready = summary.ready_to_review;
+        let exported = summary.exported;
+        let validation = summary.with_validation_issues;
 
         let last_action_summary = if evidence.checked {
-            if gaps.is_empty() {
+            if blocked == 0 && ready == 0 {
                 "All evidence chains are complete.".to_string()
             } else {
-                format!("{} transactions with incomplete evidence.", gaps.len())
+                let mut parts = vec![];
+                if blocked > 0 {
+                    parts.push(format!("{} blocked (critical gaps)", blocked));
+                }
+                if ready > 0 {
+                    parts.push(format!("{} ready for review", ready));
+                }
+                if validation > 0 {
+                    parts.push(format!("{} with validation issues", validation));
+                }
+                format!("{} transactions need attention.", parts.join(", "))
             }
         } else {
             "Provenance check has not run yet.".to_string()

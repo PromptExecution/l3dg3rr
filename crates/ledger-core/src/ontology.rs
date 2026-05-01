@@ -424,16 +424,34 @@ mod tests {
 
 /// Bridge from ledger-core's ArtifactKind to arc-kit-au's NodeType.
 /// Satisfies PRD-4 AC-4.1.1: canonical ontology types in ledger-core
-/// can be mapped to evidence graph node types without a direct dependency.
-impl From<ArtifactKind> for &'static str {
-    fn from(kind: ArtifactKind) -> Self {
-        match kind {
-            ArtifactKind::Document => "doc",
-            ArtifactKind::Transaction => "tx",
-            ArtifactKind::TaxCategory => "cls",
-            ArtifactKind::Account => "wb",
-            ArtifactKind::EvidenceReference => "row",
-            _ => "unknown",
+/// can be mapped to evidence graph node types. ledger-core serves as
+/// the canonical import path for NodeType.
+#[cfg(feature = "arc-kit-au")]
+mod arc_kit_bridge {
+    use arc_kit_au::node::NodeType;
+
+    use crate::ontology::ArtifactKind;
+
+    impl From<ArtifactKind> for NodeType {
+        fn from(kind: ArtifactKind) -> Self {
+            match kind {
+                ArtifactKind::Transaction => NodeType::Transaction,
+                ArtifactKind::Document => NodeType::SourceDoc,
+                ArtifactKind::ClassificationOutcome => NodeType::Classification,
+                ArtifactKind::ValidationIssue => NodeType::ValidationIssue,
+                ArtifactKind::ModelProposal => NodeType::ModelProposal,
+                ArtifactKind::WorkbookRow => NodeType::WorkbookRow,
+                ArtifactKind::EvidenceReference => NodeType::ExtractedRow,
+                ArtifactKind::AuditEvent => NodeType::OperatorApproval,
+                _ => NodeType::Unknown,
+            }
         }
     }
 }
+
+#[cfg(feature = "arc-kit-au")]
+pub use arc_kit_au::{EdgeType, EvidenceGraph, EvidenceNode, EvidenceStore, NodeId, ProvenanceBadge};
+#[cfg(feature = "arc-kit-au")]
+pub use arc_kit_au::{
+    EvidenceBuilder, EvidenceChain, EvidenceTracer, ProvenanceGap, ProvenanceScanner,
+};

@@ -5033,6 +5033,7 @@ name = "ledger-core"
 version = "1.7.0"
 dependencies = [
  "anyhow",
+ "arc-kit-au",
  "automod",
  "blake3",
  "calamine",

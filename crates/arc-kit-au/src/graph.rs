@@ -21,6 +21,9 @@ pub struct WorkQueueSummary {
     pub ready_to_review: usize,
     pub blocked: usize,
     pub exported: usize,
+    /// Transactions with validation issues requiring attention.
+    /// Derived from ValidationIssue nodes in the graph.
+    pub with_validation_issues: usize,
 }
 
 #[derive(Debug, Error)]
@@ -207,6 +210,7 @@ impl EvidenceGraph {
             ready_to_review: gaps.iter().filter(|g| !g.is_critical()).count(),
             blocked: gaps.iter().filter(|g| g.is_critical()).count(),
             exported: self.nodes_of_type(NodeType::WorkbookRow).len(),
+            with_validation_issues: self.nodes_of_type(NodeType::ValidationIssue).len(),
         }
     }
 
