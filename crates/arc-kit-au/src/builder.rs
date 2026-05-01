@@ -5,13 +5,16 @@
 
 
 use crate::edge::EdgeType;
-use crate::graph::{EvidenceGraph, GraphError};
+use crate::graph::EvidenceGraph;
 use crate::node::{
     Classification, EvidenceNode, ExtractedRow, ModelProposal, NodeId, NodeType, OperatorApproval,
-    SourceDoc, Transaction, WorkbookRow,
+    SourceDoc, Transaction, ValidationIssue, WorkbookRow,
 };
 
 /// Fluent builder for evidence graph construction.
+/// All methods are idempotent: calling them multiple times with the same
+/// data will not create duplicate nodes or edges. Failed edge insertions
+/// (missing target node) are logged with tracing::warn! and do not panic.
 pub struct EvidenceBuilder<'a> {
     graph: &'a mut EvidenceGraph,
 }
@@ -21,108 +24,110 @@ impl<'a> EvidenceBuilder<'a> {
         Self { graph }
     }
 
-    /// Ingest a source document into the evidence graph.
-    pub fn ingest_document(&mut self, doc: SourceDoc) -> Result<NodeId, GraphError> {
+    /// Idempotent: ensure a source document node in the evidence graph.
+    /// Returns the node ID whether inserted or pre-existing.
+    pub fn ensure_document(&mut self, doc: SourceDoc) -> NodeId {
         let node_id = doc.node_id();
-        self.graph.add_node(EvidenceNode::SourceDoc(doc))?;
-        Ok(node_id)
+        self.graph.ensure_node(EvidenceNode::SourceDoc(doc));
+        node_id
     }
 
-    /// Extract rows from a source document.
-    pub fn extract_rows(
+    /// Idempotent: ensure extracted row nodes and their ExtractedFrom edges.
+    /// Rows referencing a document that does not exist in the graph log a warning.
+    pub fn ensure_extracted_rows(
         &mut self,
         doc_id: &NodeId,
         rows: Vec<ExtractedRow>,
-    ) -> Result<Vec<NodeId>, GraphError> {
-        let mut row_ids = Vec::new();
-        for row in rows {
-            let row_id = row.node_id();
-            self.graph.add_node(EvidenceNode::ExtractedRow(row))?;
-            self.graph.add_edge(
-                doc_id.clone(),
-                row_id.clone(),
-                EdgeType::ExtractedFrom,
-            )?;
-            row_ids.push(row_id);
-        }
-        Ok(row_ids)
+    ) -> Vec<NodeId> {
+        rows.into_iter()
+            .map(|row| {
+                let row_id = row.node_id();
+                self.graph.ensure_node(EvidenceNode::ExtractedRow(row));
+                self.graph
+                    .ensure_edge(doc_id.clone(), row_id.clone(), EdgeType::ExtractedFrom);
+                row_id
+            })
+            .collect()
     }
 
-    /// Create a transaction from extracted rows.
-    pub fn create_transaction(
-        &mut self,
-        tx: Transaction,
-        source_rows: &[NodeId],
-    ) -> Result<NodeId, GraphError> {
+    /// Idempotent: ensure a transaction node with Produces edges to source rows.
+    pub fn ensure_transaction(&mut self, tx: Transaction, source_rows: &[NodeId]) -> NodeId {
         let tx_id = tx.node_id();
-        self.graph.add_node(EvidenceNode::Transaction(tx))?;
+        self.graph.ensure_node(EvidenceNode::Transaction(tx));
         for row_id in source_rows {
             self.graph
-                .add_edge(row_id.clone(), tx_id.clone(), EdgeType::Produces)?;
+                .ensure_edge(row_id.clone(), tx_id.clone(), EdgeType::Produces);
         }
-        Ok(tx_id)
+        tx_id
     }
 
-    /// Apply a classification to a transaction.
-    pub fn classify_transaction(
-        &mut self,
-        classification: Classification,
-    ) -> Result<NodeId, GraphError> {
+    /// Idempotent: ensure a classification node with ClassifiedAs edge.
+    pub fn ensure_classification(&mut self, classification: Classification) -> NodeId {
         let cls_id = classification.node_id();
         let tx_id = NodeId::new(NodeType::Transaction, &classification.tx_id);
         self.graph
-            .add_node(EvidenceNode::Classification(classification))?;
-        self.graph.add_edge(tx_id, cls_id.clone(), EdgeType::ClassifiedAs)?;
-        Ok(cls_id)
+            .ensure_node(EvidenceNode::Classification(classification));
+        self.graph
+            .ensure_edge(tx_id, cls_id.clone(), EdgeType::ClassifiedAs);
+        cls_id
     }
 
-    /// Record a model proposal for a transaction.
-    pub fn record_proposal(&mut self, proposal: ModelProposal) -> Result<NodeId, GraphError> {
+    /// Idempotent: ensure a model proposal node.
+    pub fn ensure_proposal(&mut self, proposal: ModelProposal) -> NodeId {
         let prop_id = proposal.node_id();
         let tx_id = NodeId::new(NodeType::Transaction, &proposal.tx_id);
+        self.graph.ensure_node(EvidenceNode::ModelProposal(proposal));
         self.graph
-            .add_node(EvidenceNode::ModelProposal(proposal))?;
-        self.graph.add_edge(tx_id, prop_id.clone(), EdgeType::ProposedBy)?;
-        Ok(prop_id)
+            .ensure_edge(tx_id, prop_id.clone(), EdgeType::ProposedBy);
+        prop_id
     }
 
-    /// Record an operator approval/rejection.
-    pub fn record_approval(&mut self, approval: OperatorApproval) -> Result<NodeId, GraphError> {
+    /// Idempotent: ensure an operator approval node.
+    pub fn ensure_approval(&mut self, approval: OperatorApproval) -> NodeId {
         let approval_id = approval.node_id();
         let tx_id = NodeId::new(NodeType::Transaction, &approval.tx_id);
         self.graph
-            .add_node(EvidenceNode::OperatorApproval(approval))?;
+            .ensure_node(EvidenceNode::OperatorApproval(approval));
         self.graph
-            .add_edge(tx_id, approval_id.clone(), EdgeType::ApprovedBy)?;
-        Ok(approval_id)
+            .ensure_edge(tx_id, approval_id.clone(), EdgeType::ApprovedBy);
+        approval_id
     }
 
-    /// Record a workbook export for a transaction.
-    pub fn export_workbook_row(&mut self, wb_row: WorkbookRow) -> Result<NodeId, GraphError> {
+    /// Idempotent: ensure a workbook row node with ExportedTo edge.
+    pub fn ensure_workbook_row(&mut self, wb_row: WorkbookRow) -> NodeId {
         let wb_id = wb_row.node_id();
         let tx_id = NodeId::new(NodeType::Transaction, &wb_row.tx_id);
-        self.graph.add_node(EvidenceNode::WorkbookRow(wb_row))?;
-        self.graph.add_edge(tx_id, wb_id.clone(), EdgeType::ExportedTo)?;
-        Ok(wb_id)
+        self.graph.ensure_node(EvidenceNode::WorkbookRow(wb_row));
+        self.graph.ensure_edge(tx_id, wb_id.clone(), EdgeType::ExportedTo);
+        wb_id
+    }
+
+    /// Idempotent: ensure a validation issue node with ValidatedAs edge.
+    pub fn ensure_validation_issue(&mut self, issue: ValidationIssue) -> NodeId {
+        let vi_id = issue.node_id();
+        let tx_id = NodeId::new(NodeType::Transaction, &issue.tx_id);
+        self.graph
+            .ensure_node(EvidenceNode::ValidationIssue(issue));
+        self.graph
+            .ensure_edge(tx_id, vi_id.clone(), EdgeType::ValidatedAs);
+        vi_id
     }
 
     /// Build a complete evidence chain for a transaction in one call.
+    /// Idempotent — safe to call multiple times with the same data.
     pub fn build_full_chain(
         &mut self,
         doc: SourceDoc,
         rows: Vec<ExtractedRow>,
         tx: Transaction,
         classification: Classification,
-    ) -> Result<(), GraphError> {
-        let doc_id = self.ingest_document(doc)?;
-        let row_ids = self.extract_rows(&doc_id, rows)?;
-        let tx_id = self.create_transaction(tx, &row_ids)?;
-
+    ) {
+        let doc_id = self.ensure_document(doc);
+        let row_ids = self.ensure_extracted_rows(&doc_id, rows);
+        let tx_id = self.ensure_transaction(tx, &row_ids);
         let mut cls = classification;
         cls.tx_id = tx_id.hash().to_string();
-        self.classify_transaction(cls)?;
-
-        Ok(())
+        self.ensure_classification(cls);
     }
 }
 
@@ -185,7 +190,7 @@ mod tests {
     fn builder_ingests_document() {
         let mut graph = EvidenceGraph::new();
         let mut builder = EvidenceBuilder::new(&mut graph);
-        let doc_id = builder.ingest_document(test_doc()).unwrap();
+        let doc_id = builder.ensure_document(test_doc());
         assert_eq!(graph.node_count(), 1);
         assert_eq!(doc_id.node_type(), NodeType::SourceDoc);
     }
@@ -194,9 +199,9 @@ mod tests {
     fn builder_extracts_rows_with_edges() {
         let mut graph = EvidenceGraph::new();
         let mut builder = EvidenceBuilder::new(&mut graph);
-        let doc_id = builder.ingest_document(test_doc()).unwrap();
+        let doc_id = builder.ensure_document(test_doc());
         let rows = vec![test_row(doc_id.clone())];
-        let row_ids = builder.extract_rows(&doc_id, rows).unwrap();
+        let row_ids = builder.ensure_extracted_rows(builder.extract_rows(&doc_id, rows).unwrap()doc_id, rows);
 
         assert_eq!(graph.node_count(), 2);
         assert_eq!(graph.edge_count(), 1);
@@ -207,10 +212,10 @@ mod tests {
     fn builder_creates_transaction_from_rows() {
         let mut graph = EvidenceGraph::new();
         let mut builder = EvidenceBuilder::new(&mut graph);
-        let doc_id = builder.ingest_document(test_doc()).unwrap();
+        let doc_id = builder.ensure_document(test_doc());
         let rows = vec![test_row(doc_id.clone())];
-        let row_ids = builder.extract_rows(&doc_id, rows).unwrap();
-        let tx_id = builder.create_transaction(test_tx(), &row_ids).unwrap();
+        let row_ids = builder.ensure_extracted_rows(builder.extract_rows(&doc_id, rows).unwrap()doc_id, rows);
+        let tx_id = builder.ensure_transaction(test_tx(), &row_ids);
 
         assert_eq!(graph.node_count(), 3);
         assert_eq!(graph.edge_count(), 2);
@@ -221,13 +226,13 @@ mod tests {
     fn builder_classifies_transaction() {
         let mut graph = EvidenceGraph::new();
         let mut builder = EvidenceBuilder::new(&mut graph);
-        let doc_id = builder.ingest_document(test_doc()).unwrap();
+        let doc_id = builder.ensure_document(test_doc());
         let rows = vec![test_row(doc_id.clone())];
-        let row_ids = builder.extract_rows(&doc_id, rows).unwrap();
-        let tx_id = builder.create_transaction(test_tx(), &row_ids).unwrap();
+        let row_ids = builder.ensure_extracted_rows(builder.extract_rows(&doc_id, rows).unwrap()doc_id, rows);
+        let tx_id = builder.ensure_transaction(test_tx(), &row_ids);
 
         let cls = test_cls(tx_id.hash().to_string());
-        let cls_id = builder.classify_transaction(cls).unwrap();
+        let cls_id = builder.ensure_classification(cls);
 
         assert_eq!(graph.node_count(), 4);
         assert_eq!(graph.edge_count(), 3);
@@ -238,10 +243,10 @@ mod tests {
     fn builder_records_proposal_and_approval() {
         let mut graph = EvidenceGraph::new();
         let mut builder = EvidenceBuilder::new(&mut graph);
-        let doc_id = builder.ingest_document(test_doc()).unwrap();
+        let doc_id = builder.ensure_document(test_doc());
         let rows = vec![test_row(doc_id.clone())];
-        let row_ids = builder.extract_rows(&doc_id, rows).unwrap();
-        let tx_id = builder.create_transaction(test_tx(), &row_ids).unwrap();
+        let row_ids = builder.ensure_extracted_rows(builder.extract_rows(&doc_id, rows).unwrap()doc_id, rows);
+        let tx_id = builder.ensure_transaction(test_tx(), &row_ids);
 
         let proposal = ModelProposal {
             tx_id: tx_id.hash().to_string(),
@@ -252,7 +257,7 @@ mod tests {
             proposed_at: Utc.with_ymd_and_hms(2024, 2, 1, 10, 30, 0).unwrap(),
             validated: true,
         };
-        let prop_id = builder.record_proposal(proposal).unwrap();
+        let prop_id = builder.ensure_proposal(proposal);
 
         let approval = OperatorApproval {
             tx_id: tx_id.hash().to_string(),
@@ -261,7 +266,7 @@ mod tests {
             rationale: Some("correct category".to_string()),
             approved_at: Utc.with_ymd_and_hms(2024, 2, 1, 11, 0, 0).unwrap(),
         };
-        let approval_id = builder.record_approval(approval).unwrap();
+        let approval_id = builder.ensure_approval(approval);
 
         assert_eq!(graph.node_count(), 5);
         assert_eq!(graph.edge_count(), 4);
@@ -273,10 +278,10 @@ mod tests {
     fn builder_exports_workbook_row() {
         let mut graph = EvidenceGraph::new();
         let mut builder = EvidenceBuilder::new(&mut graph);
-        let doc_id = builder.ingest_document(test_doc()).unwrap();
+        let doc_id = builder.ensure_document(test_doc());
         let rows = vec![test_row(doc_id.clone())];
-        let row_ids = builder.extract_rows(&doc_id, rows).unwrap();
-        let tx_id = builder.create_transaction(test_tx(), &row_ids).unwrap();
+        let row_ids = builder.ensure_extracted_rows(builder.extract_rows(&doc_id, rows).unwrap()doc_id, rows);
+        let tx_id = builder.ensure_transaction(test_tx(), &row_ids);
 
         let wb_row = WorkbookRow {
             tx_id: tx_id.hash().to_string(),
@@ -286,7 +291,7 @@ mod tests {
             amount: "-12.34".to_string(),
             exported_at: Utc.with_ymd_and_hms(2024, 2, 1, 12, 0, 0).unwrap(),
         };
-        let wb_id = builder.export_workbook_row(wb_row).unwrap();
+        let wb_id = builder.ensure_workbook_row(wb_row);
 
         assert_eq!(graph.node_count(), 4);
         assert_eq!(graph.edge_count(), 3);

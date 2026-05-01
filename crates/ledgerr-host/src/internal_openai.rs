@@ -62,16 +62,8 @@ impl ModelProviderLabel {
         }
     }
 
-    pub fn readiness(&self) -> ProviderReadiness {
-        match self {
-            Self::LocalDemo => local_demo_readiness(),
-            Self::WindowsAi => windows_ai_readiness(),
-            Self::Cloud => cloud_readiness(None),
-        }
-    }
-
-    /// Readiness with settings context for accurate cloud provider state.
-    pub fn readiness_with_settings(&self, settings: &crate::settings::AppSettings) -> ProviderReadiness {
+    /// Readiness for this provider. Requires AppSettings for accurate cloud detection.
+    pub fn readiness(&self, settings: &crate::settings::AppSettings) -> ProviderReadiness {
         match self {
             Self::LocalDemo => local_demo_readiness(),
             Self::WindowsAi => windows_ai_readiness(),
@@ -150,15 +142,13 @@ fn windows_ai_readiness() -> ProviderReadiness {
 }
 
 /// Returns the readiness state for the Cloud provider.
-fn cloud_readiness(settings: Option<&crate::settings::AppSettings>) -> ProviderReadiness {
-    if let Some(s) = settings {
-        let has_endpoint = !s.chat.endpoint_url.trim().is_empty()
-            && s.chat.endpoint_url != "https://api.openai.com/v1/chat/completions";
-        let has_key = !s.chat.api_key.trim().is_empty();
-        let has_model = !s.chat.model.trim().is_empty();
-        if has_endpoint && has_key && has_model {
-            return ProviderReadiness::Ready;
-        }
+fn cloud_readiness(settings: &crate::settings::AppSettings) -> ProviderReadiness {
+    let has_endpoint = !settings.chat.endpoint_url.trim().is_empty()
+        && settings.chat.endpoint_url != "https://api.openai.com/v1/chat/completions";
+    let has_key = !settings.chat.api_key.trim().is_empty();
+    let has_model = !settings.chat.model.trim().is_empty();
+    if has_endpoint && has_key && has_model {
+        return ProviderReadiness::Ready;
     }
     ProviderReadiness::SetupNeeded {
         next_command: "Configure endpoint and API key in Settings".to_string(),
@@ -167,8 +157,9 @@ fn cloud_readiness(settings: Option<&crate::settings::AppSettings>) -> ProviderR
 
 /// Returns provider info for all three operator labels.
 ///
+/// Requires AppSettings so cloud readiness reflects actual configuration.
 /// Use this to populate the model-mode selector in the host UI.
-pub fn provider_status() -> Vec<ProviderInfo> {
+pub fn provider_status(settings: &crate::settings::AppSettings) -> Vec<ProviderInfo> {
     let labels = [
         (ModelProviderLabel::LocalDemo, true),
         (ModelProviderLabel::WindowsAi, false),
@@ -177,7 +168,7 @@ pub fn provider_status() -> Vec<ProviderInfo> {
     labels
         .into_iter()
         .map(|(label, is_default)| {
-            let readiness = label.readiness();
+            let readiness = label.readiness(settings);
             ProviderInfo {
                 display_name: label.display_name().to_string(),
                 description: label.description().to_string(),
@@ -1325,19 +1316,35 @@ mod tests {
     
     #[test]
     fn local_demo_readiness_is_ready() {
-        let readiness = ModelProviderLabel::LocalDemo.readiness();
+        let settings = crate::settings::AppSettings::default();
+        let readiness = ModelProviderLabel::LocalDemo.readiness(&settings);
         assert!(matches!(readiness, ProviderReadiness::Ready));
     }
     
     #[test]
-    fn cloud_readiness_is_setup_needed() {
-        let readiness = ModelProviderLabel::Cloud.readiness();
+    fn cloud_readiness_needs_configured_endpoint_and_key() {
+        let settings = crate::settings::AppSettings::default();
+        let readiness = ModelProviderLabel::Cloud.readiness(&settings);
         assert!(matches!(readiness, ProviderReadiness::SetupNeeded { .. }));
+
+        // With filled settings, cloud should be Ready.
+        let configured = crate::settings::AppSettings {
+            chat: crate::settings::ChatSettings {
+                endpoint_url: "https://my-model.example.com/v1/chat/completions".to_string(),
+                api_key: "sk-xxx".to_string(),
+                model: "gpt-4o".to_string(),
+                system_prompt: "be brief".to_string(),
+            },
+            ..crate::settings::AppSettings::default()
+        };
+        let ready = ModelProviderLabel::Cloud.readiness(&configured);
+        assert!(matches!(ready, ProviderReadiness::Ready));
     }
-    
+
     #[test]
     fn provider_status_returns_three_entries() {
-        let providers = provider_status();
+        let settings = crate::settings::AppSettings::default();
+        let providers = provider_status(&settings);
         assert_eq!(providers.len(), 3);
         let labels: Vec<_> = providers.iter().map(|p| p.label).collect();
         assert!(labels.contains(&ModelProviderLabel::LocalDemo));
@@ -1408,7 +1415,7 @@ pub fn resolve_chat_settings(
                 reason: format!(
                     "{} unavailable, fell back to Local Demo. {}",
                     settings.model_provider.display_name(),
-                    settings.model_provider.readiness_with_settings(settings),
+                    settings.model_provider.readiness(settings),
                 ),
             });
             (fallback, warning)

@@ -421,3 +421,19 @@ mod tests {
         assert!(snapshot.to_rhai_dsl().contains("missing_provenance_"));
     }
 }
+
+/// Bridge from ledger-core's ArtifactKind to arc-kit-au's NodeType.
+/// Satisfies PRD-4 AC-4.1.1: canonical ontology types in ledger-core
+/// can be mapped to evidence graph node types without a direct dependency.
+impl From<ArtifactKind> for &'static str {
+    fn from(kind: ArtifactKind) -> Self {
+        match kind {
+            ArtifactKind::Document => "doc",
+            ArtifactKind::Transaction => "tx",
+            ArtifactKind::TaxCategory => "cls",
+            ArtifactKind::Account => "wb",
+            ArtifactKind::EvidenceReference => "row",
+            _ => "unknown",
+        }
+    }
+}

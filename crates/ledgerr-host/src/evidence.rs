@@ -54,7 +54,7 @@ pub struct TodayQueue {
 
 impl TodayQueue {
     pub fn from_state(evidence: &EvidenceState, settings: &AppSettings) -> Self {
-        let providers = provider_status();
+        let providers = provider_status(settings);
         let gaps = &evidence.gaps;
         let blocked = gaps.iter().filter(|g| g.is_critical()).count();
         let ready = gaps.iter().filter(|g| !g.is_critical()).count();

@@ -248,9 +248,9 @@ mod tests {
         let tx = test_tx();
 
         // Only build document + rows + transaction
-        let doc_id = builder.ingest_document(doc).unwrap();
-        let row_ids = builder.extract_rows(&doc_id, rows).unwrap();
-        builder.create_transaction(tx, &row_ids).unwrap();
+        let doc_id = builder.ensure_document(doc);
+        let row_ids = builder.ensure_extracted_rows(&doc_id, rows);
+        builder.ensure_transaction(tx, &row_ids);
 
         let gaps = graph.find_missing_provenance();
         assert_eq!(gaps.len(), 1);

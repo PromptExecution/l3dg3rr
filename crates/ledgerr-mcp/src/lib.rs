@@ -494,7 +494,7 @@ impl TurboLedgerService {
         #[cfg(feature = "llm")]
         let llm = LlmClient::new(LlmConfig::from_env()).ok();
 
-        let evidence_path = {
+        let initial_evidence_path = {
             let service_path = std::path::Path::new(&manifest.session.workbook_path);
             persisted_state_path(service_path).with_extension("evidence.json")
         };
@@ -507,7 +507,7 @@ impl TurboLedgerService {
             hsm_state: Mutex::new(persisted.hsm_state),
             document_registry: Mutex::new(registry),
             evidence: Mutex::new(
-                arc_kit_au::EvidenceStore::new(evidence_path)
+                arc_kit_au::EvidenceStore::new(initial_evidence_path)
                     .load()
                     .unwrap_or_else(|_| arc_kit_au::EvidenceGraph::new()),
             ),
@@ -524,6 +524,12 @@ impl TurboLedgerService {
 
     fn state_sidecar_path(&self) -> PathBuf {
         persisted_state_path(self.workbook_path())
+    }
+
+    /// Canonical evidence graph path, always derived from the workbook path.
+    /// Centralizes path computation so callers do not recompute divergently.
+    fn evidence_path(&self) -> PathBuf {
+        self.state_sidecar_path().with_extension("evidence.json")
     }
 
     fn snapshot_persisted_state(&self) -> Result<PersistedServiceState, ToolError> {
@@ -563,9 +569,8 @@ impl TurboLedgerService {
         let snapshot = self.snapshot_persisted_state()?;
         persist_state_to_path(&self.state_sidecar_path(), &snapshot)?;
         // Persist evidence graph alongside the main state.
-        let evidence_path = self.state_sidecar_path().with_extension("evidence.json");
         if let Ok(evidence) = self.evidence.lock() {
-            let _ = arc_kit_au::EvidenceStore::new(evidence_path).save(&evidence);
+            let _ = arc_kit_au::EvidenceStore::new(self.evidence_path()).save(&evidence);
         }
         Ok(())
     }
@@ -1031,6 +1036,24 @@ impl TurboLedgerService {
                     request.category.clone(),
                     confidence.to_string().parse::<f64>().unwrap_or(0.0),
                 );
+
+                // Emit ValidationIssue evidence for low-confidence classifications.
+                if let Ok(mut evidence) = self.evidence.lock() {
+                    let mut builder = arc_kit_au::EvidenceBuilder::new(&mut evidence);
+                    let issue = arc_kit_au::node::ValidationIssue {
+                        tx_id: request.tx_id.clone(),
+                        rule: "confidence_threshold".to_string(),
+                        severity: "recoverable".to_string(),
+                        message: format!(
+                            "confidence {} below 0.80 threshold for category '{}'",
+                            confidence, request.category
+                        ),
+                        actor: request.actor.clone(),
+                        raised_at: chrono::Utc::now(),
+                        resolved: false,
+                    };
+                    builder.ensure_validation_issue(issue);
+                }
             }
 
             (
@@ -1058,40 +1081,26 @@ impl TurboLedgerService {
         )?;
         self.persist_state()?;
 
-        // Emit classification evidence.
+        // Emit classification evidence via idempotent builder.
         {
             let mut evidence = self
                 .evidence
                 .lock()
                 .map_err(|_| ToolError::Internal("evidence lock poisoned".to_string()))?;
-            use arc_kit_au::EdgeType;
-            let cls_node = arc_kit_au::node::Classification {
+            let mut builder = arc_kit_au::EvidenceBuilder::new(&mut evidence);
+            let cls = arc_kit_au::node::Classification {
                 tx_id: request.tx_id.clone(),
                 category: request.category.clone(),
                 sub_category: None,
                 confidence: arc_kit_au::Confidence::from(
-                    request
-                        .confidence
-                        .parse::<f64>()
-                        .unwrap_or(0.0),
+                    request.confidence.parse::<f64>().unwrap_or(0.0),
                 ),
                 rule_used: None,
                 actor: request.actor.clone(),
                 classified_at: chrono::Utc::now(),
                 note: request.note.clone(),
             };
-            let cls_id = cls_node.node_id();
-            if evidence.get_node(&arc_kit_au::NodeId::new(
-                arc_kit_au::NodeType::Classification,
-                &cls_id.hash(),
-            )).is_none() {
-                let _ = evidence.add_node(arc_kit_au::EvidenceNode::Classification(cls_node));
-                let tx_node_id = arc_kit_au::NodeId::new(
-                    arc_kit_au::NodeType::Transaction,
-                    &request.tx_id,
-                );
-                let _ = evidence.add_edge(tx_node_id, cls_id, EdgeType::ClassifiedAs);
-            }
+            builder.ensure_classification(cls);
         }
 
         Ok(response)
@@ -1127,10 +1136,10 @@ impl TurboLedgerService {
             ingested_at: Utc::now(),
             raw_context_path: Some(source_ref.clone()),
         };
-        let doc_id = doc.node_id();
-        if evidence.get_node(&doc_id).is_none() {
-            let _ = evidence.add_node(arc_kit_au::EvidenceNode::SourceDoc(doc));
-        }
+
+        // Use the idempotent builder — fails gracefully with tracing::warn!.
+        let mut builder = arc_kit_au::EvidenceBuilder::new(&mut evidence);
+        builder.ensure_document(doc);
 
         // Create extracted row evidence.
         let amount = rust_decimal::Decimal::from_str_exact(&row.amount).map_err(|_| {
@@ -1141,14 +1150,10 @@ impl TurboLedgerService {
             date: row.date.clone(),
             amount,
             description: row.description.clone(),
-            source_document: doc_id.clone(),
+            source_document: doc_id, // set after we know doc_id
             extraction_confidence: arc_kit_au::Confidence::from(1.0),
         };
-        let row_id = ext_row.node_id();
-        if evidence.get_node(&row_id).is_none() {
-            let _ = evidence.add_node(arc_kit_au::EvidenceNode::ExtractedRow(ext_row));
-            let _ = evidence.add_edge(doc_id.clone(), row_id.clone(), EdgeType::ExtractedFrom);
-        }
+        let row_ids = builder.ensure_extracted_rows(&doc.node_id(), vec![ext_row]);
 
         // Create transaction evidence.
         let tx = Transaction {
@@ -1157,13 +1162,9 @@ impl TurboLedgerService {
             date: row.date.clone(),
             amount: row.amount.clone(),
             description: row.description.clone(),
-            source_rows: vec![row_id.clone()],
+            source_rows: row_ids.clone(),
         };
-        let tx_node_id = tx.node_id();
-        if evidence.get_node(&tx_node_id).is_none() {
-            let _ = evidence.add_node(arc_kit_au::EvidenceNode::Transaction(tx));
-            let _ = evidence.add_edge(row_id, tx_node_id, EdgeType::Produces);
-        }
+        builder.ensure_transaction(tx, &row_ids);
 
         Ok(())
     }
@@ -1856,15 +1857,8 @@ impl TurboLedgerTools for TurboLedgerService {
                 exported_at: chrono::Utc::now(),
             };
             if let Ok(mut evidence) = self.evidence.lock() {
-                let wb_id = wb_row.node_id();
-                if evidence.get_node(&wb_id).is_none() {
-                    let _ = evidence.add_node(arc_kit_au::EvidenceNode::WorkbookRow(wb_row));
-                    let tx_node_id = arc_kit_au::NodeId::new(
-                        arc_kit_au::NodeType::Transaction,
-                        tx_id,
-                    );
-                    let _ = evidence.add_edge(tx_node_id, wb_id, arc_kit_au::EdgeType::ExportedTo);
-                }
+                let mut builder = arc_kit_au::EvidenceBuilder::new(&mut evidence);
+                builder.ensure_workbook_row(wb_row);
             }
         }
 

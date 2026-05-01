@@ -36,7 +36,7 @@ pub mod store;
 
 pub use node::{Confidence, EvidenceNode, NodeId, NodeType};
 pub use edge::{EvidenceEdge, EdgeType};
-pub use graph::EvidenceGraph;
+pub use graph::{EvidenceGraph, WorkQueueSummary};
 pub use builder::EvidenceBuilder;
 pub use trace::{EvidenceChain, EvidenceTracer};
 pub use missing::{MissingElement, ProvenanceGap, ProvenanceScanner};

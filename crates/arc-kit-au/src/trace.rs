@@ -250,9 +250,9 @@ mod tests {
         let tx = test_tx();
 
         // Only build partial chain
-        let doc_id = builder.ingest_document(doc).unwrap();
-        let row_ids = builder.extract_rows(&doc_id, rows).unwrap();
-        let tx_id = builder.create_transaction(tx, &row_ids).unwrap();
+        let doc_id = builder.ensure_document(doc);
+        let row_ids = builder.ensure_extracted_rows(&doc_id, rows);
+        let tx_id = builder.ensure_transaction(tx, &row_ids);
 
         let chain = graph.trace_transaction(tx_id.hash()).unwrap();
         let missing = chain.missing_elements();

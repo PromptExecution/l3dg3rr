@@ -8,7 +8,20 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::edge::{EdgeType, EvidenceEdge};
+use crate::missing::{ProvenanceScanner, ProvenanceGap};
 use crate::node::{EvidenceNode, NodeId, NodeType};
+
+/// Summary of the evidence graph's work queue state.
+///
+/// All counts derive from the same graph, eliminating the risk of
+/// manual counter drift (TRIZ: the graph IS the work queue).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct WorkQueueSummary {
+    pub total_transactions: usize,
+    pub ready_to_review: usize,
+    pub blocked: usize,
+    pub exported: usize,
+}
 
 #[derive(Debug, Error)]
 pub enum GraphError {
@@ -137,6 +150,64 @@ impl EvidenceGraph {
         self.edges.clear();
         self.node_index.clear();
         self.graph.clear();
+    }
+
+    /// Ensure a node exists in the graph. If it already exists, this is a no-op.
+    /// Returns true if the node was newly inserted, false if it already existed.
+    /// Idempotent — safe to call multiple times with the same node.
+    pub fn ensure_node(&mut self, node: EvidenceNode) -> bool {
+        let node_id = node.node_id();
+        if self.node_index.contains_key(&node_id) {
+            return false;
+        }
+        let idx = self.graph.add_node(node.clone());
+        self.node_index.insert(node_id, idx);
+        self.nodes.push(node);
+        true
+    }
+
+    /// Ensure an edge exists in the graph. If either endpoint is missing, logs and returns false.
+    /// Idempotent — duplicates are prevented by the underlying petgraph DiGraph semantics.
+    pub fn ensure_edge(&mut self, from: NodeId, to: NodeId, edge_type: EdgeType) -> bool {
+        let from_idx = match self.node_index.get(&from) {
+            Some(idx) => *idx,
+            None => {
+                tracing::warn!("evidence: ensure_edge skipped — missing source node {from}");
+                return false;
+            }
+        };
+        let to_idx = match self.node_index.get(&to) {
+            Some(idx) => *idx,
+            None => {
+                tracing::warn!("evidence: ensure_edge skipped — missing target node {to}");
+                return false;
+            }
+        };
+        // petgraph allows parallel edges, so we check first
+        if self
+            .graph
+            .edges_connecting(from_idx, to_idx)
+            .any(|e| *e.weight() == edge_type)
+        {
+            return false;
+        }
+        self.graph.add_edge(from_idx, to_idx, edge_type);
+        self.edges.push(EvidenceEdge::new(from, to, edge_type));
+        true
+    }
+
+    /// Work queue summary — a projection of the graph's incomplete chains.
+    ///
+    /// All three counts derive from the same evidence graph so they stay consistent.
+    /// This replaces TodayQueue's manual counting of separate node types.
+    pub fn work_queue_summary(&self) -> WorkQueueSummary {
+        let gaps = self.find_missing_provenance();
+        WorkQueueSummary {
+            total_transactions: self.nodes_of_type(NodeType::Transaction).len(),
+            ready_to_review: gaps.iter().filter(|g| !g.is_critical()).count(),
+            blocked: gaps.iter().filter(|g| g.is_critical()).count(),
+            exported: self.nodes_of_type(NodeType::WorkbookRow).len(),
+        }
     }
 
     /// Serialize graph to JSON.
