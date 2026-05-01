@@ -1187,7 +1187,7 @@ mod tests {
             stream: false,
         };
 
-        let response = Phi4LocalFallbackBackend::default()
+        let response = Phi4LocalFallbackBackend
             .complete(&request)
             .expect("fallback should respond");
         let output: TransactionClassificationOutput =
@@ -1211,7 +1211,7 @@ mod tests {
             stream: false,
         };
 
-        let response = Phi4LocalFallbackBackend::default()
+        let response = Phi4LocalFallbackBackend
             .complete(&request)
             .expect("fallback should respond");
         let payload: serde_json::Value = serde_json::from_str(&response).expect("json response");

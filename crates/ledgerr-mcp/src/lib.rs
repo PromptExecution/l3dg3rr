@@ -1255,8 +1255,37 @@ impl TurboLedgerTools for TurboLedgerService {
         }
         drop(classification);
 
-        if let Some(ontology_path) = request.ontology_path.as_deref() {
-            emit_ingest_ontology_edges(ontology_path, &request.rows)?;
+        if let Some(raw_ontology_path) = request.ontology_path.as_deref() {
+            let allowed_base = request
+                .workbook_path
+                .parent()
+                .ok_or_else(|| {
+                    ToolError::InvalidInput(
+                        "workbook_path must have a parent directory".to_string(),
+                    )
+                })?
+                .to_path_buf();
+            if raw_ontology_path
+                .components()
+                .any(|c| c == std::path::Component::ParentDir)
+            {
+                return Err(ToolError::InvalidInput(format!(
+                    "ontology_path '{}' contains path traversal components",
+                    raw_ontology_path.display()
+                )));
+            }
+            let resolved_ontology_path = if raw_ontology_path.is_absolute() {
+                if !raw_ontology_path.starts_with(&allowed_base) {
+                    return Err(ToolError::InvalidInput(format!(
+                        "ontology_path '{}' resolves outside the allowed directory",
+                        raw_ontology_path.display()
+                    )));
+                }
+                raw_ontology_path.to_path_buf()
+            } else {
+                allowed_base.join(raw_ontology_path)
+            };
+            emit_ingest_ontology_edges(&resolved_ontology_path, &request.rows)?;
         }
 
         for row in &request.rows {
@@ -2328,7 +2357,7 @@ fn emit_ingest_ontology_edges(
         return Ok(());
     }
 
-    let mut store = OntologyStore::load(&ontology_path)?;
+    let mut store = OntologyStore::load(ontology_path)?;
 
     for row in rows {
         let tx_id = deterministic_tx_id(row);

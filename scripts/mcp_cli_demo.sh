@@ -5,7 +5,10 @@ JOURNAL_PATH="${JOURNAL_PATH:-/tmp/demo.beancount}"
 WORKBOOK_PATH="${WORKBOOK_PATH:-/tmp/demo.xlsx}"
 SOURCE_REF="${SOURCE_REF:-wf-2023-01.rkyv}"
 
-cargo run -q -p ledgerr-mcp --bin ledgerr-mcp-server <<EOF
+mkdir -p "$DEMO_ROOT"
+
+if [[ "$MODE" == "basic" ]]; then
+  cargo run -q -p ledgerr-mcp --bin ledgerr-mcp-server <<EOF
 {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"demo","version":"0.1.0"}}}
 {"jsonrpc":"2.0","method":"notifications/initialized","params":{}}
 {"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}
