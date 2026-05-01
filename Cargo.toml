@@ -7,6 +7,7 @@ members = [
   "crates/ledgerr-llm",
   "crates/mdbook-rhai-mermaid",
   "crates/ledgerr-tauri",
+  "crates/arc-kit-au",
   "xtask",
 ]
 resolver = "2"
@@ -14,7 +15,7 @@ resolver = "2"
 [workspace.package]
 edition = "2021"
 license = "MIT"
-version = "1.7.0"
+version = "1.8.0"
 
 [workspace.dependencies]
 rust_xlsxwriter = "0.94.0"
@@ -32,6 +33,7 @@ z3 = "0.8" # Optional - comment out if native Z3 libs not available
 kasuari = "0.4"
 statig = "0.4"
 anyhow = "1"
+ordered-float = { version = "4", features = ["serde"] }
 ledger-core = { path = "crates/ledger-core" }
 
 [workspace.lints.rust]

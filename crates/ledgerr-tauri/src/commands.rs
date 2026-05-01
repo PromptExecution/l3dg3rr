@@ -56,7 +56,7 @@ pub struct RhaiPromptPayload {
 #[derive(serde::Serialize, Clone)]
 pub struct ChatUpdateEvent {
     pub transcript_text: String,
-    pub review_log_text: String,
+    pub review_log_text: Option<String>,
     pub rig_log_text: String,
     pub draft_message_text: String,
     pub status_text: String,
@@ -212,13 +212,13 @@ pub async fn send_message(
         "chat-update",
         ChatUpdateEvent {
             transcript_text: render_transcript(&history_snapshot),
-            review_log_text: {
+            review_log_text: Some(
                 state
                     .review_log
                     .lock()
                     .map(|rl| rl.render())
-                    .unwrap_or_default()
-            },
+                    .unwrap_or_default(),
+            ),
             rig_log_text: render_rig_exchange_log(&request_preview, &backend_status, None, None),
             draft_message_text: draft.clone(),
             status_text: sending_status.clone(),
@@ -277,7 +277,7 @@ pub async fn send_message(
                     "chat-update",
                     ChatUpdateEvent {
                         transcript_text: transcript,
-                        review_log_text: review_text,
+                        review_log_text: Some(review_text),
                         rig_log_text: rig_log,
                         draft_message_text: String::new(),
                         status_text: "Remote chat response received.".to_string(),
@@ -302,7 +302,7 @@ pub async fn send_message(
                     "chat-update",
                     ChatUpdateEvent {
                         transcript_text: transcript,
-                        review_log_text: String::new(),
+                        review_log_text: None,
                         rig_log_text: rig_log,
                         draft_message_text: draft,
                         status_text: format!("Chat request failed: {error}"),

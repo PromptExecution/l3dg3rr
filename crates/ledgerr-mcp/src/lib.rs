@@ -456,6 +456,8 @@ pub struct TurboLedgerService {
     hsm_state: Mutex<HsmMachine>,
     /// In-memory registry: doc_id → DocumentRecord. Persisted as a JSON sidecar.
     document_registry: Mutex<BTreeMap<String, DocumentRecord>>,
+    /// Evidence graph for provenance tracking (arc-kit-au).
+    pub(crate) evidence: Mutex<arc_kit_au::EvidenceGraph>,
     #[cfg(feature = "xero")]
     xero: XeroService,
     #[cfg(feature = "llm")]
@@ -492,6 +494,11 @@ impl TurboLedgerService {
         #[cfg(feature = "llm")]
         let llm = LlmClient::new(LlmConfig::from_env()).ok();
 
+        let initial_evidence_path = {
+            let service_path = std::path::Path::new(&manifest.session.workbook_path);
+            persisted_state_path(service_path).with_extension("evidence.json")
+        };
+
         Ok(Self {
             manifest,
             ingest_state: Mutex::new(persisted.ingest_state),
@@ -499,6 +506,11 @@ impl TurboLedgerService {
             lifecycle_events: Mutex::new(persisted.lifecycle_events),
             hsm_state: Mutex::new(persisted.hsm_state),
             document_registry: Mutex::new(registry),
+            evidence: Mutex::new(
+                arc_kit_au::EvidenceStore::new(initial_evidence_path)
+                    .load()
+                    .unwrap_or_else(|_| arc_kit_au::EvidenceGraph::new()),
+            ),
             #[cfg(feature = "xero")]
             xero,
             #[cfg(feature = "llm")]
@@ -512,6 +524,12 @@ impl TurboLedgerService {
 
     fn state_sidecar_path(&self) -> PathBuf {
         persisted_state_path(self.workbook_path())
+    }
+
+    /// Canonical evidence graph path, always derived from the workbook path.
+    /// Centralizes path computation so callers do not recompute divergently.
+    fn evidence_path(&self) -> PathBuf {
+        self.state_sidecar_path().with_extension("evidence.json")
     }
 
     fn snapshot_persisted_state(&self) -> Result<PersistedServiceState, ToolError> {
@@ -549,7 +567,14 @@ impl TurboLedgerService {
 
     fn persist_state(&self) -> Result<(), ToolError> {
         let snapshot = self.snapshot_persisted_state()?;
-        persist_state_to_path(&self.state_sidecar_path(), &snapshot)
+        persist_state_to_path(&self.state_sidecar_path(), &snapshot)?;
+        // Persist evidence graph alongside the main state.
+        if let Ok(evidence) = self.evidence.lock() {
+            if let Err(e) = arc_kit_au::EvidenceStore::new(self.evidence_path()).save(&evidence) {
+                tracing::warn!(error = %e, "evidence graph persistence failed");
+            }
+        }
+        Ok(())
     }
 
     pub fn list_accounts_tool(
@@ -1013,6 +1038,24 @@ impl TurboLedgerService {
                     request.category.clone(),
                     confidence.to_string().parse::<f64>().unwrap_or(0.0),
                 );
+
+                // Emit ValidationIssue evidence for low-confidence classifications.
+                if let Ok(mut evidence) = self.evidence.lock() {
+                    let mut builder = arc_kit_au::EvidenceBuilder::new(&mut evidence);
+                    let issue = arc_kit_au::node::ValidationIssue {
+                        tx_id: request.tx_id.clone(),
+                        rule: "confidence_threshold".to_string(),
+                        severity: "recoverable".to_string(),
+                        message: format!(
+                            "confidence {} below 0.80 threshold for category '{}'",
+                            confidence, request.category
+                        ),
+                        actor: request.actor.clone(),
+                        raised_at: chrono::Utc::now(),
+                        resolved: false,
+                    };
+                    builder.ensure_validation_issue(issue);
+                }
             }
 
             (
@@ -1040,7 +1083,94 @@ impl TurboLedgerService {
         )?;
         self.persist_state()?;
 
+        // Emit classification evidence via idempotent builder.
+        {
+            let mut evidence = self
+                .evidence
+                .lock()
+                .map_err(|_| ToolError::Internal("evidence lock poisoned".to_string()))?;
+            let mut builder = arc_kit_au::EvidenceBuilder::new(&mut evidence);
+            let cls = arc_kit_au::node::Classification {
+                tx_id: request.tx_id.clone(),
+                category: request.category.clone(),
+                sub_category: None,
+                confidence: arc_kit_au::Confidence::from(
+                    request.confidence.parse::<f64>().unwrap_or(0.0),
+                ),
+                rule_used: None,
+                actor: request.actor.clone(),
+                classified_at: chrono::Utc::now(),
+                note: request.note.clone(),
+            };
+            builder.ensure_classification(cls);
+        }
+
         Ok(response)
+    }
+
+    fn emit_ingest_evidence(
+        &self,
+        row: &TransactionInput,
+        tx_id: &str,
+    ) -> Result<(), ToolError> {
+        use arc_kit_au::EdgeType;
+        use arc_kit_au::node::{ExtractedRow, SourceDoc, Transaction};
+        use chrono::Utc;
+
+        let mut evidence = self
+            .evidence
+            .lock()
+            .map_err(|_| ToolError::Internal("evidence lock poisoned".to_string()))?;
+
+        // Create source document evidence.
+        let source_ref = &row.source_ref;
+        let filename = std::path::Path::new(source_ref)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(source_ref);
+        let doc = SourceDoc {
+            filename: filename.to_string(),
+            vendor: String::new(),
+            account_id: row.account_id.clone(),
+            statement_date: row.date.clone(),
+            document_type: "statement".to_string(),
+            content_hash: blake3::hash(source_ref.as_bytes()).to_hex().to_string(),
+            ingested_at: Utc::now(),
+            raw_context_path: Some(source_ref.clone()),
+        };
+
+        // Use the idempotent builder — fails gracefully with tracing::warn!.
+        let mut builder = arc_kit_au::EvidenceBuilder::new(&mut evidence);
+        let doc_id = doc.node_id();
+        builder.ensure_document(doc);
+
+        // Create extracted row evidence. Clone doc_id for row reference since NodeId is move.
+        let doc_ref = doc_id.clone();
+        let amount = rust_decimal::Decimal::from_str_exact(&row.amount).map_err(|_| {
+            ToolError::InvalidInput(format!("bad amount in evidence emission: {}", row.amount))
+        })?;
+        let ext_row = ExtractedRow {
+            account_id: row.account_id.clone(),
+            date: row.date.clone(),
+            amount,
+            description: row.description.clone(),
+            source_document: doc_ref,
+            extraction_confidence: arc_kit_au::Confidence::from(1.0),
+        };
+        let row_ids = builder.ensure_extracted_rows(&doc_id, vec![ext_row]);
+
+        // Create transaction evidence.
+        let tx = Transaction {
+            tx_id: tx_id.to_string(),
+            account_id: row.account_id.clone(),
+            date: row.date.clone(),
+            amount: row.amount.clone(),
+            description: row.description.clone(),
+            source_rows: row_ids.clone(),
+        };
+        builder.ensure_transaction(tx, &row_ids);
+
+        Ok(())
     }
 }
 
@@ -1177,6 +1307,17 @@ impl TurboLedgerTools for TurboLedgerService {
             )?;
         }
         self.persist_state()?;
+
+        // Emit evidence nodes for ingested rows.
+        for row in &request.rows {
+            let tx_id = deterministic_tx_id(row);
+            // Only emit for newly inserted transactions.
+            if inserted.iter().any(|tx| tx.tx_id == tx_id) {
+                if let Err(e) = self.emit_ingest_evidence(row, &tx_id) {
+                    tracing::warn!(error = %e, tx_id, "evidence emission failed during ingest");
+                }
+            }
+        }
 
         let tx_ids = inserted
             .iter()
@@ -1739,6 +1880,23 @@ impl TurboLedgerTools for TurboLedgerService {
         }
 
         workbook.save(&request.workbook_path).map_err(map_xlsx)?;
+
+        // Emit WorkbookRow evidence for each classified transaction
+        for (tx_id, stored_cls) in &classifications {
+            let wb_row = arc_kit_au::node::WorkbookRow {
+                tx_id: tx_id.clone(),
+                sheet_name: "Transactions".to_string(),
+                row_index: 0,
+                category: stored_cls.category.clone(),
+                amount: String::new(),
+                exported_at: chrono::Utc::now(),
+            };
+            if let Ok(mut evidence) = self.evidence.lock() {
+                let mut builder = arc_kit_au::EvidenceBuilder::new(&mut evidence);
+                builder.ensure_workbook_row(wb_row);
+            }
+        }
+
         Ok(ExportCpaWorkbookResponse { sheets_written })
     }
 

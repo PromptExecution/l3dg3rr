@@ -23,13 +23,14 @@ petgraph = "0.6"
 fdg-sim = "0.9"
 glam = "0.27"
 femtovg = "0.9"
+arc-kit-au = { path = "../arc-kit-au", optional = true }
 
 # filesystem metadata — xattr on Linux; sidecar fallback is pure std
 [target.'cfg(target_os = "linux")'.dependencies]
 xattr = "1"
 
 [features]
-default = []
+default = ["arc-kit-au"]
 legal-z3 = ["dep:z3"]
 
 [lints]

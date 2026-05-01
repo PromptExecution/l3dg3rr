@@ -19,24 +19,29 @@ mcp-stop:
 # Build the Windows host binaries from WSL via PowerShell. This is the canonical
 # path for `host-tray.exe` and `host-window.exe`.
 wsl2-pwsh-build:
-    powershell.exe -NoProfile -Command '$env:PATH = "C:\Users\wendy\.cargo\bin;C:\msys64\mingw64\bin;" + $env:PATH; Set-Location "C:\Users\wendy\l3dg3rr"; cargo build -p ledgerr-host --bin host-tray --bin host-window'
+    powershell.exe -NoProfile -Command '$env:PATH = "C:\Users\wendy\.cargo\bin;C:\msys64\mingw64\bin;" + $env:PATH; Set-Location "D:\Projects\l3dg3rr"; cargo build -p ledgerr-host --bin host-tray --bin host-window'
+
+# Full local install: build host binaries, MCP server, and docs.
+# Run this from WSL after any code change to get a fresh Windows build.
+wsl2-pwsh-install:
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command '$env:PATH = "C:\Users\wendy\.cargo\bin;C:\msys64\mingw64\bin;" + $env:PATH; Set-Location "D:\Projects\l3dg3rr"; Write-Host "[1/3] Building ledgerr-host bins..."; cargo build -p ledgerr-host --bin host-tray --bin host-window; if ($LASTEXITCODE -ne 0) { throw "host build failed" }; Write-Host "[2/3] Building MCP server..."; cargo build -p ledgerr-mcp --bin ledgerr-mcp-server; if ($LASTEXITCODE -ne 0) { throw "MCP server build failed" }; Write-Host "[3/3] Build complete."; Write-Host ""; Write-Host "Installed binaries:"; Get-Item "target\debug\host-tray.exe","target\debug\host-window.exe","target\debug\ledgerr-mcp-server.exe" | ForEach-Object { "  " + $_.FullName + "  (" + [math]::Round($_.Length/1KB, 1) + " KB)" }'
 
 # Rebuild and launch the tray host on Windows.
 wsl2-pwsh-run-tray:
-    powershell.exe -NoProfile -Command '$env:PATH = "C:\Users\wendy\.cargo\bin;C:\msys64\mingw64\bin;" + $env:PATH; Set-Location "C:\Users\wendy\l3dg3rr"; cargo build -p ledgerr-host --bin host-tray | Out-Null; Get-Process host-tray -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Milliseconds 250; Start-Process -FilePath "C:\Users\wendy\l3dg3rr\target\debug\host-tray.exe" -WorkingDirectory "C:\Users\wendy\l3dg3rr"'
+    powershell.exe -NoProfile -Command '$env:PATH = "C:\Users\wendy\.cargo\bin;C:\msys64\mingw64\bin;" + $env:PATH; Set-Location "D:\Projects\l3dg3rr"; cargo build -p ledgerr-host --bin host-tray | Out-Null; Get-Process host-tray -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Milliseconds 250; Start-Process -FilePath "D:\Projects\l3dg3rr\target\debug\host-tray.exe" -WorkingDirectory "D:\Projects\l3dg3rr"'
 
-# Rebuild and launch the separate Slint host window on Windows (no local LLM).
+# Rebuild and launch the legacy Slint host window on Windows (no local LLM).
 # The internal endpoint falls back to the deterministic Phi-4 stub.
 wsl2-pwsh-run-window:
-    powershell.exe -NoProfile -Command '$env:PATH = "C:\Users\wendy\.cargo\bin;C:\msys64\mingw64\bin;" + $env:PATH; Set-Location "C:\Users\wendy\l3dg3rr"; cargo build -p ledgerr-host --bin host-window | Out-Null; Start-Process -FilePath "C:\Users\wendy\l3dg3rr\target\debug\host-window.exe" -WorkingDirectory "C:\Users\wendy\l3dg3rr"'
+    powershell.exe -NoProfile -Command '$env:PATH = "C:\Users\wendy\.cargo\bin;C:\msys64\mingw64\bin;" + $env:PATH; Set-Location "D:\Projects\l3dg3rr"; cargo build -p ledgerr-host --bin host-window | Out-Null; Start-Process -FilePath "D:\Projects\l3dg3rr\target\debug\host-window.exe" -WorkingDirectory "D:\Projects\l3dg3rr"'
 
 # Same as above but compiled with the real mistralrs Phi-4 Mini backend.
 # Requires the model GGUF at models/unsloth/Phi-4-mini-reasoning-GGUF/ (just phi4-reasoning-symlink).
 # First inference call writes a ~2 GB patched sidecar; subsequent calls reuse it.
 wsl2-pwsh-run-window-phi4:
-    powershell.exe -NoProfile -Command '$env:PATH = "C:\Users\wendy\.cargo\bin;C:\msys64\mingw64\bin;" + $env:PATH; Set-Location "C:\Users\wendy\l3dg3rr"; cargo build -p ledgerr-host --bin host-window --features mistralrs-llm | Out-Null; Start-Process -FilePath "C:\Users\wendy\l3dg3rr\target\debug\host-window.exe" -WorkingDirectory "C:\Users\wendy\l3dg3rr"'
+    powershell.exe -NoProfile -Command '$env:PATH = "C:\Users\wendy\.cargo\bin;C:\msys64\mingw64\bin;" + $env:PATH; Set-Location "D:\Projects\l3dg3rr"; cargo build -p ledgerr-host --bin host-window --features mistralrs-llm | Out-Null; Start-Process -FilePath "D:\Projects\l3dg3rr\target\debug\host-window.exe" -WorkingDirectory "D:\Projects\l3dg3rr"'
 
-# Build the mdBook playbook assets, then launch the Slint host window whose
+# Build the mdBook playbook assets, then launch the legacy Slint host window whose
 # internal localhost server serves both `/v1/chat/completions` and `/docs/`.
 # Uses the deterministic Phi-4 stub backend (no GGUF required).
 host-playbook-window:
@@ -57,7 +62,7 @@ host-playbook-window-windows-ai:
 
 # Build docs, start Windows-local HTTP server, and open browser for live Rhai diagram editing.
 wsl2-pwsh-docserve:
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Users\wendy\l3dg3rr\scripts\docserve-live.ps1"
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "D:\Projects\l3dg3rr\scripts\docserve-live.ps1"
 
 # Pull and run the MCP server from GHCR using podman (stdio transport)
 # Usage: just mcp-podman-run        — latest image on main

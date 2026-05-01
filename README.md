@@ -48,7 +48,7 @@ MECE module grouping keeps the logic approachable:
 | Ontology graph | typed links between documents, accounts, transactions, evidence, Xero entities | `crates/ledgerr-mcp/src/ontology.rs`, `crates/ledger-core/src/graph.rs`, `book/src/ontology-type-mesh.md` |
 | Scriptable policy | editable Rhai classification and document-shape rules | `rules/`, `classify.rs`, `rule_registry.rs` |
 | Workflow control | pipeline state, scheduled operations, approval/reversibility metadata | `pipeline.rs`, `workflow.rs`, `ledger_ops.rs`, `calendar.rs` |
-| Visualization | Mermaid, isometric docs renderer, live Rhai editor, Slint-facing seams | `crates/mdbook-rhai-mermaid/`, `book/theme/rhai-live-core.js`, `visualize.rs`, `slint_viz.rs` |
+| Visualization | Mermaid, isometric docs renderer, live Rhai editor | `crates/mdbook-rhai-mermaid/`, `book/theme/rhai-live-core.js`, `visualize.rs` |
 | Agent boundary | published MCP capability families and deterministic argument contracts | `crates/ledgerr-mcp/src/contract.rs`, `mcp_adapter.rs`, `docs/mcp-capability-contract.md` |
 | Operator host | desktop settings, notifications, local chat endpoint, tray/window control | `crates/ledgerr-host/src/` |
 
@@ -121,7 +121,9 @@ See [Capability Map](book/src/capability-map.md) for the full component table.
 | mdBook Rhai-to-Mermaid preprocessor | Implemented | supports `fn`, `if`, and `match` diagram DSL lines |
 | Live Rhai docs editor | Implemented | synchronized isometric and Mermaid views |
 | Xero capability family | In flight | supervised MCP capability, not raw credential exposure |
-| Slint desktop host | Partial | settings, local endpoint, notifications, tray/window seams under `ledgerr-host` |
+| Tauri desktop host | Active | primary operator host (replaces legacy Slint surface) |
+| Slint desktop host | Legacy | fallback window, settings, local endpoint, notifications |
+| Evidence traceability (arc-kit-au) | Implemented | petgraph-backed provenance graph with deterministic node identity |
 | Docling extraction bridge | Missing | planned local extraction sidecar |
 | File watcher | Missing | `notify` not yet wired as an end-to-end inbox loop |
 

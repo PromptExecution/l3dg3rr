@@ -1,12 +1,14 @@
 use serde::{Deserialize, Serialize};
 
+use crate::internal_openai::ModelProviderLabel;
 use crate::notify::{NotificationBackend, NotificationTestResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SettingsSchemaVersion {
-    #[default]
     V1,
+    #[default]
+    V2,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -71,6 +73,8 @@ fn default_chat_system_prompt() -> String {
 pub struct AppSettings {
     #[serde(default)]
     pub schema_version: SettingsSchemaVersion,
+    #[serde(default = "default_model_provider")]
+    pub model_provider: ModelProviderLabel,
     pub toast_enabled: bool,
     pub toast_backend_preference: NotificationBackend,
     pub start_minimized_to_tray: bool,
@@ -83,10 +87,15 @@ pub struct AppSettings {
     pub last_test_result: Option<NotificationTestResult>,
 }
 
+fn default_model_provider() -> ModelProviderLabel {
+    ModelProviderLabel::LocalDemo
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            schema_version: SettingsSchemaVersion::V1,
+            schema_version: SettingsSchemaVersion::V2,
+            model_provider: default_model_provider(),
             toast_enabled: true,
             toast_backend_preference: NotificationBackend::PowerShell,
             start_minimized_to_tray: false,
@@ -95,5 +104,16 @@ impl Default for AppSettings {
             chat: ChatSettings::default(),
             last_test_result: None,
         }
+    }
+}
+
+impl AppSettings {
+    /// Resolve ChatSettings from the operator's model_provider choice.
+    ///
+    /// Returns (resolved_settings, Option<ProviderReadiness>) where the second
+    /// element is Some when a fallback occurred (e.g., WindowsAi selected but
+    /// Foundry not installed). The caller decides whether to surface the warning.
+    pub fn resolve_chat(&self) -> (ChatSettings, Option<crate::internal_openai::ProviderReadiness>) {
+        crate::internal_openai::resolve_chat_settings(self)
     }
 }
