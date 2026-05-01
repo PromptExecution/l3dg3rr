@@ -143,11 +143,22 @@ fn windows_ai_readiness() -> ProviderReadiness {
 
 /// Returns the readiness state for the Cloud provider.
 fn cloud_readiness(settings: &crate::settings::AppSettings) -> ProviderReadiness {
-    let has_endpoint = !settings.chat.endpoint_url.trim().is_empty()
-        && settings.chat.endpoint_url != "https://api.openai.com/v1/chat/completions";
-    let has_key = !settings.chat.api_key.trim().is_empty();
-    let has_model = !settings.chat.model.trim().is_empty();
-    if has_endpoint && has_key && has_model {
+    let endpoint = settings.chat.endpoint_url.trim();
+    let api_key = settings.chat.api_key.trim();
+    let model = settings.chat.model.trim();
+
+    // Reject known internal/local endpoints — these are LocalDemo or WindowsAi addresses.
+    let is_external_endpoint = !endpoint.is_empty()
+        && !endpoint.starts_with("http://127.")
+        && !endpoint.starts_with("http://localhost")
+        && !endpoint.starts_with("http://[::1]");
+
+    // Reject known internal API key placeholders.
+    let is_real_key = !api_key.is_empty()
+        && api_key != INTERNAL_LOCAL_API_KEY
+        && api_key != FOUNDRY_LOCAL_API_KEY;
+
+    if is_external_endpoint && is_real_key && !model.is_empty() {
         return ProviderReadiness::Ready;
     }
     ProviderReadiness::SetupNeeded {
