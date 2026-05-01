@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.8.0 - 2026-05-01
+#### Miscellaneous Chores
+- (**version**) v1.7.0 - (9162007) - Claude Sonnet (coordinator)
+
+- - -
+
 ## v1.7.0 - 2026-05-01
 #### Features
 - add selectable Windows AI provider - (319882f) - Claude Sonnet (coordinator)

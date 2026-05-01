@@ -15,7 +15,7 @@ resolver = "2"
 [workspace.package]
 edition = "2021"
 license = "MIT"
-version = "1.7.0"
+version = "1.8.0"
 
 [workspace.dependencies]
 rust_xlsxwriter = "0.94.0"
