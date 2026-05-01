@@ -41,6 +41,18 @@ Host playbook path with local Phi-4 model assets:
 just host-playbook-window-phi4
 ```
 
+Host playbook path with Windows AI / Foundry Local:
+
+```sh
+just windows-ai-install
+just windows-ai-setup
+just windows-ai-smoke
+just host-playbook-window-windows-ai
+```
+
+The Windows AI provider is selectable in the host window. It is not auto-selected.
+Use the `Windows AI / Foundry Local` control after the smoke test passes.
+
 ## Related Chapters
 
 - [Capability Map](./capability-map.md)

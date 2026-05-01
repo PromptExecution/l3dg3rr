@@ -49,6 +49,12 @@ host-playbook-window-phi4:
     just docgen
     just wsl2-pwsh-run-window-phi4
 
+# Build the docs and launch the host window. In the window, explicitly select
+# "Windows AI / Foundry Local" to use the Foundry Local OpenAI-compatible endpoint.
+host-playbook-window-windows-ai:
+    just docgen
+    just wsl2-pwsh-run-window
+
 # Build docs, start Windows-local HTTP server, and open browser for live Rhai diagram editing.
 wsl2-pwsh-docserve:
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Users\wendy\l3dg3rr\scripts\docserve-live.ps1"
@@ -88,6 +94,25 @@ test:
     ./target/debug/mcp-outcome-test
 
 # ─── Local model assets ───────────────────────────────────────────────────────
+
+# Install Microsoft Foundry Local on Windows, then print version and service status.
+# This is intentionally explicit and never auto-selects Windows AI in the app.
+windows-ai-install:
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command '$ErrorActionPreference = "Stop"; winget install --id Microsoft.FoundryLocal --source winget --accept-package-agreements --accept-source-agreements; $env:PATH = [Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [Environment]::GetEnvironmentVariable("PATH", "User"); foundry --version; foundry service restart; foundry service status'
+
+# Download/setup the Foundry Local Phi-4 Mini alias. Foundry Local chooses the
+# hardware-specific variant for the current Windows machine.
+windows-ai-setup model="phi-4-mini":
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command '$ErrorActionPreference = "Stop"; $env:PATH = [Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [Environment]::GetEnvironmentVariable("PATH", "User"); foundry model list --filter task=chat-completion; foundry model info "{{model}}"; foundry model download "{{model}}"; foundry cache list'
+
+# Print diagnostics for the Windows AI / Foundry Local runtime and cache.
+windows-ai-status:
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command '$ErrorActionPreference = "Stop"; $env:PATH = [Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [Environment]::GetEnvironmentVariable("PATH", "User"); foundry --version; foundry service status; foundry service ps; foundry cache location; foundry cache list'
+
+# End-to-end Foundry Local smoke test. Fails if the service endpoint, model load,
+# or OpenAI-compatible chat completion path is not working.
+windows-ai-smoke model="phi-4-mini":
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command '$ErrorActionPreference = "Stop"; $env:PATH = [Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [Environment]::GetEnvironmentVariable("PATH", "User"); foundry service start; foundry model download "{{model}}"; foundry model load "{{model}}"; $status = foundry service status | Out-String; $endpoint = [regex]::Match($status, "https?://(?:localhost|127\.0\.0\.1):\d+").Value; if (-not $endpoint) { throw "No Foundry Local endpoint in service status: $status" }; $restStatus = Invoke-RestMethod "$endpoint/openai/status"; $endpoint = @($restStatus.Endpoints)[0]; if (-not $endpoint) { throw "No endpoint in /openai/status response" }; $body = @{ model = "{{model}}"; messages = @(@{ role = "user"; content = "Reply with exactly: ok" }); max_tokens = 8; temperature = 0 } | ConvertTo-Json -Depth 8; $response = Invoke-RestMethod -Method Post -Uri "$endpoint/v1/chat/completions" -ContentType "application/json" -Body $body; $text = $response.choices[0].message.content; if ([string]::IsNullOrWhiteSpace($text)) { throw "Foundry Local returned an empty assistant message" }; Write-Host "Foundry Local smoke response: $text"'
 
 # Requires the Hugging Face CLI from `huggingface_hub`:
 #   uv tool install huggingface-hub
