@@ -377,8 +377,7 @@ release version="patch": ensure-cog
         cargo test --workspace --all-targets --all-features
     else
         echo "Dev (odd minor) release — running fast test suite (phi4 inference skipped)..."
-        cargo test --workspace --all-targets --all-features \
-            -- --skip phi4_produces_output --skip phi4_mistral_produces_output
+        just test-fast
     fi
 
     ./scripts/e2e_mvp.sh
