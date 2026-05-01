@@ -2,6 +2,33 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.7.0 - 2026-05-01
+#### Features
+- add selectable Windows AI provider - (319882f) - Claude Sonnet (coordinator)
+- redesign chat panel with model selector and scalable layout - (fa3f6d9) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+#### Bug Fixes
+- cloud_readiness rejects internal endpoints and placeholder keys - (4565fa0) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+- remove spurious .unwrap() on unit-returning build_full_chain in test - (51af3ef) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+- C1-C5 + G5.1 — foundry failure not silent, discovery timeout, CSP, unsafe_code, review_log_text Option, doc placement - (1a6705d) - Claude Sonnet (coordinator)
+- H3 emit_ingest_evidence warn, H6 work_queue_summary wiring + validation field, H7 From<NodeType> bridge + re-exports - (777d71a) - Claude Sonnet (coordinator)
+- call cloud_readiness without Some wrapper - (3dc7555) - Claude Sonnet (coordinator)
+- builder test corruption from sed; final H1-H8 clean compile - (9038d01) - Claude Sonnet (coordinator)
+- H1-H8 review gaps — provider_status requires settings, idempotent EvidenceBuilder, ValidationIssue emission, work_queue_summary, bridge, resolve_chat - (12721e9) - Claude Sonnet (coordinator)
+- reviewer-verified P0/P1 gaps incl G5.1 (tests in mod) and G4.3 (ValidationIssue node) - (5abf7e5) - Claude Sonnet (coordinator)
+- address P0/P1 review gaps — tests structure, silent-zero amounts, cloud readiness, provider fallback, evidence emission for export/validation - (7946fea) - Claude Sonnet (coordinator)
+- resolve Core Functional Shape nodes to canonical isometric visual types - (850bae0) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+- make window dynamically resizable and prevent screen overflow - (d89d942) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+#### Documentation
+- add operator simplification PRD - (b1878b1) - Claude Sonnet (coordinator)
+- align Claude plugin MCP runtime - (b20a2e5) - brianh
+- consolidate Rhai workflow structure - (5a89eb4) - brianh
+#### Continuous Integration
+- install linux desktop dependencies - (5230e67) - Claude Sonnet (coordinator)
+#### Miscellaneous Chores
+- add scheduled_tasks.lock to gitignore; add PRD-6 draft - (b5b68cd) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+
+- - -
+
 ## v1.5.0 - 2026-04-19
 #### Features
 - ship the Windows desktop host further toward an operator control plane with richer tray state, persisted tray settings, and a basic Slint chat window backed by `rig-core`
