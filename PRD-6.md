@@ -680,7 +680,7 @@ Phase 0 (parallel with language changes)
 Phase 1 (after T1 is stable)
 ├── T5  criterion benchmarks
 ├── T6  cargo-fuzz for Rhai parser
-└── T7  iai/hyperfine regrssion gate
+└── T7  iai/hyperfine regression gate
 
 Phase 2 (ongoing)
 ├── T8  cargo profile config

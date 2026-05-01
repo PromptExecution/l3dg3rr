@@ -39,7 +39,7 @@ just release major
 5. Calls `cog bump --<version>` — bumps all `Cargo.toml` versions, creates a conventional-commit bump commit and a semver git tag
 6. Pushes branch and tags with `git push --follow-tags`
 7. **Even minor** — creates a stable GitHub release (`gh release create --latest`)
-8. **Odd minor** — skips GitHub release creation (tag is pushed; CI creates a pre-release)
+8. **Odd minor** — creates a GitHub pre-release (`gh release create --prerelease`)
 
 ## Test Gates
 

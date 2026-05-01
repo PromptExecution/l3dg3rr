@@ -196,7 +196,7 @@ l3dg3rr follows an **odd/even minor version** convention, similar to the Ubuntu 
 | Minor version | Series | Characteristics |
 |---|---|---|
 | Even (`1.0`, `1.2`, `1.4`, `1.8`, …) | **Stable** | Long-term supported. Full test gate including local Phi-4 model-inference tests. GitHub release published. Suitable for production operator use. |
-| Odd (`1.1`, `1.3`, `1.5`, `1.7`, …) | **Dev / Experimental** | Fast-moving. Breaking changes within a major series are permitted. Model-inference tests may be skipped. GitHub pre-release only (created by CI from the pushed tag). No LTS support. |
+| Odd (`1.1`, `1.3`, `1.5`, `1.7`, …) | **Dev / Experimental** | Fast-moving. Breaking changes within a major series are permitted. Model-inference tests may be skipped. GitHub pre-release created by the same `release` workflow. No LTS support. |
 
 ### Release commands
 
@@ -219,7 +219,7 @@ just test-fast
 3. Calls `cog bump --<version>` — sets version in all `Cargo.toml` files, creates a conventional-commit bump commit and a semver git tag
 4. Pushes branch and tags to origin with `git push --follow-tags`
 5. **Even minor** — creates a stable GitHub release (`gh release create --latest`)
-6. **Odd minor** — skips GitHub release; CI creates a pre-release from the pushed tag
+6. **Odd minor** — creates a GitHub pre-release (`gh release create --prerelease`)
 
 Pushing the tag triggers `.github/workflows/docs.yml`, which redeploys GitHub Pages regardless of minor parity.
 
