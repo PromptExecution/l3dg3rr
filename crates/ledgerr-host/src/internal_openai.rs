@@ -67,7 +67,7 @@ impl ModelProviderLabel {
         match self {
             Self::LocalDemo => local_demo_readiness(),
             Self::WindowsAi => windows_ai_readiness(),
-            Self::Cloud => cloud_readiness(Some(settings)),
+            Self::Cloud => cloud_readiness(settings),
         }
     }
 }
