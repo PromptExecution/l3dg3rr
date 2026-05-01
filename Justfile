@@ -178,14 +178,14 @@ install-devtools:
         cargo install ripgrep --quiet
     fi
 
-    # Install fd-find via cargo if not found
-    if ! command -v fd >/dev/null 2>&1; then
+    # Install fd-find via cargo if neither the upstream nor Ubuntu/Debian binary name is found
+    if ! command -v fd >/dev/null 2>&1 && ! command -v fdfind >/dev/null 2>&1; then
         echo "Installing fd-find via cargo..."
         cargo install fd-find --quiet
     fi
 
-    # Install bat (syntax-highlighted pager) via cargo if not found
-    if ! command -v bat >/dev/null 2>&1; then
+    # Install bat (syntax-highlighted pager) via cargo if neither the upstream nor Ubuntu/Debian binary name is found
+    if ! command -v bat >/dev/null 2>&1 && ! command -v batcat >/dev/null 2>&1; then
         echo "Installing bat via cargo..."
         cargo install bat --quiet
     fi
