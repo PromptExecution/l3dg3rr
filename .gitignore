@@ -23,3 +23,4 @@ prd.md
 
 # mdbook output
 book/book/
+.claude/scheduled_tasks.lock
