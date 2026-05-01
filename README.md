@@ -210,14 +210,16 @@ just test-fast
 
 ### What the `release` recipe does
 
-1. Runs `just test-fast` (phi4 model-inference tests excluded from the gate; run separately via `just test-phi4` when model assets are available)
+1. Detects the next version's minor parity and selects the appropriate test gate:
+   - **Even minor (stable)** — full `cargo test` suite including phi4 GGUF inference
+   - **Odd minor (dev)** — fast gate only (`--skip phi4_produces_output --skip phi4_mistral_produces_output`)
 2. Runs `./scripts/e2e_mvp.sh` end-to-end smoke path
 3. Calls `cog bump --<version>` — sets version in all `Cargo.toml` files, creates a conventional-commit bump commit and a semver git tag
-4. Updates `CHANGELOG.md` via `cog changelog`
-5. Pushes branch and tags to origin with `git push --follow-tags`
-6. Creates a GitHub release via `gh release create` with notes extracted from `CHANGELOG.md`
+4. Pushes branch and tags to origin with `git push --follow-tags`
+5. **Even minor** — creates a stable GitHub release (`gh release create --latest`)
+6. **Odd minor** — skips GitHub release; CI creates a pre-release from the pushed tag
 
-Odd-minor releases skip step 6 — no GitHub release is created and no LTS maintenance commitment is made.
+Pushing the tag triggers `.github/workflows/docs.yml`, which redeploys GitHub Pages regardless of minor parity.
 
 ## Docker
 
