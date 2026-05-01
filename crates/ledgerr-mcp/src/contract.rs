@@ -30,6 +30,7 @@ pub const AUDIT_TOOL: &str = "ledgerr_audit";
 pub const TAX_TOOL: &str = "ledgerr_tax";
 pub const ONTOLOGY_TOOL: &str = "ledgerr_ontology";
 pub const XERO_TOOL: &str = "ledgerr_xero";
+pub const EVIDENCE_TOOL: &str = "ledgerr_evidence";
 pub const CALENDAR_TOOL: &str = "list_calendar_events";
 pub const SHAPE_TOOL: &str = "get_document_shape";
 
@@ -49,11 +50,12 @@ pub const TOOL_REGISTRY: &[&str] = &[
     TAX_TOOL,
     ONTOLOGY_TOOL,
     XERO_TOOL,
+    EVIDENCE_TOOL,
     CALENDAR_TOOL,
     SHAPE_TOOL,
 ];
 
-pub const PUBLISHED_TOOLS: [ToolContractSpec; 8] = [
+pub const PUBLISHED_TOOLS: [ToolContractSpec; 9] = [
     ToolContractSpec {
         name: DOCUMENTS_TOOL,
         purpose: "document intake (PDF, image, CSV), tagging, filesystem metadata sync",
@@ -133,6 +135,14 @@ pub const PUBLISHED_TOOLS: [ToolContractSpec; 8] = [
             "fetch_invoices",
             "link_entity",
             "sync_catalog",
+        ],
+    },
+    ToolContractSpec {
+        name: EVIDENCE_TOOL,
+        purpose: "evidence traceability: provenance gaps, transaction lineage, review badges",
+        actions: &[
+            "provenance_gaps",
+            "trace_tx",
         ],
     },
 ];
@@ -580,6 +590,21 @@ pub fn parse_xero(arguments: &Value) -> Result<XeroArgs, ToolError> {
     parse_args(arguments)
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "action", deny_unknown_fields)]
+pub enum EvidenceArgs {
+    #[serde(rename = "provenance_gaps")]
+    ProvenanceGaps,
+    #[serde(rename = "trace_tx")]
+    TraceTx {
+        tx_id: String,
+    },
+}
+
+pub fn parse_evidence(arguments: &Value) -> Result<EvidenceArgs, ToolError> {
+    parse_args(arguments)
+}
+
 fn parse_args<T>(arguments: &Value) -> Result<T, ToolError>
 where
     T: for<'de> Deserialize<'de>,
@@ -598,6 +623,7 @@ pub fn tool_input_schema(name: &str) -> Value {
         TAX_TOOL => root_schema_to_value(schema_for!(TaxArgs)),
         ONTOLOGY_TOOL => root_schema_to_value(schema_for!(OntologyArgs)),
         XERO_TOOL => root_schema_to_value(schema_for!(XeroArgs)),
+        EVIDENCE_TOOL => root_schema_to_value(schema_for!(EvidenceArgs)),
         _ => json!({ "type": "object" }),
     }
 }
@@ -614,7 +640,7 @@ pub fn generated_capability_contract_markdown() -> String {
 Rust code is the only source of truth for the published MCP surface. If this file drifts from the contract module, tests should fail.\n\n",
     );
     doc.push_str(
-        "The default catalog is intentionally small: 8 top-level `ledgerr_*` tools. Each tool uses a required `action` field so the major capability families stay visible while related operations are grouped under one top-level command.\n\n",
+        "The default catalog is intentionally small: 9 top-level `ledgerr_*` tools. Each tool uses a required `action` field so the major capability families stay visible while related operations are grouped under one top-level command.\n\n",
     );
     doc.push_str("## Published MCP Tools\n\n");
     doc.push_str("| Tool | Purpose | Common actions |\n|---|---|---|\n");

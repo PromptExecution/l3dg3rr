@@ -1,0 +1,20 @@
+[package]
+name = "arc-kit-au"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Evidence traceability layer for l3dg3rr — tracks provenance from source documents through classifications to workbook exports"
+
+[dependencies]
+blake3.workspace = true
+petgraph = "0.7"
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+thiserror.workspace = true
+chrono = { workspace = true, features = ["serde"] }
+rust_decimal = { workspace = true, features = ["serde"] }
+tracing.workspace = true
+ordered-float.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

@@ -13,7 +13,8 @@ Current planning assumptions:
 - Xero is already part of the visible `ledgerr_*` capability direction; future work should treat it as an in-flight supervised capability, not a greenfield speculative add-on.
 - Xero access should be mediated through supervised MCP worker processes/tools, not by giving raw credentials directly to the model or relying on `.env` as the long-term secret model.
 - Windows 11 desktop support matters: toast/app notifications, tray/menubar control surface, and persistent settings are first-class operator features.
-- Slint is the preferred UI shell for the desktop window, but tray/docked menubar icon integration may use a separate Rust crate such as `tray-icon` while Slint remains the main UI/event-loop host.
+- Slint is the legacy UI shell for the desktop window; tray/docked menubar icon integration uses `tray-icon` while the Slint window is available as a fallback surface. Tauri (`crates/ledgerr-tauri`) is now the primary desktop host. CI checks the Tauri host; Slint CI is opt-in only.
+- arc-kit-au (`crates/arc-kit-au`) is the evidence traceability layer — a native Rust adaptation of the arc-kit governance model for bookkeeping provenance. It tracks source documents → extracted rows → transactions → classifications → proposals → approvals → workbook rows as a petgraph-backed evidence graph with deterministic Blake3 node identity.
 
 Desktop control-plane milestones currently in scope:
 - persistent notification settings (`enabled/disabled`, backend health, last test result),

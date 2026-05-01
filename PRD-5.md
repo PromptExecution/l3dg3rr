@@ -311,13 +311,15 @@ Acceptance:
 
 ### Phase 4 - Collapse Duplicate Desktop Shells
 
+**Status: Executed (2026-05-01).** Tauri is the primary desktop host. Slint is the legacy interface.
+
 Goal: avoid long-term Slint/Tauri product ambiguity.
 
 Scope:
 
-- Choose primary host shell for operator demos.
-- Keep the other shell as experimental or remove it from default workspace CI.
-- Document the decision in `AGENTS.md`.
+- Choose primary host shell for operator demos. → **Tauri selected.**
+- Keep the other shell as experimental or remove it from default workspace CI. → **Slint is legacy; CI checks Tauri by default.**
+- Document the decision in `AGENTS.md`. → **Done.**
 
 Acceptance:
 
@@ -339,7 +341,7 @@ Acceptance:
 ## Open Questions
 
 - Should "Local Demo" describe deterministic fallback explicitly in the first-level UI, or only in details?
-- Should Tauri remain in the default workspace while Slint is still the preferred host shell?
+- Should Tauri remain in the default workspace while Slint is now the legacy host shell? → **Tauri is primary. Slint is legacy. Both remain in workspace.**
 - Should Windows AI setup recipes eventually be surfaced as buttons, or stay as `Justfile` commands for operator-controlled setup?
 - What is the smallest real data sample that can populate the Today queue without exposing private financial data?
 

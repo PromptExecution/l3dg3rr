@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 
-use super::schema::AppSettings;
+use super::schema::{AppSettings, SettingsSchemaVersion};
 
 #[derive(Debug, Error)]
 pub enum SettingsError {
@@ -32,8 +32,27 @@ impl SettingsStore {
             return Ok(AppSettings::default());
         }
         let raw = std::fs::read_to_string(&self.path)?;
-        match serde_json::from_str::<AppSettings>(&raw) {
-            Ok(settings) => Ok(settings),
+        self.load_from_str(&raw)
+    }
+
+    fn load_from_str(&self, raw: &str) -> Result<AppSettings, SettingsError> {
+        // Try current schema first.
+        match serde_json::from_str::<AppSettings>(raw) {
+            Ok(settings) => {
+                // V1→V2 migration: if loaded as V1, bump and backfill.
+                if settings.schema_version == SettingsSchemaVersion::V1 {
+                    #[cfg(debug_assertions)]
+                    eprintln!(
+                        "settings: migrating {} V1→V2 (model_provider defaults to LocalDemo)",
+                        self.path.display()
+                    );
+                    let mut migrated = settings;
+                    migrated.schema_version = SettingsSchemaVersion::V2;
+                    let _ = self.save(&migrated);
+                    return Ok(migrated);
+                }
+                Ok(settings)
+            }
             Err(_) => Ok(AppSettings::default()),
         }
     }

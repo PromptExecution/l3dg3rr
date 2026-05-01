@@ -456,6 +456,8 @@ pub struct TurboLedgerService {
     hsm_state: Mutex<HsmMachine>,
     /// In-memory registry: doc_id → DocumentRecord. Persisted as a JSON sidecar.
     document_registry: Mutex<BTreeMap<String, DocumentRecord>>,
+    /// Evidence graph for provenance tracking (arc-kit-au).
+    pub evidence: Mutex<arc_kit_au::EvidenceGraph>,
     #[cfg(feature = "xero")]
     xero: XeroService,
     #[cfg(feature = "llm")]
@@ -492,6 +494,11 @@ impl TurboLedgerService {
         #[cfg(feature = "llm")]
         let llm = LlmClient::new(LlmConfig::from_env()).ok();
 
+        let evidence_path = {
+            let service_path = std::path::Path::new(&manifest.session.workbook_path);
+            persisted_state_path(service_path).with_extension("evidence.json")
+        };
+
         Ok(Self {
             manifest,
             ingest_state: Mutex::new(persisted.ingest_state),
@@ -499,6 +506,11 @@ impl TurboLedgerService {
             lifecycle_events: Mutex::new(persisted.lifecycle_events),
             hsm_state: Mutex::new(persisted.hsm_state),
             document_registry: Mutex::new(registry),
+            evidence: Mutex::new(
+                arc_kit_au::EvidenceStore::new(evidence_path)
+                    .load()
+                    .unwrap_or_else(|_| arc_kit_au::EvidenceGraph::new()),
+            ),
             #[cfg(feature = "xero")]
             xero,
             #[cfg(feature = "llm")]
@@ -549,7 +561,13 @@ impl TurboLedgerService {
 
     fn persist_state(&self) -> Result<(), ToolError> {
         let snapshot = self.snapshot_persisted_state()?;
-        persist_state_to_path(&self.state_sidecar_path(), &snapshot)
+        persist_state_to_path(&self.state_sidecar_path(), &snapshot)?;
+        // Persist evidence graph alongside the main state.
+        let evidence_path = self.state_sidecar_path().with_extension("evidence.json");
+        if let Ok(evidence) = self.evidence.lock() {
+            let _ = arc_kit_au::EvidenceStore::new(evidence_path).save(&evidence);
+        }
+        Ok(())
     }
 
     pub fn list_accounts_tool(
@@ -1040,7 +1058,112 @@ impl TurboLedgerService {
         )?;
         self.persist_state()?;
 
+        // Emit classification evidence.
+        {
+            let mut evidence = self
+                .evidence
+                .lock()
+                .map_err(|_| ToolError::Internal("evidence lock poisoned".to_string()))?;
+            use arc_kit_au::EdgeType;
+            let cls_node = arc_kit_au::node::Classification {
+                tx_id: request.tx_id.clone(),
+                category: request.category.clone(),
+                sub_category: None,
+                confidence: arc_kit_au::Confidence::from(
+                    request
+                        .confidence
+                        .parse::<f64>()
+                        .unwrap_or(0.0),
+                ),
+                rule_used: None,
+                actor: request.actor.clone(),
+                classified_at: chrono::Utc::now(),
+                note: request.note.clone(),
+            };
+            let cls_id = cls_node.node_id();
+            if evidence.get_node(&arc_kit_au::NodeId::new(
+                arc_kit_au::NodeType::Classification,
+                &cls_id.hash(),
+            )).is_none() {
+                let _ = evidence.add_node(arc_kit_au::EvidenceNode::Classification(cls_node));
+                let tx_node_id = arc_kit_au::NodeId::new(
+                    arc_kit_au::NodeType::Transaction,
+                    &request.tx_id,
+                );
+                let _ = evidence.add_edge(tx_node_id, cls_id, EdgeType::ClassifiedAs);
+            }
+        }
+
         Ok(response)
+    }
+
+    fn emit_ingest_evidence(
+        &self,
+        row: &TransactionInput,
+        tx_id: &str,
+    ) -> Result<(), ToolError> {
+        use arc_kit_au::EdgeType;
+        use arc_kit_au::node::{ExtractedRow, SourceDoc, Transaction};
+        use chrono::Utc;
+
+        let mut evidence = self
+            .evidence
+            .lock()
+            .map_err(|_| ToolError::Internal("evidence lock poisoned".to_string()))?;
+
+        // Create source document evidence.
+        let source_ref = &row.source_ref;
+        let filename = std::path::Path::new(source_ref)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(source_ref);
+        let doc = SourceDoc {
+            filename: filename.to_string(),
+            vendor: String::new(),
+            account_id: row.account_id.clone(),
+            statement_date: row.date.clone(),
+            document_type: "statement".to_string(),
+            content_hash: blake3::hash(source_ref.as_bytes()).to_hex().to_string(),
+            ingested_at: Utc::now(),
+            raw_context_path: Some(source_ref.clone()),
+        };
+        let doc_id = doc.node_id();
+        if evidence.get_node(&doc_id).is_none() {
+            let _ = evidence.add_node(arc_kit_au::EvidenceNode::SourceDoc(doc));
+        }
+
+        // Create extracted row evidence.
+        let amount = rust_decimal::Decimal::from_str_exact(&row.amount).unwrap_or_default();
+        let ext_row = ExtractedRow {
+            account_id: row.account_id.clone(),
+            date: row.date.clone(),
+            amount,
+            description: row.description.clone(),
+            source_document: doc_id.clone(),
+            extraction_confidence: arc_kit_au::Confidence::from(1.0),
+        };
+        let row_id = ext_row.node_id();
+        if evidence.get_node(&row_id).is_none() {
+            let _ = evidence.add_node(arc_kit_au::EvidenceNode::ExtractedRow(ext_row));
+            let _ = evidence.add_edge(doc_id.clone(), row_id.clone(), EdgeType::ExtractedFrom);
+        }
+
+        // Create transaction evidence.
+        let tx = Transaction {
+            tx_id: tx_id.to_string(),
+            account_id: row.account_id.clone(),
+            date: row.date.clone(),
+            amount: row.amount.clone(),
+            description: row.description.clone(),
+            source_rows: vec![row_id.clone()],
+        };
+        let tx_node_id = tx.node_id();
+        if evidence.get_node(&tx_node_id).is_none() {
+            let _ = evidence.add_node(arc_kit_au::EvidenceNode::Transaction(tx));
+            let _ = evidence.add_edge(row_id, tx_node_id, EdgeType::Produces);
+        }
+
+        Ok(())
     }
 }
 
@@ -1148,6 +1271,15 @@ impl TurboLedgerTools for TurboLedgerService {
             )?;
         }
         self.persist_state()?;
+
+        // Emit evidence nodes for ingested rows.
+        for row in &request.rows {
+            let tx_id = deterministic_tx_id(row);
+            // Only emit for newly inserted transactions.
+            if inserted.iter().any(|tx| tx.tx_id == tx_id) {
+                let _ = self.emit_ingest_evidence(row, &tx_id);
+            }
+        }
 
         let tx_ids = inserted
             .iter()

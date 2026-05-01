@@ -7,8 +7,8 @@ use serde_json::{json, Value};
 
 use crate::{
     contract::{
-        self, AuditArgs, DocumentsArgs, OntologyArgs, ReconciliationArgs, ReviewArgs, TaxArgs,
-        WorkflowArgs,
+        self, AuditArgs, DocumentsArgs, EvidenceArgs, OntologyArgs, ReconciliationArgs,
+        ReviewArgs, TaxArgs, WorkflowArgs,
     },
     ClassifyIngestedRequest, ClassifyTransactionRequest, DocumentInventoryRequest,
     DocumentQueueStatusRequest, EventHistoryFilter, ExportCpaWorkbookRequest, FlagStatusRequest,
@@ -22,8 +22,8 @@ use crate::{
 };
 
 pub use crate::contract::{
-    AUDIT_TOOL, DOCUMENTS_TOOL, ONTOLOGY_TOOL, RECONCILIATION_TOOL, REVIEW_TOOL, TAX_TOOL,
-    WORKFLOW_TOOL, XERO_TOOL,
+    AUDIT_TOOL, DOCUMENTS_TOOL, EVIDENCE_TOOL, ONTOLOGY_TOOL, RECONCILIATION_TOOL, REVIEW_TOOL,
+    TAX_TOOL, WORKFLOW_TOOL, XERO_TOOL,
 };
 
 #[allow(clippy::vec_init_then_push)]
@@ -62,6 +62,7 @@ pub fn tool_names_for(features: &[&str]) -> Vec<String> {
     if features.contains(&"core") {
         tools.push(DOCUMENTS_TOOL.to_string());
         tools.push(WORKFLOW_TOOL.to_string());
+        tools.push(EVIDENCE_TOOL.to_string());
     }
     if features.contains(&"classification") {
         tools.push(REVIEW_TOOL.to_string());
@@ -2187,5 +2188,77 @@ fn parse_ontology_entity_kind(raw: Option<&str>) -> Result<crate::OntologyEntity
         _ => Err(ToolError::InvalidInput(
             "missing or invalid `kind` in entity (must be Document, Account, Institution, Transaction, TaxCategory, EvidenceReference, XeroContact, XeroBankAccount, XeroInvoice, or WorkflowTag)".to_string(),
         )),
+    }
+}
+
+pub fn handle_evidence_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
+    use crate::contract::parse_evidence;
+
+    let request = match parse_evidence(arguments) {
+        Ok(r) => r,
+        Err(err) => return error_envelope(&err),
+    };
+
+    match request {
+        EvidenceArgs::ProvenanceGaps => {
+            use arc_kit_au::ProvenanceScanner;
+            let evidence = service.evidence.lock().unwrap_or_else(|e| e.into_inner());
+            let gaps = evidence.find_missing_provenance();
+            let gap_jsons: Vec<_> = gaps
+                .iter()
+                .map(|g| {
+                    json!({
+                        "tx_id": g.tx_id,
+                        "has_source": g.has_source,
+                        "has_classification": g.has_classification,
+                        "has_approval": g.has_approval,
+                        "has_export": g.has_export,
+                        "is_critical": g.is_critical(),
+                        "missing": g.missing.iter().map(|m| m.to_string()).collect::<Vec<_>>(),
+                    })
+                })
+                .collect();
+            json!({
+                "content": [text_content(json!({
+                    "action": "provenance_gaps",
+                    "gaps": gap_jsons,
+                    "count": gaps.len(),
+                }))],
+                "isError": false
+            })
+        }
+        EvidenceArgs::TraceTx { tx_id } => {
+            use arc_kit_au::EvidenceTracer;
+            let evidence = service.evidence.lock().unwrap_or_else(|e| e.into_inner());
+            match evidence.trace_transaction(&tx_id) {
+                Some(chain) => {
+                    use arc_kit_au::ProvenanceBadge;
+                    let badge = ProvenanceBadge::from(&chain);
+                    json!({
+                        "content": [text_content(json!({
+                            "action": "trace_tx",
+                            "tx_id": tx_id,
+                            "provenance_badge": badge.label(),
+                            "has_complete_provenance": chain.has_complete_provenance(),
+                            "source_count": chain.source_count(),
+                            "proposal_count": chain.proposal_count(),
+                            "approval_count": chain.approval_count(),
+                            "export_count": chain.export_count(),
+                            "missing": chain.missing_elements(),
+                        }))],
+                        "isError": false
+                    })
+                }
+                None => json!({
+                    "content": [text_content(json!({
+                        "action": "trace_tx",
+                        "tx_id": tx_id,
+                        "provenance_badge": "not_found",
+                        "message": "No evidence chain found for this transaction.",
+                    }))],
+                    "isError": false
+                }),
+            }
+        }
     }
 }
