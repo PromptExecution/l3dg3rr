@@ -201,7 +201,7 @@ mod tests {
         let mut builder = EvidenceBuilder::new(&mut graph);
         let doc_id = builder.ensure_document(test_doc());
         let rows = vec![test_row(doc_id.clone())];
-        let row_ids = builder.ensure_extracted_rows(builder.extract_rows(&doc_id, rows).unwrap()doc_id, rows);
+        let row_ids = builder.ensure_extracted_rows(&doc_id, rows);
 
         assert_eq!(graph.node_count(), 2);
         assert_eq!(graph.edge_count(), 1);
@@ -214,7 +214,7 @@ mod tests {
         let mut builder = EvidenceBuilder::new(&mut graph);
         let doc_id = builder.ensure_document(test_doc());
         let rows = vec![test_row(doc_id.clone())];
-        let row_ids = builder.ensure_extracted_rows(builder.extract_rows(&doc_id, rows).unwrap()doc_id, rows);
+        let row_ids = builder.ensure_extracted_rows(&doc_id, rows);
         let tx_id = builder.ensure_transaction(test_tx(), &row_ids);
 
         assert_eq!(graph.node_count(), 3);
@@ -228,7 +228,7 @@ mod tests {
         let mut builder = EvidenceBuilder::new(&mut graph);
         let doc_id = builder.ensure_document(test_doc());
         let rows = vec![test_row(doc_id.clone())];
-        let row_ids = builder.ensure_extracted_rows(builder.extract_rows(&doc_id, rows).unwrap()doc_id, rows);
+        let row_ids = builder.ensure_extracted_rows(&doc_id, rows);
         let tx_id = builder.ensure_transaction(test_tx(), &row_ids);
 
         let cls = test_cls(tx_id.hash().to_string());
@@ -245,7 +245,7 @@ mod tests {
         let mut builder = EvidenceBuilder::new(&mut graph);
         let doc_id = builder.ensure_document(test_doc());
         let rows = vec![test_row(doc_id.clone())];
-        let row_ids = builder.ensure_extracted_rows(builder.extract_rows(&doc_id, rows).unwrap()doc_id, rows);
+        let row_ids = builder.ensure_extracted_rows(&doc_id, rows);
         let tx_id = builder.ensure_transaction(test_tx(), &row_ids);
 
         let proposal = ModelProposal {
@@ -280,7 +280,7 @@ mod tests {
         let mut builder = EvidenceBuilder::new(&mut graph);
         let doc_id = builder.ensure_document(test_doc());
         let rows = vec![test_row(doc_id.clone())];
-        let row_ids = builder.ensure_extracted_rows(builder.extract_rows(&doc_id, rows).unwrap()doc_id, rows);
+        let row_ids = builder.ensure_extracted_rows(&doc_id, rows);
         let tx_id = builder.ensure_transaction(test_tx(), &row_ids);
 
         let wb_row = WorkbookRow {

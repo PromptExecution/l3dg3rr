@@ -225,7 +225,7 @@ mod tests {
         let tx = test_tx();
         let cls = test_cls(tx.tx_id.clone());
 
-        builder.build_full_chain(doc, rows, tx, cls).unwrap();
+        builder.build_full_chain(doc, rows, tx, cls);
 
         let chain = graph.trace_transaction("tx_123");
         assert!(chain.is_some());

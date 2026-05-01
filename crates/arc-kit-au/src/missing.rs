@@ -223,7 +223,7 @@ mod tests {
         let tx = test_tx();
         let cls = test_cls(tx.tx_id.clone());
 
-        builder.build_full_chain(doc, rows, tx, cls).unwrap();
+        builder.build_full_chain(doc, rows, tx, cls);
 
         // build_full_chain doesn't create approvals or exports, so those will be gaps
         let gaps = graph.find_missing_provenance();
