@@ -40,21 +40,35 @@ impl SettingsStore {
         match serde_json::from_str::<AppSettings>(raw) {
             Ok(settings) => {
                 // V1→V2 migration: if loaded as V1, bump and backfill.
+                // The migration is deferred — load returns migrated settings in memory.
+                // The caller can optionally persist with a separate migrate() call.
+                // This avoids write side-effects during a read operation.
                 if settings.schema_version == SettingsSchemaVersion::V1 {
-                    #[cfg(debug_assertions)]
-                    eprintln!(
-                        "settings: migrating {} V1→V2 (model_provider defaults to LocalDemo)",
-                        self.path.display()
-                    );
                     let mut migrated = settings;
                     migrated.schema_version = SettingsSchemaVersion::V2;
-                    let _ = self.save(&migrated);
                     return Ok(migrated);
                 }
                 Ok(settings)
             }
             Err(_) => Ok(AppSettings::default()),
         }
+    }
+
+    /// Migrate V1 settings to V2 on disk. Returns true if migration happened.
+    /// Separates the read path from the write path to avoid fragile side-effects.
+    pub fn migrate_v1_to_v2(&self) -> Result<bool, SettingsError> {
+        if !self.path.exists() {
+            return Ok(false);
+        }
+        let raw = std::fs::read_to_string(&self.path)?;
+        let settings: AppSettings = serde_json::from_str(&raw)?;
+        if settings.schema_version == SettingsSchemaVersion::V1 {
+            let mut migrated = settings;
+            migrated.schema_version = SettingsSchemaVersion::V2;
+            self.save(&migrated)?;
+            return Ok(true);
+        }
+        Ok(false)
     }
 
     pub fn save(&self, settings: &AppSettings) -> Result<(), SettingsError> {

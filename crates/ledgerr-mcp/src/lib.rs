@@ -457,7 +457,7 @@ pub struct TurboLedgerService {
     /// In-memory registry: doc_id → DocumentRecord. Persisted as a JSON sidecar.
     document_registry: Mutex<BTreeMap<String, DocumentRecord>>,
     /// Evidence graph for provenance tracking (arc-kit-au).
-    pub evidence: Mutex<arc_kit_au::EvidenceGraph>,
+    pub(crate) evidence: Mutex<arc_kit_au::EvidenceGraph>,
     #[cfg(feature = "xero")]
     xero: XeroService,
     #[cfg(feature = "llm")]
@@ -1133,7 +1133,9 @@ impl TurboLedgerService {
         }
 
         // Create extracted row evidence.
-        let amount = rust_decimal::Decimal::from_str_exact(&row.amount).unwrap_or_default();
+        let amount = rust_decimal::Decimal::from_str_exact(&row.amount).map_err(|_| {
+            ToolError::InvalidInput(format!("bad amount in evidence emission: {}", row.amount))
+        })?;
         let ext_row = ExtractedRow {
             account_id: row.account_id.clone(),
             date: row.date.clone(),
@@ -1842,6 +1844,30 @@ impl TurboLedgerTools for TurboLedgerService {
         }
 
         workbook.save(&request.workbook_path).map_err(map_xlsx)?;
+
+        // Emit WorkbookRow evidence for each classified transaction
+        for (tx_id, stored_cls) in &classifications {
+            let wb_row = arc_kit_au::node::WorkbookRow {
+                tx_id: tx_id.clone(),
+                sheet_name: "Transactions".to_string(),
+                row_index: 0,
+                category: stored_cls.category.clone(),
+                amount: String::new(),
+                exported_at: chrono::Utc::now(),
+            };
+            if let Ok(mut evidence) = self.evidence.lock() {
+                let wb_id = wb_row.node_id();
+                if evidence.get_node(&wb_id).is_none() {
+                    let _ = evidence.add_node(arc_kit_au::EvidenceNode::WorkbookRow(wb_row));
+                    let tx_node_id = arc_kit_au::NodeId::new(
+                        arc_kit_au::NodeType::Transaction,
+                        tx_id,
+                    );
+                    let _ = evidence.add_edge(tx_node_id, wb_id, arc_kit_au::EdgeType::ExportedTo);
+                }
+            }
+        }
+
         Ok(ExportCpaWorkbookResponse { sheets_written })
     }
 

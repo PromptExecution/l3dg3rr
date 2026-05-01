@@ -39,6 +39,10 @@ pub struct ProvenanceGap {
     pub has_classification: bool,
     pub has_approval: bool,
     pub has_export: bool,
+    /// Suggested MCP tool call to resolve the gap.
+    /// Maps missing elements to actionable next steps.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub suggested_mcp_action: Option<String>,
 }
 
 impl ProvenanceGap {
@@ -120,6 +124,20 @@ impl ProvenanceScanner for EvidenceGraph {
             }
 
             if !missing.is_empty() {
+                let suggested_mcp_action = if missing.contains(&MissingElement::Classification) {
+                    Some("ledgerr_review { action: classify, tx_id: \"...\" }".to_string())
+                } else if missing.contains(&MissingElement::OperatorApproval) {
+                    Some("ledgerr_review { action: approve, tx_id: \"...\" }".to_string())
+                } else if missing.contains(&MissingElement::SourceDocument)
+                    || missing.contains(&MissingElement::ExtractedRows)
+                {
+                    Some("ledgerr_documents { action: ingest_pdf, pdf_path: \"...\" }".to_string())
+                } else if missing.contains(&MissingElement::WorkbookExport) {
+                    Some("ledgerr_audit { action: export, workbook_path: \"...\" }".to_string())
+                } else {
+                    None
+                };
+
                 gaps.push(ProvenanceGap {
                     tx_id,
                     missing,
@@ -127,6 +145,7 @@ impl ProvenanceScanner for EvidenceGraph {
                     has_classification,
                     has_approval,
                     has_export,
+                    suggested_mcp_action,
                 });
             }
         }
@@ -256,6 +275,7 @@ mod tests {
             has_classification: true,
             has_approval: false,
             has_export: true,
+            suggested_mcp_action: None,
         };
         assert!(gap.is_critical());
 
@@ -266,6 +286,7 @@ mod tests {
             has_classification: true,
             has_approval: false,
             has_export: true,
+            suggested_mcp_action: None,
         };
         assert!(!non_critical.is_critical());
     }

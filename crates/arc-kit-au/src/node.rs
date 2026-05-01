@@ -71,6 +71,8 @@ pub enum NodeType {
     OperatorApproval,
     /// Final workbook row in CPA export
     WorkbookRow,
+    /// Validation issue from the Rhai engine or pipeline check
+    ValidationIssue,
     /// Unknown or unrecognized type
     Unknown,
 }
@@ -85,6 +87,7 @@ impl NodeType {
             Self::ModelProposal => "prop",
             Self::OperatorApproval => "approval",
             Self::WorkbookRow => "wb",
+            Self::ValidationIssue => "vi",
             Self::Unknown => "unknown",
         }
     }
@@ -247,6 +250,36 @@ impl OperatorApproval {
     }
 }
 
+/// Validation issue from the Rhai engine or pipeline check.
+///
+/// Distinct from Classification — validation artifacts represent rule/constraint
+/// failures, not categorization decisions. PRD-4 Phase 2 requires
+/// classification_artifact → validation_artifact as a separate chain step.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ValidationIssue {
+    pub tx_id: String,
+    pub rule: String,
+    pub severity: String,
+    pub message: String,
+    pub actor: String,
+    pub raised_at: DateTime<Utc>,
+    pub resolved: bool,
+}
+
+impl ValidationIssue {
+    pub fn node_id(&self) -> NodeId {
+        NodeId::new(
+            NodeType::ValidationIssue,
+            &content_hash(&[
+                &self.tx_id,
+                &self.rule,
+                &self.severity,
+                &self.raised_at.to_rfc3339(),
+            ]),
+        )
+    }
+}
+
 /// Final workbook row in CPA export.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkbookRow {
@@ -283,6 +316,7 @@ pub enum EvidenceNode {
     ModelProposal(ModelProposal),
     OperatorApproval(OperatorApproval),
     WorkbookRow(WorkbookRow),
+    ValidationIssue(ValidationIssue),
 }
 
 impl EvidenceNode {
@@ -295,6 +329,7 @@ impl EvidenceNode {
             Self::ModelProposal(prop) => prop.node_id(),
             Self::OperatorApproval(approval) => approval.node_id(),
             Self::WorkbookRow(wb) => wb.node_id(),
+            Self::ValidationIssue(vi) => vi.node_id(),
         }
     }
 
@@ -307,6 +342,7 @@ impl EvidenceNode {
             Self::ModelProposal(_) => NodeType::ModelProposal,
             Self::OperatorApproval(_) => NodeType::OperatorApproval,
             Self::WorkbookRow(_) => NodeType::WorkbookRow,
+            Self::ValidationIssue(_) => NodeType::ValidationIssue,
         }
     }
 
@@ -317,6 +353,7 @@ impl EvidenceNode {
             Self::ModelProposal(prop) => Some(&prop.tx_id),
             Self::OperatorApproval(approval) => Some(&approval.tx_id),
             Self::WorkbookRow(wb) => Some(&wb.tx_id),
+            Self::ValidationIssue(vi) => Some(&vi.tx_id),
             Self::ExtractedRow(_) | Self::SourceDoc(_) => None,
         }
     }

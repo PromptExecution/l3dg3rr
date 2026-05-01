@@ -22,6 +22,8 @@ pub enum EdgeType {
     ApprovedBy,
     /// Transaction appears in workbook row
     ExportedTo,
+    /// Transaction has a validation issue
+    ValidatedAs,
 }
 
 impl EdgeType {
@@ -33,6 +35,7 @@ impl EdgeType {
             Self::ProposedBy => "proposed_by",
             Self::ApprovedBy => "approved_by",
             Self::ExportedTo => "exported_to",
+            Self::ValidatedAs => "validated_as",
         }
     }
 }

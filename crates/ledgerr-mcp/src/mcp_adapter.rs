@@ -2202,7 +2202,10 @@ pub fn handle_evidence_tool(service: &TurboLedgerService, arguments: &Value) -> 
     match request {
         EvidenceArgs::ProvenanceGaps => {
             use arc_kit_au::ProvenanceScanner;
-            let evidence = service.evidence.lock().unwrap_or_else(|e| e.into_inner());
+            let evidence = match service.evidence.lock() {
+                Ok(e) => e,
+                Err(_) => return error_envelope(&ToolError::Internal("evidence mutex poisoned".to_string())),
+            };
             let gaps = evidence.find_missing_provenance();
             let gap_jsons: Vec<_> = gaps
                 .iter()
@@ -2229,7 +2232,10 @@ pub fn handle_evidence_tool(service: &TurboLedgerService, arguments: &Value) -> 
         }
         EvidenceArgs::TraceTx { tx_id } => {
             use arc_kit_au::EvidenceTracer;
-            let evidence = service.evidence.lock().unwrap_or_else(|e| e.into_inner());
+            let evidence = match service.evidence.lock() {
+                Ok(e) => e,
+                Err(_) => return error_envelope(&ToolError::Internal("evidence mutex poisoned".to_string())),
+            };
             match evidence.trace_transaction(&tx_id) {
                 Some(chain) => {
                     use arc_kit_au::ProvenanceBadge;

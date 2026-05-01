@@ -66,7 +66,16 @@ impl ModelProviderLabel {
         match self {
             Self::LocalDemo => local_demo_readiness(),
             Self::WindowsAi => windows_ai_readiness(),
-            Self::Cloud => cloud_readiness(),
+            Self::Cloud => cloud_readiness(None),
+        }
+    }
+
+    /// Readiness with settings context for accurate cloud provider state.
+    pub fn readiness_with_settings(&self, settings: &crate::settings::AppSettings) -> ProviderReadiness {
+        match self {
+            Self::LocalDemo => local_demo_readiness(),
+            Self::WindowsAi => windows_ai_readiness(),
+            Self::Cloud => cloud_readiness(Some(settings)),
         }
     }
 }
@@ -141,7 +150,16 @@ fn windows_ai_readiness() -> ProviderReadiness {
 }
 
 /// Returns the readiness state for the Cloud provider.
-fn cloud_readiness() -> ProviderReadiness {
+fn cloud_readiness(settings: Option<&crate::settings::AppSettings>) -> ProviderReadiness {
+    if let Some(s) = settings {
+        let has_endpoint = !s.chat.endpoint_url.trim().is_empty()
+            && s.chat.endpoint_url != "https://api.openai.com/v1/chat/completions";
+        let has_key = !s.chat.api_key.trim().is_empty();
+        let has_model = !s.chat.model.trim().is_empty();
+        if has_endpoint && has_key && has_model {
+            return ProviderReadiness::Ready;
+        }
+    }
     ProviderReadiness::SetupNeeded {
         next_command: "Configure endpoint and API key in Settings".to_string(),
     }
@@ -1282,42 +1300,41 @@ mod tests {
 
         assert!(response.starts_with("HTTP/1.1 400 Bad Request"));
     }
-}
-
+    
     #[test]
     fn provider_label_display_names_match_prd5() {
         assert_eq!(ModelProviderLabel::LocalDemo.display_name(), "Local Demo");
         assert_eq!(ModelProviderLabel::WindowsAi.display_name(), "Windows AI");
         assert_eq!(ModelProviderLabel::Cloud.display_name(), "Cloud");
     }
-
+    
     #[test]
     fn provider_label_descriptions_explain_privacy_and_setup() {
         let local = ModelProviderLabel::LocalDemo.description();
         assert!(local.contains("Private"));
         assert!(local.contains("fallback"));
-
+    
         let windows = ModelProviderLabel::WindowsAi.description();
         assert!(windows.contains("Private"));
         assert!(windows.contains("setup"));
-
+    
         let cloud = ModelProviderLabel::Cloud.description();
         assert!(cloud.contains("external"));
         assert!(cloud.contains("endpoint"));
     }
-
+    
     #[test]
     fn local_demo_readiness_is_ready() {
         let readiness = ModelProviderLabel::LocalDemo.readiness();
         assert!(matches!(readiness, ProviderReadiness::Ready));
     }
-
+    
     #[test]
     fn cloud_readiness_is_setup_needed() {
         let readiness = ModelProviderLabel::Cloud.readiness();
         assert!(matches!(readiness, ProviderReadiness::SetupNeeded { .. }));
     }
-
+    
     #[test]
     fn provider_status_returns_three_entries() {
         let providers = provider_status();
@@ -1329,7 +1346,7 @@ mod tests {
         let default = providers.iter().find(|p| p.is_default).expect("default provider");
         assert_eq!(default.label, ModelProviderLabel::LocalDemo);
     }
-
+    
     #[test]
     fn local_demo_chat_settings_uses_internal_endpoint() {
         let settings = local_demo_chat_settings("test prompt");
@@ -1338,7 +1355,7 @@ mod tests {
         assert_eq!(settings.api_key, INTERNAL_LOCAL_API_KEY);
         assert_eq!(settings.system_prompt, "test prompt");
     }
-
+    
     #[test]
     fn cloud_chat_settings_uses_default_cloud_url_with_empty_auth() {
         let settings = cloud_chat_settings("test prompt");
@@ -1347,19 +1364,12 @@ mod tests {
         assert!(settings.api_key.is_empty());
         assert_eq!(settings.system_prompt, "test prompt");
     }
-
-/// Resolve active ChatSettings from the AppSettings model_provider field.
-///
-/// Reads the operator's provider choice and produces the corresponding
-/// chat endpoint configuration. Falls back to Local Demo if the selected
-/// provider cannot resolve (e.g., Foundry not installed).
-pub fn resolve_chat_settings(settings: &crate::settings::AppSettings) -> ChatSettings {
-    match settings.model_provider.chat_settings(settings.chat.system_prompt.clone()) {
-        Ok(cs) => cs,
-        Err(_) => local_demo_chat_settings(settings.chat.system_prompt.clone()),
-    }
-}
-
+    
+    /// Resolve active ChatSettings from the AppSettings model_provider field.
+    ///
+    /// Returns the resolved settings and an optional warning if a fallback occurred.
+    /// The caller (Slint settings panel, chat sender) decides whether to surface
+    /// the warning or swallow it.
     #[test]
     fn resolve_chat_settings_uses_cloud_when_cloud_selected() {
         use crate::settings::AppSettings;
@@ -1367,12 +1377,13 @@ pub fn resolve_chat_settings(settings: &crate::settings::AppSettings) -> ChatSet
             model_provider: ModelProviderLabel::Cloud,
             ..AppSettings::default()
         };
-        let cs = resolve_chat_settings(&settings);
+        let (cs, warning) = resolve_chat_settings(&settings);
         assert_eq!(cs.endpoint_url, DEFAULT_CLOUD_CHAT_URL);
         assert!(cs.model.is_empty());
         assert!(cs.api_key.is_empty());
+        assert!(warning.is_none());
     }
-
+    
     #[test]
     fn resolve_chat_settings_falls_back_to_local_demo_for_windows_ai_when_not_installed() {
         use crate::settings::AppSettings;
@@ -1380,7 +1391,27 @@ pub fn resolve_chat_settings(settings: &crate::settings::AppSettings) -> ChatSet
             model_provider: ModelProviderLabel::WindowsAi,
             ..AppSettings::default()
         };
-        // On WSL/CI without foundry, this should fall back to LocalDemo
-        let cs = resolve_chat_settings(&settings);
+        let (cs, warning) = resolve_chat_settings(&settings);
         assert!(!cs.endpoint_url.is_empty());
+        assert!(warning.is_some());
     }
+    
+}
+pub fn resolve_chat_settings(
+    settings: &crate::settings::AppSettings,
+) -> (ChatSettings, Option<ProviderReadiness>) {
+    match settings.model_provider.chat_settings(settings.chat.system_prompt.clone()) {
+        Ok(cs) => (cs, None),
+        Err(_) => {
+            let fallback = local_demo_chat_settings(settings.chat.system_prompt.clone());
+            let warning = Some(ProviderReadiness::Diagnostic {
+                reason: format!(
+                    "{} unavailable, fell back to Local Demo. {}",
+                    settings.model_provider.display_name(),
+                    settings.model_provider.readiness_with_settings(settings),
+                ),
+            });
+            (fallback, warning)
+        }
+    }
+}
