@@ -606,15 +606,14 @@ async fn otlp_traces_handler(
     };
 
     let resource_count = request.resource_spans.len();
-    let span_records: Vec<(&str, &str, &str)> = request
+    let span_count = request
         .resource_spans
         .iter()
         .flat_map(|resource_spans| resource_spans.scope_spans.iter())
         .flat_map(|scope_spans| scope_spans.spans.iter())
-        .map(|span| (span.trace_id.as_str(), span.span_id.as_str(), span.name.as_str()))
-        .collect();
+        .count();
 
-    state.metrics.inc_traces_ingested(span_records.len() as u64);
+    state.metrics.inc_traces_ingested(span_count as u64);
 
     let response = Json(OtlpIngestResponse {
         accepted: true,
