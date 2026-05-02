@@ -33,11 +33,11 @@ jobs:
       - name: Install Clippy SARIF converter
         run: cargo install clippy-sarif --locked
 
-      - name: Checkout _b00t_ datum files
+      - name: Checkout _b00t_ datum files (sibling of repo for include_str!)
         uses: actions/checkout@v4
         with:
           repository: PromptExecution/_b00t_
-          path: _b00t_
+          path: ../_b00t_
 
       - name: Generate Clippy SARIF
         run: |
@@ -142,8 +142,12 @@ jobs:
 
       - name: Setup Node
         uses: actions/setup-node@v4
+
+      - name: Checkout _b00t_ datum files (sibling of repo for include_str!)
+        uses: actions/checkout@v4
         with:
-          node-version: '20'
+          repository: PromptExecution/_b00t_
+          path: ../_b00t_
 
       - name: Install just
         run: cargo install just --locked
