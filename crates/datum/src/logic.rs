@@ -407,7 +407,7 @@ impl ModelTransformer {
     }
 
     /// Apply the transformation by wiring input capacitor to output capacitor.
-    pub fn transform(&self, input: &mut FluxCapacitor, output: &mut FluxCapacitor) -> Result<(), String> {
+    pub fn transform(&self, input: &mut FluxCapacitor, _output: &mut FluxCapacitor) -> Result<(), String> {
         self.check_port_compatibility()?;
         let n = self.input_shape.len().min(self.output_shape.len());
         for i in 0..n {
@@ -716,7 +716,7 @@ macro_rules! abstract_cap_test {
                 {
                     let mut src = $crate::logic::FluxCapacitor::new();
                     let mut ids: Vec<usize> = Vec::new();
-                    let mut prev_cap = abs.sub_capacitors.last().map(|c| c.ports.len()).unwrap_or(0);
+                    let prev_cap = abs.sub_capacitors.last().map(|c| c.ports.len()).unwrap_or(0);
                     $($crate::abstract_cap_test!(@push ids src $bgates);)+
                     let g = if !ids.is_empty() { src.ports[ids[0]].kind } else { $crate::logic::GateKind::Cap };
                     let mut bridge = $crate::logic::MultiBridge::new("bridge", g, g);
