@@ -65,12 +65,34 @@ jobs:
             fi
           }
 
-      - name: Create GitHub Release
-        if: steps.release_check.outputs.exists == 'false'
+      - name: Determine release parity
+        id: parity
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          MINOR=$(echo "$TAG" | sed 's/^v[0-9]*\.\([0-9]*\)\..*/\1/')
+          if [ $(( MINOR % 2 )) -eq 0 ]; then
+            echo "is_stable=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_stable=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release (stable even minor)
+        if: steps.release_check.outputs.exists == 'false' && steps.parity.outputs.is_stable == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "${{ steps.tag.outputs.tag }}" \
-            --title "${{ steps.tag.outputs.tag }}" \
-            --notes-file RELEASE_NOTES.md
+            --title "${{ steps.tag.outputs.tag }} (stable)" \
+            --notes-file RELEASE_NOTES.md \
+            --latest
+
+      - name: Create GitHub Pre-release (dev odd minor)
+        if: steps.release_check.outputs.exists == 'false' && steps.parity.outputs.is_stable == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.tag.outputs.tag }}" \
+            --title "${{ steps.tag.outputs.tag }} (dev/experimental)" \
+            --notes-file RELEASE_NOTES.md \
+            --prerelease
 

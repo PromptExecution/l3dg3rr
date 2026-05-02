@@ -154,6 +154,65 @@ test-phi4-mistral:
 unsloth-finetune-plan:
     @echo "TODO: install Unsloth and add a reproducible Phi-4 mini documentation fine-tuning recipe."
 
+# ─── Devtools (Linux) ─────────────────────────────────────────────────────
+
+# Install common developer tools missing from the base Ubuntu 24.04 image.
+# Skips tools that already exist so repeated runs are fast.
+# Tries apt first (needs sudo), falls back to cargo install where possible.
+install-devtools:
+    #!/bin/bash
+    set -euo pipefail
+    echo "=== install-devtools (Linux x86_64) ==="
+
+    # Prefer apt for system packages; skip if sudo requires a TTY
+    if sudo -n true 2>/dev/null; then
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq ripgrep fd-find bat hyperfine jq tree httpie shellcheck 2>/dev/null || true
+    else
+        echo "[skip] apt packages require interactive sudo — will use cargo fallbacks"
+    fi
+
+    # Install ripgrep via cargo if not found
+    if ! command -v rg >/dev/null 2>&1; then
+        echo "Installing ripgrep via cargo..."
+        cargo install ripgrep --quiet
+    fi
+
+    # Install fd-find via cargo if neither the upstream nor Ubuntu/Debian binary name is found
+    if ! command -v fd >/dev/null 2>&1 && ! command -v fdfind >/dev/null 2>&1; then
+        echo "Installing fd-find via cargo..."
+        cargo install fd-find --quiet
+    fi
+
+    # Install bat (syntax-highlighted pager) via cargo if neither the upstream nor Ubuntu/Debian binary name is found
+    if ! command -v bat >/dev/null 2>&1 && ! command -v batcat >/dev/null 2>&1; then
+        echo "Installing bat via cargo..."
+        cargo install bat --quiet
+    fi
+
+    # Install hyperfine (benchmark runner) via cargo if not found
+    if ! command -v hyperfine >/dev/null 2>&1; then
+        echo "Installing hyperfine via cargo..."
+        cargo install hyperfine --quiet
+    fi
+
+    # Install cargo-binstall (binary installer for Rust tools)
+    if ! command -v cargo-binstall >/dev/null 2>&1; then
+        echo "Installing cargo-binstall via cargo..."
+        cargo install cargo-binstall --quiet
+    fi
+
+    # Install jq via binstall
+    if ! command -v jq >/dev/null 2>&1 && command -v cargo-binstall >/dev/null 2>&1; then
+        echo "Installing jq via cargo-binstall..."
+        cargo binstall -y jq --quiet 2>/dev/null || true
+    fi
+
+    # Install cargo-update (for `cargo install-update -a`)
+    cargo binstall -y cargo-update --quiet 2>/dev/null || true
+
+    echo "=== done ==="
+
 gh-secrets-help:
     @echo "Expected .env values (optional):"
     @echo "  CRATES_IO_TOKEN=..."
@@ -278,7 +337,20 @@ publish-registry tag artifact-url sha256:
 ensure-cog:
     @PATH="${HOME}/.cargo/bin:${PATH}" bash -eu -o pipefail -c 'if command -v cog >/dev/null 2>&1; then echo "Using existing cog"; else echo "cog not found; installing cocogitto..."; cargo install cocogitto; fi'
 
-# Cocogitto release recipe (major|minor|patch, defaults to patch)
+# Fast test suite for release gates — skips model-inference tests that need GGUF assets.
+# phi4_produces_output and phi4_mistral_produces_output load a ~2 GB GGUF model and
+# can run for 10+ minutes; they are exercised separately via `just test-phi4`.
+test-fast:
+    cargo test --workspace --all-targets --all-features \
+        -- --skip phi4_produces_output --skip phi4_mistral_produces_output
+
+# Cocogitto release recipe (major|minor|patch, defaults to patch).
+#
+# Odd/even minor version policy (Ubuntu-style):
+#   Even minor (1.0, 1.2, 1.4, 1.8 …) — Stable. Full test gate incl. phi4 inference.
+#                                          GitHub release created. LTS supported.
+#   Odd minor  (1.1, 1.3, 1.5, 1.7 …) — Dev/Experimental. Fast test gate only.
+#                                          No GitHub release. No LTS support.
 release version="patch": ensure-cog
     #!/bin/bash
     set -euo pipefail
@@ -287,14 +359,48 @@ release version="patch": ensure-cog
         major|minor|patch) ;;
         *) echo "Invalid version: {{version}} (use major, minor, or patch)" && exit 1 ;;
     esac
-    echo "Running pre-release checks..."
-    cargo test --workspace --all-targets --all-features
+
+    # Determine what the next version will be to apply odd/even policy.
+    CURRENT=$(cog get-version)
+    CURRENT_MINOR=$(echo "$CURRENT" | cut -d. -f2)
+    if [ "{{version}}" = "minor" ]; then
+        NEXT_MINOR=$(( CURRENT_MINOR + 1 ))
+    elif [ "{{version}}" = "major" ]; then
+        NEXT_MINOR=0
+    else
+        NEXT_MINOR=$CURRENT_MINOR
+    fi
+    IS_EVEN=$(( NEXT_MINOR % 2 == 0 ))
+
+    if [ "$IS_EVEN" -eq 1 ]; then
+        echo "Stable (even minor) release — running full test suite including phi4 inference..."
+        cargo test --workspace --all-targets --all-features
+    else
+        echo "Dev (odd minor) release — running fast test suite (phi4 inference skipped)..."
+        just test-fast
+    fi
+
     ./scripts/e2e_mvp.sh
     echo "Bumping {{version}} version with cocogitto..."
     cog bump --{{version}}
     cog changelog
-    echo "Pushing tags..."
+    echo "Pushing branch and tags..."
     git push --follow-tags
+    TAG=$(cog get-version | sed 's/^/v/')
+
+    if [ "$IS_EVEN" -eq 1 ]; then
+        echo "Stable release — creating GitHub release for ${TAG}..."
+        NOTES=$(awk "/^## ${TAG//./\\.}/,/^## v[0-9]/" CHANGELOG.md \
+            | grep -v "^## v[0-9]" | sed '/^[[:space:]]*$/d' | head -80)
+        gh release create "${TAG}" \
+            --title "${TAG} (stable)" \
+            --notes "${NOTES:-See CHANGELOG.md for details.}" \
+            --latest
+        echo "GitHub release created: https://github.com/PromptExecution/l3dg3rr/releases/tag/${TAG}"
+    else
+        echo "Dev release — no GitHub release created for odd minor ${TAG}."
+        echo "Tag ${TAG} pushed. Use 'just release minor' again to reach next stable even minor."
+    fi
 
 # Show current version
 v: ensure-cog
