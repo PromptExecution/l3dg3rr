@@ -3,7 +3,7 @@ use axum::http::{Request, StatusCode};
 use serde_json::json;
 use tower::ServiceExt;
 
-fn app() -> axum::Router {
+fn test_app() -> axum::Router {
     rotel_visual::create_app().unwrap()
 }
 
@@ -61,7 +61,7 @@ async fn test_otlp_logs_ingestion_accepts_json_and_returns_202() {
         ]
     });
 
-    let response = app()
+    let response = test_app()
         .oneshot(
             Request::builder()
                 .uri("/v1/logs")
@@ -89,7 +89,7 @@ async fn test_otlp_metrics_ingestion_accepts_json_and_returns_202() {
         ]
     });
 
-    let response = app()
+    let response = test_app()
         .oneshot(
             Request::builder()
                 .uri("/v1/metrics")
@@ -117,7 +117,7 @@ async fn test_otlp_traces_ingestion_accepts_json_and_returns_202() {
         ]
     });
 
-    let response = app()
+    let response = test_app()
         .oneshot(
             Request::builder()
                 .uri("/v1/traces")
@@ -156,8 +156,8 @@ async fn test_classified_artifacts_are_accepted_via_otlp_logs() {
     // This test verifies that an OTLP log payload matching a classification
     // rule is accepted by the ingestion endpoint.
 
-    // Ingest a log that matches the GPU fault rule
     // Ingest a log that matches the GPU fault rule.
+    let body = serde_json::json!({
         "resourceLogs": [
             {
                 "resource": {
@@ -182,7 +182,7 @@ async fn test_classified_artifacts_are_accepted_via_otlp_logs() {
         ]
     });
 
-    let response = app()
+    let response = test_app()
         .clone()
         .oneshot(
             Request::builder()
@@ -226,7 +226,7 @@ async fn test_ring_buffer_populated_after_otlp_log_ingest() {
         ]
     });
 
-    let response = app()
+    let response = test_app()
         .clone()
         .oneshot(
             Request::builder()
@@ -244,7 +244,7 @@ async fn test_ring_buffer_populated_after_otlp_log_ingest() {
 
 #[tokio::test]
 async fn test_metrics_endpoint_returns_self_telemetry() {
-    let response = app()
+    let response = test_app()
         .oneshot(
             Request::builder()
                 .uri("/metrics")
@@ -265,7 +265,7 @@ async fn test_metrics_endpoint_returns_self_telemetry() {
 
 #[tokio::test]
 async fn test_metrics_endpoint_increments_after_ingestion() {
-    let app = app();
+    let app = test_app();
 
     // Get baseline
     let baseline = app
@@ -336,7 +336,7 @@ async fn test_rotel_evaluate_endpoint_returns_sarif() {
         "slo_expected": true
     });
 
-    let response = app()
+    let response = test_app()
         .oneshot(
             Request::builder()
                 .uri("/rotel/evaluate")
@@ -366,7 +366,7 @@ async fn test_rotel_evaluate_detects_slo_failure() {
         "slo_expected": true
     });
 
-    let response = app()
+    let response = test_app()
         .oneshot(
             Request::builder()
                 .uri("/rotel/evaluate")

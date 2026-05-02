@@ -410,63 +410,51 @@ struct OtlpIngestResponse {
 #[instrument]
 async fn otlp_logs_handler(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<OtlpLogsRequest>,
+    Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
-    let request: Result<otlp_json::LogsRequest, _> = serde_json::from_value(payload.clone());
-    match request {
-        Ok(req) => {
-            let mut logs = Vec::new();
-            let mut classified = Vec::new();
-            let mut log_count = 0u64;
+    let mut logs = Vec::new();
+    let mut classified = Vec::new();
+    let mut log_count = 0u64;
 
-            for resource_log in &req.resource_logs {
-                for scope_log in &resource_log.scope_logs {
-                    for record in &scope_log.log_records {
-                        log_count += 1;
-                        let body = record.body.string_value.clone().unwrap_or_default();
-                        let severity = match OTelSeverityNumber::try_from(record.severity_number) {
-                            Ok(s) => s,
-                            Err(e) => {
-                                error!("Invalid severity number: {}", e);
-                                continue;
-                            }
-                        };
-                        let time_unix_nano = match record.time_unix_nano.parse() {
-                            Ok(t) => t,
-                            Err(e) => {
-                                error!("Invalid time_unix_nano '{}': {}", record.time_unix_nano, e);
-                                continue;
-                            }
-                        };
+    let request: otlp_json::LogsRequest = match serde_json::from_value(payload) {
+        Ok(r) => r,
+        Err(e) => {
+            error!("Invalid OTLP log structure: {e}");
+            let response = Json(serde_json::json!({
+                "error": format!("invalid OTLP log structure: {e}")
+            }));
+            return (axum::http::StatusCode::BAD_REQUEST, response).into_response();
+        }
+    };
 
-                        let log = OTelLogRecord::new(
-                            time_unix_nano,
-                            severity,
-                            body.clone(),
-                        );
-                        let response = Json(serde_json::json!({
-                            "error": format!(
-                                "invalid OTLP log record timeUnixNano '{}': {}",
-                                record.time_unix_nano, error
-                            )
-                        }));
-                        return (axum::http::StatusCode::BAD_REQUEST, response)
-                            .into_response();
+    for resource_log in &request.resource_logs {
+        for scope_log in &resource_log.scope_logs {
+            for record in &scope_log.log_records {
+                log_count += 1;
+                let body = record.body.string_value.clone().unwrap_or_default();
+                let severity = match OTelSeverityNumber::try_from(record.severity_number) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        error!("Invalid severity number: {}", e);
+                        continue;
+                    }
+                };
+                let time_unix_nano: u64 = match record.time_unix_nano.parse() {
+                    Ok(t) => t,
+                    Err(e) => {
+                        error!("Invalid time_unix_nano '{}': {}", record.time_unix_nano, e);
+                        continue;
                     }
                 };
 
-                        let artifacts = state.classifier.classify_log(&log);
-                        for artifact in &artifacts {
-                            classified.push(ClassifiedArtifactView::from(artifact));
-                        }
+                let mut log = OTelLogRecord::new(time_unix_nano, severity, body);
 
-                // Extract log-record-level attributes
                 for attr in &record.attributes {
                     if let Some(val) = &attr.value.string_value {
                         log.attributes.insert(attr.key.clone(), val.clone());
                     }
                 }
-                // Extract resource-level attributes (log record wins on collision)
+
                 if let Some(resource) = &resource_log.resource {
                     for attr in &resource.attributes {
                         if let Some(val) = &attr.value.string_value {
@@ -477,37 +465,23 @@ async fn otlp_logs_handler(
                     }
                 }
 
-            state.metrics.inc_logs_ingested(log_count);
-            state.metrics.inc_logs_classified(classified.len() as u64);
+                let artifacts = state.classifier.classify_log(&log);
+                for artifact in &artifacts {
+                    classified.push(ClassifiedArtifactView::from(artifact));
+                }
 
-            let telemetry = TelemetryData {
-                logs,
-                metrics: vec![],
-                spans: vec![],
-                classified,
-            };
-
-            state.broadcast(telemetry).await;
-
-            let response = Json(OtlpIngestResponse {
-                accepted: true,
-                signal: "log".to_string(),
-                resource_count: req.resource_logs.len(),
-                classification_columns: TelemetryArrowBatch::classification_columns()
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect(),
-            });
-            (axum::http::StatusCode::ACCEPTED, response).into_response()
-        }
-        Err(error) => {
-            error!("Invalid OTLP JSON payload: {}", error);
-            let response = Json(serde_json::json!({
-                "error": format!("invalid OTLP JSON payload: {error}")
-            }));
-            (axum::http::StatusCode::BAD_REQUEST, response).into_response()
+                logs.push(LogRecord {
+                    timestamp: time_unix_nano.to_string(),
+                    level: format!("{:?}", severity),
+                    message: log.body.clone(),
+                    shape: "otlp_log".to_string(),
+                });
+            }
         }
     }
+
+    state.metrics.inc_logs_ingested(log_count);
+    state.metrics.inc_logs_classified(classified.len() as u64);
 
     let telemetry = TelemetryData {
         logs,
@@ -521,7 +495,7 @@ async fn otlp_logs_handler(
     let response = Json(OtlpIngestResponse {
         accepted: true,
         signal: "log".to_string(),
-        resource_count: req.resource_logs.len(),
+        resource_count: request.resource_logs.len(),
         classification_columns: TelemetryArrowBatch::classification_columns()
             .iter()
             .map(|s| s.to_string())
