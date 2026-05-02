@@ -174,11 +174,9 @@ pub enum GateMessage {
         reply_tx: Sender<Result<NormalizeFilenameResponse, ToolError>>,
     },
     #[cfg(feature = "xero")]
-    #[cfg(feature = "xero")]
     XeroGetAuthUrl {
         reply_tx: Sender<Result<String, ToolError>>,
     },
-    #[cfg(feature = "xero")]
     #[cfg(feature = "xero")]
     XeroExchangeCode {
         code: String,
@@ -186,28 +184,23 @@ pub enum GateMessage {
         reply_tx: Sender<Result<serde_json::Value, ToolError>>,
     },
     #[cfg(feature = "xero")]
-    #[cfg(feature = "xero")]
     XeroFetchContacts {
         search: Option<String>,
         reply_tx: Sender<Result<serde_json::Value, ToolError>>,
     },
     #[cfg(feature = "xero")]
-    #[cfg(feature = "xero")]
     XeroFetchAccounts {
         reply_tx: Sender<Result<serde_json::Value, ToolError>>,
     },
-    #[cfg(feature = "xero")]
     #[cfg(feature = "xero")]
     XeroFetchBankAccounts {
         reply_tx: Sender<Result<serde_json::Value, ToolError>>,
     },
     #[cfg(feature = "xero")]
-    #[cfg(feature = "xero")]
     XeroFetchInvoices {
         status: Option<String>,
         reply_tx: Sender<Result<serde_json::Value, ToolError>>,
     },
-    #[cfg(feature = "xero")]
     #[cfg(feature = "xero")]
     XeroLinkEntity {
         local_id: String,

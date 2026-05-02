@@ -382,6 +382,10 @@ impl ServiceActor {
 
     pub fn run(&mut self) {
         while let Ok(msg) = self.rx.recv() {
+            // Check for shutdown before entering the panic boundary.
+            if matches!(msg, GateMessage::Shutdown) {
+                break;
+            }
             // Catch panics so a single faulty request doesn't kill the entire actor.
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 self.dispatch(msg)
@@ -401,7 +405,7 @@ impl ServiceActor {
 
     fn dispatch(&mut self, msg: GateMessage) {
         match msg {
-                GateMessage::Shutdown => return,
+                GateMessage::Shutdown => { /* handled in run() */ }
                 GateMessage::ListAccounts { reply_tx } => {
                     let _ = reply_tx.send(self.service.list_accounts());
                 }

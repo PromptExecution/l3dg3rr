@@ -103,6 +103,12 @@ impl ZLayer {
     }
 }
 
+impl std::fmt::Display for ZLayer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.label())
+    }
+}
+
 // ============================================================================
 // SEMANTIC TYPE
 // ============================================================================
@@ -141,6 +147,12 @@ impl SemanticType {
             SemanticType::Attestation => "attestation",
             SemanticType::Unknown => "unknown",
         }
+    }
+}
+
+impl std::fmt::Display for SemanticType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.known_name())
     }
 }
 
@@ -221,6 +233,7 @@ pub struct IsoAnimationPath {
 impl IsoAnimationPath {
     /// Emit SVG SMIL `<animateTransform>` markup for each segment.
     ///
+    /// Returns an empty string when `transforms` is empty.
     /// Each segment projects `from`/`to` into screen space then emits:
     /// ```xml
     /// <animateTransform attributeName="transform" type="translate"
@@ -229,6 +242,9 @@ impl IsoAnimationPath {
     ///   additive="replace" fill="freeze" />
     /// ```
     pub fn to_smil_svg(&self, scale: f32, origin_x: f32, origin_y: f32) -> String {
+        if self.transforms.is_empty() {
+            return String::new();
+        }
         let mut out = String::new();
         let mut begin_ms: u32 = 0;
 
@@ -311,17 +327,35 @@ fn sanitize_class_name(label: &str) -> String {
         .chars()
         .map(|c| if c.is_alphanumeric() { c } else { '_' })
         .collect();
-    // Ensure it starts with an uppercase letter.
+    if name.is_empty() {
+        return "AScene".to_string();
+    }
+    // Ensure it starts with an uppercase letter, not a digit or underscore.
     if name.starts_with(|c: char| c.is_ascii_digit() || c == '_') {
         name.insert(0, 'A');
-    } else {
-        // Capitalize first char.
-        let mut chars = name.chars();
-        if let Some(first) = chars.next() {
-            name = first.to_uppercase().to_string() + chars.as_str();
-        }
+    } else if let Some(first) = name.chars().next() {
+        // Capitalize first char in-place without an extra allocation.
+        let upper: String = first.to_uppercase().collect();
+        name.replace_range(..first.len_utf8(), &upper);
     }
     name
+}
+
+/// Minimal XML attribute value escaper for SMIL output.
+/// Only the characters that need escaping inside a double-quoted XML attribute.
+#[allow(dead_code)]
+fn xml_attr_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '"' => out.push_str("&quot;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            _ => out.push(c),
+        }
+    }
+    out
 }
 
 // ============================================================================
@@ -451,5 +485,55 @@ mod tests {
         let script = path.to_manim_script("pipeline_stage");
         assert!(script.contains("pipeline_stage"));
         assert!(script.contains("move_to"));
+    }
+
+    #[test]
+    fn smil_svg_empty_transforms_returns_empty_string() {
+        let path = IsoAnimationPath { label: "empty".into(), transforms: vec![] };
+        assert!(path.to_smil_svg(1.0, 0.0, 0.0).is_empty());
+    }
+
+    #[test]
+    fn sanitize_class_name_handles_empty_input() {
+        assert_eq!(sanitize_class_name(""), "AScene");
+    }
+
+    #[test]
+    fn sanitize_class_name_capitalizes_first() {
+        assert_eq!(sanitize_class_name("pipeline"), "Pipeline");
+    }
+
+    #[test]
+    fn sanitize_class_name_prefixes_digit_start() {
+        assert_eq!(&sanitize_class_name("3stage")[..1], "A");
+    }
+
+    #[test]
+    fn xml_attr_escape_handles_special_chars() {
+        assert_eq!(xml_attr_escape(r#"a & "b" <c>"#), "a &amp; &quot;b&quot; &lt;c&gt;");
+    }
+
+    #[test]
+    fn zlayer_display_nonempty() {
+        let all = [
+            ZLayer::Document, ZLayer::Pipeline, ZLayer::Constraint,
+            ZLayer::Legal, ZLayer::FormalProof, ZLayer::Attestation,
+        ];
+        for layer in all {
+            assert!(!layer.to_string().is_empty());
+        }
+    }
+
+    #[test]
+    fn semantic_type_display_nonempty() {
+        let all = [
+            SemanticType::Document, SemanticType::Pipeline, SemanticType::Constraint,
+            SemanticType::Gate, SemanticType::Legal, SemanticType::Solver,
+            SemanticType::Result, SemanticType::Flag, SemanticType::Issue,
+            SemanticType::Proof, SemanticType::Attestation, SemanticType::Unknown,
+        ];
+        for st in all {
+            assert!(!st.to_string().is_empty());
+        }
     }
 }

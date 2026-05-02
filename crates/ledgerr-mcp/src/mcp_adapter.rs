@@ -12,9 +12,11 @@
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+#[cfg(feature = "b00t")]
 use std::sync::OnceLock;
 
 use ledger_core::ingest::{deterministic_tx_id, TransactionInput};
+#[cfg(feature = "b00t")]
 use ledgerr_mcp_core::ToolDescriptor;
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -113,6 +115,13 @@ const BUILTIN_TOOL_NAMES: &[&str] = &[
 
 fn builtin_tool_input_schema(name: &str) -> Value {
     crate::contract::tool_input_schema(name)
+}
+
+/// Returns the names of all top-level published tools.
+/// When the `legacy` feature is inactive this is derived from `BUILTIN_TOOL_NAMES`.
+#[cfg(not(feature = "legacy"))]
+pub fn tool_names() -> Vec<String> {
+    BUILTIN_TOOL_NAMES.iter().map(|s| s.to_string()).collect()
 }
 
 /// Hook for external MCP providers.  Dispatches via the global provider registry.
