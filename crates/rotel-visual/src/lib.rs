@@ -651,13 +651,7 @@ async fn evaluate_slo_handler(
         req.slo_expected,
     );
 
-    let status = if report.has_errors() {
-        axum::http::StatusCode::OK
-    } else {
-        axum::http::StatusCode::OK
-    };
-
-    (status, Json(report)).into_response()
+    (axum::http::StatusCode::OK, Json(report)).into_response()
 }
 
 pub fn create_app() -> Result<Router, anyhow::Error> {
