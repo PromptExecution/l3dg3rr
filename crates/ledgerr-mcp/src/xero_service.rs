@@ -71,9 +71,9 @@ impl XeroService {
             .client
             .lock()
             .map_err(|_| ToolError::Internal("lock poisoned".into()))?;
-        let client = guard
-            .as_mut()
-            .ok_or_else(|| ToolError::Internal("No pending auth flow; call get_auth_url first".into()))?;
+        let client = guard.as_mut().ok_or_else(|| {
+            ToolError::Internal("No pending auth flow; call get_auth_url first".into())
+        })?;
         let tenant = client
             .exchange_code(code, state)
             .map_err(|e| ToolError::Internal(e.to_string()))?;

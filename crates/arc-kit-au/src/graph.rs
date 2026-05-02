@@ -104,12 +104,18 @@ impl EvidenceGraph {
 
     /// Get all nodes of a specific type.
     pub fn nodes_of_type(&self, node_type: NodeType) -> Vec<&EvidenceNode> {
-        self.nodes.iter().filter(|n| n.node_type() == node_type).collect()
+        self.nodes
+            .iter()
+            .filter(|n| n.node_type() == node_type)
+            .collect()
     }
 
     /// Get all edges of a specific type.
     pub fn edges_of_type(&self, edge_type: EdgeType) -> Vec<&EvidenceEdge> {
-        self.edges.iter().filter(|e| e.edge_type == edge_type).collect()
+        self.edges
+            .iter()
+            .filter(|e| e.edge_type == edge_type)
+            .collect()
     }
 
     /// Find all outgoing edges from a node.
@@ -358,9 +364,7 @@ mod tests {
         let tx = test_tx();
         let doc_id = graph.add_node(EvidenceNode::SourceDoc(doc)).unwrap();
         let tx_id = graph.add_node(EvidenceNode::Transaction(tx)).unwrap();
-        graph
-            .add_edge(doc_id, tx_id, EdgeType::Produces)
-            .unwrap();
+        graph.add_edge(doc_id, tx_id, EdgeType::Produces).unwrap();
 
         let json = graph.to_json().unwrap();
         let restored = EvidenceGraph::from_json(&json).unwrap();

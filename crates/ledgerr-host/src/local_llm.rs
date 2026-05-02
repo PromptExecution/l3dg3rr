@@ -75,15 +75,17 @@
 
 use std::path::{Path, PathBuf};
 
-use candle_core::{quantized::gguf_file, Device, Tensor};
 use candle_core::quantized::gguf_file::TensorInfo;
+use candle_core::{quantized::gguf_file, Device, Tensor};
 use candle_transformers::{
     generation::{LogitsProcessor, Sampling},
     models::quantized_phi3::ModelWeights,
 };
 use tokenizers::Tokenizer;
 
-use crate::agent_runtime::{AgentRuntime, AgentRuntimeError, ModelRequest, ModelResponse, ModelRole};
+use crate::agent_runtime::{
+    AgentRuntime, AgentRuntimeError, ModelRequest, ModelResponse, ModelRole,
+};
 
 /// Phi-4 Mini chat template tokens.
 const CHAT_START_SYS: &str = "<|system|>\n";
@@ -277,9 +279,10 @@ fn patch_rope_dim_to_head_dim(content: &mut gguf_file::Content) {
         emb / heads
     };
 
-    content
-        .metadata
-        .insert("phi3.rope.dimension_count".to_string(), Value::U32(head_dim));
+    content.metadata.insert(
+        "phi3.rope.dimension_count".to_string(),
+        Value::U32(head_dim),
+    );
 }
 
 /// Phi-4 mini GGUF omits `output.weight` because the model uses tied embeddings
@@ -295,7 +298,9 @@ fn patch_tied_output_weight(content: &mut gguf_file::Content) {
             shape: embd.shape.clone(),
             offset: embd.offset,
         };
-        content.tensor_infos.insert("output.weight".to_string(), aliased);
+        content
+            .tensor_infos
+            .insert("output.weight".to_string(), aliased);
     }
 }
 

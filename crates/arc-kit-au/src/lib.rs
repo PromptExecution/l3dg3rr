@@ -25,20 +25,20 @@
 //! assert!(restored.is_empty());
 //! ```
 
-pub mod node;
+pub mod badge;
+pub mod builder;
 pub mod edge;
 pub mod graph;
-pub mod builder;
-pub mod trace;
 pub mod missing;
-pub mod badge;
+pub mod node;
 pub mod store;
+pub mod trace;
 
-pub use node::{Confidence, EvidenceNode, NodeId, NodeType};
-pub use edge::{EvidenceEdge, EdgeType};
-pub use graph::{EvidenceGraph, WorkQueueSummary};
-pub use builder::EvidenceBuilder;
-pub use trace::{EvidenceChain, EvidenceTracer};
-pub use missing::{MissingElement, ProvenanceGap, ProvenanceScanner};
 pub use badge::ProvenanceBadge;
+pub use builder::EvidenceBuilder;
+pub use edge::{EdgeType, EvidenceEdge};
+pub use graph::{EvidenceGraph, WorkQueueSummary};
+pub use missing::{MissingElement, ProvenanceGap, ProvenanceScanner};
+pub use node::{Confidence, EvidenceNode, NodeId, NodeType};
 pub use store::EvidenceStore;
+pub use trace::{EvidenceChain, EvidenceTracer};

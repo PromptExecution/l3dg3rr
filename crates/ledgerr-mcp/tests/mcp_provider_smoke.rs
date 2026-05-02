@@ -14,23 +14,31 @@ use ledgerr_mcp::provider::McpProvider;
 fn smoke_registry_construct_empty() {
     let registry = ledgerr_mcp::provider::McpProviderRegistry::new();
     let results = registry.initialize_all();
-    assert!(results.is_empty(), "empty registry should return no results");
+    assert!(
+        results.is_empty(),
+        "empty registry should return no results"
+    );
 }
 
 #[test]
 fn smoke_registry_with_mock_providers() {
     let mut registry = ledgerr_mcp::provider::McpProviderRegistry::new();
-    registry.register(Arc::new(
-        ledgerr_mcp::provider::mock::MockProvider::new("smoke-b00t", "b00t_status"),
-    ));
-    registry.register(Arc::new(
-        ledgerr_mcp::provider::mock::MockProvider::new("smoke-just", "just_recipes"),
-    ));
+    registry.register(Arc::new(ledgerr_mcp::provider::mock::MockProvider::new(
+        "smoke-b00t",
+        "b00t_status",
+    )));
+    registry.register(Arc::new(ledgerr_mcp::provider::mock::MockProvider::new(
+        "smoke-just",
+        "just_recipes",
+    )));
 
     let results = registry.initialize_all();
     assert_eq!(results.len(), 2);
     for (name, result) in &results {
-        assert!(result.is_ok(), "mock provider {name} should initialize ok: {result:?}");
+        assert!(
+            result.is_ok(),
+            "mock provider {name} should initialize ok: {result:?}"
+        );
     }
 
     let descriptors = registry.all_tool_descriptors();
@@ -43,9 +51,9 @@ fn smoke_registry_with_mock_providers() {
 #[test]
 fn smoke_registry_call_tool_by_provider_name() {
     let mut registry = ledgerr_mcp::provider::McpProviderRegistry::new();
-    registry.register(Arc::new(
-        ledgerr_mcp::provider::mock::MockProvider::new("calc", "add"),
-    ));
+    registry.register(Arc::new(ledgerr_mcp::provider::mock::MockProvider::new(
+        "calc", "add",
+    )));
 
     let result = registry.call_tool("calc", "add", serde_json::json!({}));
     assert!(result.is_ok(), "call by provider name: {result:?}");
@@ -54,9 +62,9 @@ fn smoke_registry_call_tool_by_provider_name() {
 #[test]
 fn smoke_registry_call_tool_by_tool_name_fallback() {
     let mut registry = ledgerr_mcp::provider::McpProviderRegistry::new();
-    registry.register(Arc::new(
-        ledgerr_mcp::provider::mock::MockProvider::new("calc", "add"),
-    ));
+    registry.register(Arc::new(ledgerr_mcp::provider::mock::MockProvider::new(
+        "calc", "add",
+    )));
 
     let result = registry.call_tool("", "add", serde_json::json!({}));
     assert!(result.is_ok(), "call by tool name fallback: {result:?}");
@@ -65,21 +73,25 @@ fn smoke_registry_call_tool_by_tool_name_fallback() {
 #[test]
 fn smoke_registry_unknown_tool_returns_error() {
     let mut registry = ledgerr_mcp::provider::McpProviderRegistry::new();
-    registry.register(Arc::new(
-        ledgerr_mcp::provider::mock::MockProvider::new("calc", "add"),
-    ));
+    registry.register(Arc::new(ledgerr_mcp::provider::mock::MockProvider::new(
+        "calc", "add",
+    )));
 
     let result = registry.call_tool("", "nonexistent", serde_json::json!({}));
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("no provider found"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("no provider found"));
 }
 
 #[test]
 fn smoke_registry_find_provider() {
     let mut registry = ledgerr_mcp::provider::McpProviderRegistry::new();
-    registry.register(Arc::new(
-        ledgerr_mcp::provider::mock::MockProvider::new("b00t", "b00t_status"),
-    ));
+    registry.register(Arc::new(ledgerr_mcp::provider::mock::MockProvider::new(
+        "b00t",
+        "b00t_status",
+    )));
 
     let found = registry.find_provider("b00t_status");
     assert!(found.is_some());

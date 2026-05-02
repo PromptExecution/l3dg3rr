@@ -178,7 +178,9 @@ use std::path::{Path, PathBuf};
 
 use mistralrs::{GgufModelBuilder, TextMessageRole, TextMessages};
 
-use crate::agent_runtime::{AgentRuntime, AgentRuntimeError, ModelRequest, ModelResponse, ModelRole};
+use crate::agent_runtime::{
+    AgentRuntime, AgentRuntimeError, ModelRequest, ModelResponse, ModelRole,
+};
 
 /// HuggingFace repo used to fetch and cache the Phi-4 mini tokenizer vocabulary.
 ///
@@ -238,10 +240,7 @@ impl LocalMistralRuntime {
             .file_name()
             .and_then(|n| n.to_str())
             .ok_or_else(|| {
-                AgentRuntimeError::LocalLlm(format!(
-                    "cannot read filename from {}",
-                    path.display()
-                ))
+                AgentRuntimeError::LocalLlm(format!("cannot read filename from {}", path.display()))
             })?
             .to_string();
         Ok(Self {
@@ -304,7 +303,10 @@ impl LocalMistralRuntime {
     /// 1. Ensure the patched GGUF sidecar exists (see `ensure_patched_gguf`).
     /// 2. Build a mistralrs model pipeline from the sidecar file.
     /// 3. Send the chat request and extract the first completion choice.
-    async fn complete_async(&self, request: ModelRequest) -> Result<ModelResponse, AgentRuntimeError> {
+    async fn complete_async(
+        &self,
+        request: ModelRequest,
+    ) -> Result<ModelResponse, AgentRuntimeError> {
         let original = self.model_dir.join(&self.model_file);
 
         // Produce (or reuse) the patched sidecar GGUF that works around Phi-4 Mini's
@@ -315,12 +317,16 @@ impl LocalMistralRuntime {
         let model_dir_str = patched
             .parent()
             .and_then(|p| p.to_str())
-            .ok_or_else(|| AgentRuntimeError::LocalLlm("patched model dir path is not valid UTF-8".into()))?
+            .ok_or_else(|| {
+                AgentRuntimeError::LocalLlm("patched model dir path is not valid UTF-8".into())
+            })?
             .to_string();
         let model_file = patched
             .file_name()
             .and_then(|n| n.to_str())
-            .ok_or_else(|| AgentRuntimeError::LocalLlm("patched model filename is not valid UTF-8".into()))?
+            .ok_or_else(|| {
+                AgentRuntimeError::LocalLlm("patched model filename is not valid UTF-8".into())
+            })?
             .to_string();
 
         let model = GgufModelBuilder::new(model_dir_str, vec![model_file])
@@ -510,8 +516,14 @@ fn ensure_patched_gguf(original: &Path) -> Result<PathBuf, AgentRuntimeError> {
         .collect();
 
     // Ensure the key is present even if the original GGUF omitted it.
-    if !metadata_owned.iter().any(|(k, _)| k == "phi3.rope.dimension_count") {
-        metadata_owned.push(("phi3.rope.dimension_count".to_string(), gguf_file::Value::U32(head_dim)));
+    if !metadata_owned
+        .iter()
+        .any(|(k, _)| k == "phi3.rope.dimension_count")
+    {
+        metadata_owned.push((
+            "phi3.rope.dimension_count".to_string(),
+            gguf_file::Value::U32(head_dim),
+        ));
     }
 
     let meta_refs: Vec<(&str, &gguf_file::Value)> = metadata_owned

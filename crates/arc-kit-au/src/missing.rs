@@ -76,9 +76,7 @@ impl ProvenanceScanner for EvidenceGraph {
 
             // Check incoming edges for source rows
             let incoming = self.incoming_edges(&tx_node_id);
-            let has_rows = incoming
-                .iter()
-                .any(|e| e.edge_type == EdgeType::Produces);
+            let has_rows = incoming.iter().any(|e| e.edge_type == EdgeType::Produces);
 
             if has_rows {
                 // Check if rows have source documents
@@ -156,9 +154,9 @@ impl ProvenanceScanner for EvidenceGraph {
 
 #[cfg(test)]
 mod tests {
-    use crate::node::Confidence;
     use super::*;
     use crate::builder::EvidenceBuilder;
+    use crate::node::Confidence;
     use crate::node::{Classification, ExtractedRow, NodeId, SourceDoc, Transaction};
     use chrono::TimeZone;
     use chrono::Utc;
@@ -228,9 +226,7 @@ mod tests {
         // build_full_chain doesn't create approvals or exports, so those will be gaps
         let gaps = graph.find_missing_provenance();
         assert_eq!(gaps.len(), 1);
-        assert!(gaps[0]
-            .missing
-            .contains(&MissingElement::OperatorApproval));
+        assert!(gaps[0].missing.contains(&MissingElement::OperatorApproval));
         assert!(gaps[0].missing.contains(&MissingElement::WorkbookExport));
         // But source and classification should be present
         assert!(!gaps[0].missing.contains(&MissingElement::SourceDocument));
@@ -254,12 +250,8 @@ mod tests {
 
         let gaps = graph.find_missing_provenance();
         assert_eq!(gaps.len(), 1);
-        assert!(gaps[0]
-            .missing
-            .contains(&MissingElement::Classification));
-        assert!(gaps[0]
-            .missing
-            .contains(&MissingElement::OperatorApproval));
+        assert!(gaps[0].missing.contains(&MissingElement::Classification));
+        assert!(gaps[0].missing.contains(&MissingElement::OperatorApproval));
         assert!(gaps[0].missing.contains(&MissingElement::WorkbookExport));
     }
 
@@ -293,11 +285,17 @@ mod tests {
 
     #[test]
     fn missing_element_display_format() {
-        assert_eq!(MissingElement::SourceDocument.to_string(), "source_document");
+        assert_eq!(
+            MissingElement::SourceDocument.to_string(),
+            "source_document"
+        );
         assert_eq!(
             MissingElement::OperatorApproval.to_string(),
             "operator_approval"
         );
-        assert_eq!(MissingElement::WorkbookExport.to_string(), "workbook_export");
+        assert_eq!(
+            MissingElement::WorkbookExport.to_string(),
+            "workbook_export"
+        );
     }
 }

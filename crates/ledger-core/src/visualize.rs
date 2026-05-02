@@ -31,17 +31,24 @@ pub enum NodeVisualState {
 }
 
 impl NodeVisualState {
-    pub fn from_pipeline(state: PipelineStateEnum, confidence: f32, issues: &[crate::validation::Issue]) -> Self {
-        if issues.iter().any(|i| i.disposition == Disposition::Unrecoverable) {
+    pub fn from_pipeline(
+        state: PipelineStateEnum,
+        confidence: f32,
+        issues: &[crate::validation::Issue],
+    ) -> Self {
+        if issues
+            .iter()
+            .any(|i| i.disposition == Disposition::Unrecoverable)
+        {
             return NodeVisualState::Error;
         }
         match state {
             PipelineStateEnum::Committed => NodeVisualState::Success,
             PipelineStateEnum::NeedsReview => NodeVisualState::Review,
-            PipelineStateEnum::Ingested |
-            PipelineStateEnum::Validating |
-            PipelineStateEnum::Classifying |
-            PipelineStateEnum::Reconciling => {
+            PipelineStateEnum::Ingested
+            | PipelineStateEnum::Validating
+            | PipelineStateEnum::Classifying
+            | PipelineStateEnum::Reconciling => {
                 if confidence < 0.5 {
                     NodeVisualState::Warning
                 } else {
@@ -149,11 +156,8 @@ impl PipelineGraph {
 
         // Update all nodes' visual state based on current position
         for (node_name, visual_state) in self.nodes.iter_mut() {
-            *visual_state = NodeVisualState::from_pipeline(
-                state_from_name(node_name),
-                confidence,
-                issues,
-            );
+            *visual_state =
+                NodeVisualState::from_pipeline(state_from_name(node_name), confidence, issues);
         }
 
         // Mark current node as active (overrides above)
@@ -177,7 +181,10 @@ impl PipelineGraph {
                     name, name, fill, anim_class
                 ));
             } else {
-                diagram.push_str(&format!("    state {} {{\n      {}: {}\n    }}\n", name, name, fill));
+                diagram.push_str(&format!(
+                    "    state {} {{\n      {}: {}\n    }}\n",
+                    name, name, fill
+                ));
             }
         }
 
@@ -207,11 +214,7 @@ impl PipelineGraph {
         let svg_height = 200.0_f32;
         let padding = 40.0_f32;
 
-        let svg_width = layout
-            .values()
-            .map(|(x, w)| x + w)
-            .fold(0.0_f32, f32::max)
-            + padding;
+        let svg_width = layout.values().map(|(x, w)| x + w).fold(0.0_f32, f32::max) + padding;
 
         let prev_layout = previous.map(|p| solver.generate_layout(p));
         let dur = 300u32;
@@ -270,8 +273,8 @@ impl PipelineGraph {
                     if let Some(&(px, _pw)) = pl.get(name) {
                         if (px - x).abs() > 0.5 {
                             let text_fill = "#fff";
-                let font_family = "sans-serif";
-                group.push_str(&format!(
+                            let font_family = "sans-serif";
+                            group.push_str(&format!(
                                 r#"  <g>
     <rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{nh:.1}" rx="{rx:.1}" fill="{fill}" class="{cls}">
       <animateTransform attributeName="transform" type="translate"
@@ -359,7 +362,8 @@ impl PipelineGraph {
 .shake { animation: shake 0.3s infinite; }
 .blink { animation: blink 0.5s infinite; }
 .bounce { animation: bounce 0.5s infinite; }
-"#.to_string()
+"#
+        .to_string()
     }
 }
 
@@ -443,19 +447,19 @@ pub mod layout {
                 let x = x_vars[name];
                 let w = w_vars[name];
                 let is_current = name == graph.current_state;
-                let pref_width = if is_current { self.current_width } else { self.default_width };
+                let pref_width = if is_current {
+                    self.current_width
+                } else {
+                    self.default_width
+                };
 
                 // positive width
-                solver
-                    .add_constraint(w |GE(Strength::REQUIRED)| 0.0)
-                    .ok();
+                solver.add_constraint(w | GE(Strength::REQUIRED) | 0.0).ok();
                 // positive x
-                solver
-                    .add_constraint(x |GE(Strength::REQUIRED)| 0.0)
-                    .ok();
+                solver.add_constraint(x | GE(Strength::REQUIRED) | 0.0).ok();
                 // preferred width (STAY: weak so ordering wins if conflict)
                 solver
-                    .add_constraint(w |EQ(Strength::WEAK)| pref_width)
+                    .add_constraint(w | EQ(Strength::WEAK) | pref_width)
                     .ok();
             }
 
@@ -467,14 +471,14 @@ pub mod layout {
 
                 let left_edge = left_x + left_w;
                 solver
-                    .add_constraint(left_edge + self.gap |LE(Strength::REQUIRED)| right_x)
+                    .add_constraint(left_edge + self.gap | LE(Strength::REQUIRED) | right_x)
                     .ok();
             }
 
             // first node starting position (STAY: weak preference)
             if let Some(&first) = nodes.first() {
                 solver
-                    .add_constraint(x_vars[first] |EQ(Strength::WEAK)| self.start_x)
+                    .add_constraint(x_vars[first] | EQ(Strength::WEAK) | self.start_x)
                     .ok();
             }
 
@@ -526,7 +530,13 @@ pub fn to_html(graph: &PipelineGraph) -> String {
 </body>
 </html>"#,
         current,
-        if confidence > 0.7 { "#4caf50" } else if confidence > 0.4 { "#ff9800" } else { "#f44336" },
+        if confidence > 0.7 {
+            "#4caf50"
+        } else if confidence > 0.4 {
+            "#ff9800"
+        } else {
+            "#f44336"
+        },
         styles,
         current,
         confidence,
@@ -541,28 +551,26 @@ mod tests {
     #[test]
     fn test_node_visual_state() {
         // Test Active state
-        let state = NodeVisualState::from_pipeline(
-            PipelineStateEnum::Validating,
-            0.9,
-            &[]
-        );
+        let state = NodeVisualState::from_pipeline(PipelineStateEnum::Validating, 0.9, &[]);
         assert_eq!(state, NodeVisualState::Active);
 
         // Test Warning (low confidence)
-        let state = NodeVisualState::from_pipeline(
-            PipelineStateEnum::Classifying,
-            0.3,
-            &[]
-        );
+        let state = NodeVisualState::from_pipeline(PipelineStateEnum::Classifying, 0.3, &[]);
         assert_eq!(state, NodeVisualState::Warning);
     }
 
     #[test]
     fn test_mermaid_generation() {
         let mut graph = PipelineGraph::new();
-        graph.nodes.insert("Ingested".to_string(), NodeVisualState::Success);
-        graph.nodes.insert("Validating".to_string(), NodeVisualState::Active);
-        graph.nodes.insert("Classifying".to_string(), NodeVisualState::Idle);
+        graph
+            .nodes
+            .insert("Ingested".to_string(), NodeVisualState::Success);
+        graph
+            .nodes
+            .insert("Validating".to_string(), NodeVisualState::Active);
+        graph
+            .nodes
+            .insert("Classifying".to_string(), NodeVisualState::Idle);
         graph.current_state = "Validating".to_string();
         graph.accumulated_confidence = 0.85;
 
@@ -592,10 +600,18 @@ mod tests {
     fn test_layout_constraints() {
         let solver = layout::LayoutSolver::new();
         let mut graph = PipelineGraph::new();
-        graph.nodes.insert("Ingested".to_string(), NodeVisualState::Success);
-        graph.nodes.insert("Validating".to_string(), NodeVisualState::Active);
-        graph.nodes.insert("Classifying".to_string(), NodeVisualState::Idle);
-        graph.nodes.insert("Committed".to_string(), NodeVisualState::Idle);
+        graph
+            .nodes
+            .insert("Ingested".to_string(), NodeVisualState::Success);
+        graph
+            .nodes
+            .insert("Validating".to_string(), NodeVisualState::Active);
+        graph
+            .nodes
+            .insert("Classifying".to_string(), NodeVisualState::Idle);
+        graph
+            .nodes
+            .insert("Committed".to_string(), NodeVisualState::Idle);
         graph.current_state = "Validating".to_string();
         graph.accumulated_confidence = 0.8;
 
@@ -638,12 +654,20 @@ mod tests {
     #[test]
     fn test_animated_svg_static() {
         let mut graph = PipelineGraph::new();
-        graph.nodes.insert("Ingested".to_string(), NodeVisualState::Success);
-        graph.nodes.insert("Validating".to_string(), NodeVisualState::Active);
-        graph.nodes.insert("Classifying".to_string(), NodeVisualState::Idle);
+        graph
+            .nodes
+            .insert("Ingested".to_string(), NodeVisualState::Success);
+        graph
+            .nodes
+            .insert("Validating".to_string(), NodeVisualState::Active);
+        graph
+            .nodes
+            .insert("Classifying".to_string(), NodeVisualState::Idle);
         graph.current_state = "Validating".to_string();
         graph.accumulated_confidence = 0.85;
-        graph.edges.push(EdgeVisual::new("Ingested", "Validating", "start"));
+        graph
+            .edges
+            .push(EdgeVisual::new("Ingested", "Validating", "start"));
 
         let svg = graph.to_animated_svg(None);
         assert!(svg.starts_with("<svg"), "SVG should start with svg tag");
@@ -655,36 +679,63 @@ mod tests {
         assert!(svg.contains("#4a90d9"), "SVG should contain Active fill");
         assert!(svg.contains("line"), "SVG should contain edge lines");
         assert!(svg.contains("rect"), "SVG should contain node rects");
-        assert!(!svg.contains("animateTransform"), "Static SVG should have no animation");
+        assert!(
+            !svg.contains("animateTransform"),
+            "Static SVG should have no animation"
+        );
     }
 
     #[test]
     fn test_animated_svg_reflow() {
         // graph1: narrow layout; current_state = Ingested (width ~120)
         let mut graph1 = PipelineGraph::new();
-        graph1.nodes.insert("Ingested".to_string(), NodeVisualState::Active);
-        graph1.nodes.insert("Validating".to_string(), NodeVisualState::Idle);
-        graph1.nodes.insert("Classifying".to_string(), NodeVisualState::Idle);
+        graph1
+            .nodes
+            .insert("Ingested".to_string(), NodeVisualState::Active);
+        graph1
+            .nodes
+            .insert("Validating".to_string(), NodeVisualState::Idle);
+        graph1
+            .nodes
+            .insert("Classifying".to_string(), NodeVisualState::Idle);
         graph1.current_state = "Ingested".to_string();
         graph1.accumulated_confidence = 0.9;
 
         // graph2: different current_state => Ingested shrinks, Classifying expands => positions shift
         let mut graph2 = PipelineGraph::new();
-        graph2.nodes.insert("Ingested".to_string(), NodeVisualState::Success);
-        graph2.nodes.insert("Validating".to_string(), NodeVisualState::Success);
-        graph2.nodes.insert("Classifying".to_string(), NodeVisualState::Active);
+        graph2
+            .nodes
+            .insert("Ingested".to_string(), NodeVisualState::Success);
+        graph2
+            .nodes
+            .insert("Validating".to_string(), NodeVisualState::Success);
+        graph2
+            .nodes
+            .insert("Classifying".to_string(), NodeVisualState::Active);
         graph2.current_state = "Classifying".to_string();
         graph2.accumulated_confidence = 0.9;
 
         let svg = graph2.to_animated_svg(Some(&graph1));
         assert!(svg.starts_with("<svg"), "SVG should start with svg tag");
         assert!(svg.contains("</svg>"), "SVG should have closing tag");
-        assert!(svg.contains("animateTransform"), "Reflow SVG should have animateTransform");
-        assert!(svg.contains("from=\""), "animateTransform should have from attribute");
-        assert!(svg.contains("fill=\"freeze\""), "animateTransform should freeze");
+        assert!(
+            svg.contains("animateTransform"),
+            "Reflow SVG should have animateTransform"
+        );
+        assert!(
+            svg.contains("from=\""),
+            "animateTransform should have from attribute"
+        );
+        assert!(
+            svg.contains("fill=\"freeze\""),
+            "animateTransform should freeze"
+        );
 
         // static same-graph call should have no animation
         let static_svg = graph2.to_animated_svg(None);
-        assert!(!static_svg.contains("animateTransform"), "Static SVG should have no animation");
+        assert!(
+            !static_svg.contains("animateTransform"),
+            "Static SVG should have no animation"
+        );
     }
 }

@@ -65,7 +65,7 @@ impl MultiModelConfig {
 pub trait ModelClient: Send + Sync {
     /// Generate a completion from the model.
     fn complete(&self, prompt: &str, max_tokens: usize) -> anyhow::Result<String>;
-    
+
     /// Extract structured output (JSON) from the model response.
     fn extract<T: serde::de::DeserializeOwned>(&self, prompt: &str) -> anyhow::Result<T>;
 }
@@ -110,16 +110,25 @@ pub struct MultiModelVerifier<C: ModelClient> {
 
 impl<C: ModelClient> MultiModelVerifier<C> {
     pub fn new(proposer: C, reviewer: C, config: MultiModelConfig) -> Self {
-        Self { proposer, reviewer, config }
+        Self {
+            proposer,
+            reviewer,
+            config,
+        }
     }
 
     /// Propose a fix for validation issues.
-    pub fn propose_fix(&self, rule_id: &str, issues_json: &str, context: &str) -> anyhow::Result<RepairProposal> {
+    pub fn propose_fix(
+        &self,
+        rule_id: &str,
+        issues_json: &str,
+        context: &str,
+    ) -> anyhow::Result<RepairProposal> {
         let prompt = format!(
             "Given these validation issues:\n{}\n\nContext: {}\n\nPropose a fix for rule {}. Return JSON: {{\"rule_id\": \"{}\", \"proposed_fix\": \"...\", \"reasoning\": \"...\", \"confidence\": 0.0-1.0}}",
             issues_json, context, rule_id, rule_id
         );
-        
+
         self.proposer.extract::<RepairProposal>(&prompt)
     }
 
@@ -129,9 +138,9 @@ impl<C: ModelClient> MultiModelVerifier<C> {
             "Review this proposed fix:\nRule: {}\nFix: {}\nReasoning: {}\nConfidence: {}\n\nReturn JSON: {{\"approved\": bool, \"concerns\": [], \"suggestions\": [], \"confidence\": 0.0-1.0}}",
             proposal.rule_id, proposal.proposed_fix, proposal.reasoning, proposal.confidence
         );
-        
+
         let result = self.reviewer.extract::<ReviewResult>(&prompt)?;
-        
+
         // Check confidence threshold
         if result.confidence < self.config.min_reviewer_confidence {
             return Ok(ReviewResult {
@@ -143,25 +152,31 @@ impl<C: ModelClient> MultiModelVerifier<C> {
                 ..result
             });
         }
-        
+
         Ok(result)
     }
 
     /// Full verification loop: propose -> review -> decide.
-    pub fn verify(&self, rule_id: &str, issues_json: &str, context: &str) -> anyhow::Result<VerificationOutcome> {
+    pub fn verify(
+        &self,
+        rule_id: &str,
+        issues_json: &str,
+        context: &str,
+    ) -> anyhow::Result<VerificationOutcome> {
         // Step 1: propose
         let proposal = self.propose_fix(rule_id, issues_json, context)?;
-        
+
         // Step 2: review
         let review = self.review(&proposal)?;
-        
+
         // Step 3: decision
-        let outcome = if review.approved && review.confidence >= self.config.min_reviewer_confidence {
+        let outcome = if review.approved && review.confidence >= self.config.min_reviewer_confidence
+        {
             VerificationOutcome::Approved { proposal, review }
         } else {
             VerificationOutcome::Rejected { proposal, review }
         };
-        
+
         Ok(outcome)
     }
 }
@@ -193,9 +208,9 @@ mod tests {
     fn test_mock_proposer() {
         let json = r#"{"rule_id":"test","proposed_fix":"fix content","reasoning":"because","confidence":0.85}"#;
         let mock = MockModelClient::default().with_response(json);
-        
+
         let result: RepairProposal = mock.extract("prompt").unwrap();
-        
+
         assert_eq!(result.rule_id, "test");
         assert_eq!(result.confidence, 0.85);
     }
@@ -204,9 +219,9 @@ mod tests {
     fn test_mock_reviewer_approved() {
         let json = r#"{"approved":true,"concerns":[],"suggestions":[],"confidence":0.9}"#;
         let mock = MockModelClient::default().with_response(json);
-        
+
         let result: ReviewResult = mock.extract("prompt").unwrap();
-        
+
         assert!(result.approved);
         assert_eq!(result.confidence, 0.9);
     }
@@ -214,27 +229,26 @@ mod tests {
     #[test]
     fn test_verification_approved() {
         // Setup mock models that return valid JSON
-        let proposer_json = r#"{"rule_id":"test-rule","proposed_fix":"x = 1","reasoning":"fix","confidence":0.85}"#;
+        let proposer_json =
+            r#"{"rule_id":"test-rule","proposed_fix":"x = 1","reasoning":"fix","confidence":0.85}"#;
         let reviewer_json = r#"{"approved":true,"concerns":[],"suggestions":[],"confidence":0.9}"#;
-        
+
         let proposer = MockModelClient::default().with_response(proposer_json);
         let reviewer = MockModelClient::default().with_response(reviewer_json);
-        
-        let verifier = MultiModelVerifier::new(
-            proposer,
-            reviewer,
-            MultiModelConfig::default(),
-        );
-        
+
+        let verifier = MultiModelVerifier::new(proposer, reviewer, MultiModelConfig::default());
+
         let outcome = verifier.verify("test-rule", "[]", "context").unwrap();
-        
+
         assert!(outcome.is_approved());
     }
 
     #[test]
     fn test_verification_rejected_low_confidence() {
-        let proposer_json = r#"{"rule_id":"test","proposed_fix":"x","reasoning":"y","confidence":0.5}"#;
-        let reviewer_json = r#"{"approved":false,"concerns":["too risky"],"suggestions":[],"confidence":0.6}"#;
+        let proposer_json =
+            r#"{"rule_id":"test","proposed_fix":"x","reasoning":"y","confidence":0.5}"#;
+        let reviewer_json =
+            r#"{"approved":false,"concerns":["too risky"],"suggestions":[],"confidence":0.6}"#;
 
         let proposer = MockModelClient::default().with_response(proposer_json);
         let reviewer = MockModelClient::default().with_response(reviewer_json);
@@ -252,7 +266,7 @@ mod tests {
     #[test]
     fn test_config_defaults() {
         let config = MultiModelConfig::default();
-        
+
         assert_eq!(config.proposer_model, "claude-sonnet-4-5");
         assert_eq!(config.reviewer_model, "claude-haiku-4-5");
         assert_eq!(config.min_reviewer_confidence, 0.80);
@@ -274,7 +288,7 @@ mod tests {
                 confidence: 0.9,
             },
         };
-        
+
         let rejected = VerificationOutcome::Rejected {
             proposal: RepairProposal {
                 rule_id: "r1".to_string(),
@@ -289,7 +303,7 @@ mod tests {
                 confidence: 0.5,
             },
         };
-        
+
         assert!(approved.is_approved());
         assert!(!rejected.is_approved());
     }

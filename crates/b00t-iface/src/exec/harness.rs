@@ -4,8 +4,8 @@
 //! governance validation, and promise event log.
 
 use crate::core::{
-    GovernancePolicy, MachineState, ProcessSurface, PromiseChain, PromiseOp,
-    SurfaceCapability, SurfaceMachine, AuditRecord, LifecyclePromise, MaintenanceAction,
+    AuditRecord, GovernancePolicy, LifecyclePromise, MachineState, MaintenanceAction,
+    ProcessSurface, PromiseChain, PromiseOp, SurfaceCapability, SurfaceMachine,
 };
 use std::time::{Duration, Instant};
 
@@ -56,9 +56,7 @@ impl<S: ProcessSurface> SurfaceHarness<S> {
                 let _ = self.machine.transition(MachineState::Ready, now.elapsed());
                 LifecyclePromise::fulfilled(PromiseOp::Init, now.elapsed(), ())
             }
-            Err(e) => {
-                LifecyclePromise::rejected(PromiseOp::Init, now.elapsed(), e.to_string())
-            }
+            Err(e) => LifecyclePromise::rejected(PromiseOp::Init, now.elapsed(), e.to_string()),
         };
 
         if init_promise.is_rejected() {
@@ -68,18 +66,23 @@ impl<S: ProcessSurface> SurfaceHarness<S> {
         // Operate
         let operate_promise = match self.surface.operate() {
             Ok(h) => {
-                let _ = self.machine.transition(MachineState::Running, now.elapsed());
+                let _ = self
+                    .machine
+                    .transition(MachineState::Running, now.elapsed());
                 LifecyclePromise::fulfilled(PromiseOp::Operate, now.elapsed(), h)
             }
-            Err(e) => {
-                LifecyclePromise::rejected(PromiseOp::Operate, now.elapsed(), e.to_string())
-            }
+            Err(e) => LifecyclePromise::rejected(PromiseOp::Operate, now.elapsed(), e.to_string()),
         };
 
         // Maintain (single pass)
         let maintain_action = self.surface.maintain();
-        let maintain_promise = match self.machine.apply_maintenance(&maintain_action, now.elapsed()) {
-            Ok(()) => LifecyclePromise::fulfilled(PromiseOp::Maintain, now.elapsed(), maintain_action),
+        let maintain_promise = match self
+            .machine
+            .apply_maintenance(&maintain_action, now.elapsed())
+        {
+            Ok(()) => {
+                LifecyclePromise::fulfilled(PromiseOp::Maintain, now.elapsed(), maintain_action)
+            }
             Err(e) => LifecyclePromise::rejected(PromiseOp::Maintain, now.elapsed(), e),
         };
 
@@ -93,7 +96,11 @@ impl<S: ProcessSurface> SurfaceHarness<S> {
                         init: init_promise,
                         operate: operate_promise,
                         maintains: vec![maintain_promise],
-                        terminate: LifecyclePromise::rejected(PromiseOp::Terminate, Duration::ZERO, "operate never succeeded".into()),
+                        terminate: LifecyclePromise::rejected(
+                            PromiseOp::Terminate,
+                            Duration::ZERO,
+                            "operate never succeeded".into(),
+                        ),
                     },
                     governance_violations: self.governance_violations.clone(),
                 };
@@ -103,7 +110,9 @@ impl<S: ProcessSurface> SurfaceHarness<S> {
         // Terminate
         let terminate_promise = match S::terminate(handle) {
             Ok(record) => {
-                let _ = self.machine.transition(MachineState::Terminated, now.elapsed());
+                let _ = self
+                    .machine
+                    .transition(MachineState::Terminated, now.elapsed());
                 LifecyclePromise::fulfilled(PromiseOp::Terminate, now.elapsed(), record)
             }
             Err(e) => {
@@ -136,9 +145,17 @@ impl<S: ProcessSurface> SurfaceHarness<S> {
             surface: self.capability.name.to_owned(),
             chain: PromiseChain {
                 init,
-                operate: LifecyclePromise::rejected(PromiseOp::Operate, Duration::ZERO, "init failed".into()),
+                operate: LifecyclePromise::rejected(
+                    PromiseOp::Operate,
+                    Duration::ZERO,
+                    "init failed".into(),
+                ),
                 maintains: vec![],
-                terminate: LifecyclePromise::rejected(PromiseOp::Terminate, Duration::ZERO, "init failed".into()),
+                terminate: LifecyclePromise::rejected(
+                    PromiseOp::Terminate,
+                    Duration::ZERO,
+                    "init failed".into(),
+                ),
             },
             governance_violations: self.governance_violations.clone(),
         }
@@ -162,7 +179,10 @@ mod tests {
         let outcome = harness.run_lifecycle(config);
         assert!(outcome.chain.init.is_fulfilled(), "init should pass");
         assert!(outcome.chain.operate.is_fulfilled(), "operate should pass");
-        assert!(outcome.governance_violations.is_empty(), "no governance violations");
+        assert!(
+            outcome.governance_violations.is_empty(),
+            "no governance violations"
+        );
     }
 
     #[test]
