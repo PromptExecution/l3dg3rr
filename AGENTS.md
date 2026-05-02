@@ -384,6 +384,29 @@ Treat this as a standing operational gate, not a one-time migration task.
   - Protocol module (`protocol.rs`): Z3/Kasuari-style constraint system for protocol encoding optimality (`O = P XOR B`), `KASUARI_SHORTHAND == ( && === and , || === or )`. `evaluate_protocol()`, `has_unrecoverable_violations()`, `classify_violations()` with dialect comparison table.
   - Tomllmd module (`tomllmd.rs`): `.tomllmd` compiler with `SectionLevels` (verbatim/executive/epigram), `EntanglementRef` with type validation, compounding metadata.
   - Ralph loop surface (`b00t-iface/src/ralph.rs`): `RalphLoopSurface<R: Researcher>` with typed `RalphLoopProperties` (TTL, cadence, crash_budget, max_iterations), `iterate()` lifecycle, governance harmonized to existing `ProcessSurface`/`SurfaceMachine`/`SurfaceHarness`.
+- 2026-05-03: wrkflw integration for local docgen visualization pipeline testing.
+  - `wrkflw` (`cargo install wrkflw`) runs GitHub Actions workflows locally without Docker via `--runtime secure-emulation`.
+  - `.github/workflows/wrkflw-docgen.yml` defines a 9-stage pipeline testing all visualization layers: Rhai parser tests (S1), iso lint (S2), viz/derive tests (S3), legal Z3 integration (S4), mdBook docgen build (S5), Kasuari constraint tests (S6), iso objects HasVisualization impls (S7), live-editor JS tests (S8), Xero MCP smoke (S9).
+  - Justfile recipes: `wrkflw-docgen-test`, `wrkflw-validate`, `wrkflw-list`, `wrkflw-job`, `wrkflw-tui`, `wrkflw-full-test`.
+  - `scripts/wrkflw_test.sh` — test harness with `--validate`, `--stage S<N>`, `--list`, `--full` modes.
+  - Use `just wrkflw-docgen-test` to run the full pipeline. Individual stages with `just wrkflw-job stage-5-docgen-build`.
+  - wrkflw validates workflow YAML first (`wrkflw validate .github/workflows/wrkflw-docgen.yml`), then executes.
+  - Secure emulation mode avoids needing Docker/Podman — wrkflw executes steps as sandboxed host processes.
+  - Important wrkflw limitations discovered:
+    - `actions/checkout@v4` is REQUIRED in each job even for local emulation (wrkflw volume-mounts empty dirs)
+    - `uses:` with composite actions (like `dtolnay/rust-toolchain@stable`) fails under emulation — use inline commands
+    - `continue-on-error: ${{ }}` expressions unsupported — use literal `true`/`false` only
+    - `needs.<id>.result` and `toJSON(needs)` expressions not supported in summary jobs
+    - Each stage does a fresh `cargo build` from scratch in its sandbox — no shared `target/` cache
+    - wrkflw secure emulation blocks `curl | sh` dangerous patterns — use `emulation` runtime instead
+    - Expected full 9-stage run: 20-60+ minutes due to recompilation
+  - During integration, wrkflw surfaced a pre-existing compilation error in `crates/ledger-core/src/observability.rs:192` (`ParseIntError` → `ObservabilityError` type mismatch, fixed).
+  - Non-obvious emergent capabilities from the Z3/Kasuari `HasVisualization` invariant:
+    - **Dual solver topology testable in one pipeline**: S4 exercises Z3 (hard legal SAT) and S6 exercises Kasuari (soft Cassowary constraints) — the `ConstraintSolver` trait bridges them, and both produce `Z3Result`/`ConstraintEvaluation` that share the same `HasVisualization` impl contract.
+    - **Z-layer stack consistency**: The 6-layer Z stack (Document→Pipeline→Constraint→Legal→FormalProof→Attestation) and the 21+ `HasVisualization` impls can be validated across all layers without needing a real ledger dataset — S2+S7 cover the full impl surface via `--test iso_lint` and `--test-threads=1`.
+    - **Cross-stage composition coverage**: The `ConstraintSolver` trait (KasuariSolver in pipeline.rs), `LayoutSolver` (visualize.rs), and `LegalSolver` (legal.rs, Z3-gated) are independent solver engines that share `Issue`, `MetaCtx`, and `CommitGate` types — wrkflw stages independently validate each while the summary signals overall contract consistency.
+    - **Docgen as integration test**: S5 (mdBook build) indirectly tests the `mdbook-rhai-mermaid` preprocessor, which uses the same `parser::Graph` types exported as a library (lib.rs) — proving the parser works both as an mdBook plugin and as a standalone library for b00t synergy_viz.
+    - **What's NOT tested**: McpProviderRegistry initialization, Xero live API calls, crash recovery/idempotency, concurrency groups, service containers, negative testing with malformed inputs, and cross-stage artifact sharing.
 - 2026-04-24: README/product framing is bookkeeping-first with visual workflow graph as the organizing model.
   - Describe `l3dg3rr` as a strongly typed, ontologically linked graph of scriptable visual-first workflows for supervised AI/LLM ETL into CPA-auditable bookkeeping artifacts.
   - Keep README structure MECE: bookkeeping truth, typed domain model, ontology graph, scriptable policy, workflow control, visualization, MCP/agent boundary, and operator host.
