@@ -361,6 +361,29 @@ Treat this as a standing operational gate, not a one-time migration task.
   - Build mdBook assets before expecting `/docs/` to serve useful content; use `just host-playbook-window` for the packaged playbook launch path.
   - Windows AI / Foundry Local is selectable only, not auto-selected. Use `just windows-ai-install`, `just windows-ai-setup`, and `just windows-ai-smoke` as the verified PowerShell setup path before demoing it.
   - Do not hardcode Foundry Local port `5272` in host logic; discover the dynamic endpoint from `foundry service status` or `/openai/status`.
+- 2026-05-02: `.tomllmd` — compound structured document format established as the auto-research distillation invariant.
+  - Pipeline: `autoresearch [markdown] + tomllm => .tomllmd`
+  - Three summary levels per section: `verbatim` (full), `executive` (compressed), `epigram` (one-liner)
+  - Command interpolation via `{{ cmd: ... }}` at read time, rendered like PHP with role/tier-based truncation
+  - Entanglement invariant typing: every cross-datum ref is `name.type` validated by `entanglement.rs`
+  - Compounding: sm0l/ch0nky LLM merges two+ `.tomllmd` at different summary levels into higher-order meta-learn datum
+  - Selection by agent role tier (sm0l/ch0nky/frontier) + skill invariant tags + context window budget
+  - Full ADR stored in codebase-memory-mcp knowledge graph (manage_adr mode=update)
+- 2026-05-02: Generic McpProvider trait established as the invariant MCP interface.
+  - `crates/ledgerr-mcp/src/provider.rs` defines `McpProvider` trait + `StdioMcpProvider` (subprocess stdio transport) + `McpProviderRegistry` for discovery/routing.
+  - `crates/ledgerr-mcp/src/providers/definitions.rs` has concrete providers: `B00tProvider`, `JustProvider`, `Ir0ntologyProvider` — each wrapping an `StdioMcpProvider` over stdio MCP protocol.
+  - `McpProviderRegistry.initialize_all()` does MCP handshake + tools/list discovery; `call_tool()` dispatches by provider name or tool name.
+  - Xero is still feature-gated inside `TurboLedgerService` (legacy path). Future: refactor Xero as a `McpProvider` too.
+  - Keep `McpProvider` as the invariant — any external tool (xero, b00t, just, ir0ntology, etc.) registers the same way.
+  - Cloudflare Code Mode pattern (`search()` + `execute()` with sandboxed code execution) is the next natural evolution for large API surfaces. Consider adding a `CodeModeProvider` variant that exposes the Rhai engine as a sandbox for `search`/`execute` tools.
+  - `crates/ledgerr-mcp/src/providers/` is not yet wired into `mcp_adapter.rs` tool dispatch or `ledgerr-mcp-server.rs`. Wiring requires injecting `McpProviderRegistry` into the server binary and adding a `handle_external_tool` dispatcher that delegates to the registry.
+- 2026-05-02: Datum AST linter added to `crates/datum/src/ast.rs` with `LintSeverity` (Error/Warning/Info), `lint_ast()`, `parse_datum()` producing `DatumAst` with section hierarchy, and `validate_datum_structure()` for CI gating. Feature-gated by `real_datums` for external `_b00t_` repo tests.
+  - CI runs `cargo test -p datum` (58 standalone tests: 15 AST + 19 logic + 11 tomllmd + 11 protocol + 2 lib, no external deps).
+  - Full real-datum tests via `--features real_datums`.
+  - Logic module (`logic.rs`): NAND/NOR/ADD/WAIT/TX/RX gate types, flux capacitor meta-state requiring all ports filled, shorthand tokenizer (`&&`/`||`/`!`/`→`/`←`).
+  - Protocol module (`protocol.rs`): Z3/Kasuari-style constraint system for protocol encoding optimality (`O = P XOR B`), `KASUARI_SHORTHAND == ( && === and , || === or )`. `evaluate_protocol()`, `has_unrecoverable_violations()`, `classify_violations()` with dialect comparison table.
+  - Tomllmd module (`tomllmd.rs`): `.tomllmd` compiler with `SectionLevels` (verbatim/executive/epigram), `EntanglementRef` with type validation, compounding metadata.
+  - Ralph loop surface (`b00t-iface/src/ralph.rs`): `RalphLoopSurface<R: Researcher>` with typed `RalphLoopProperties` (TTL, cadence, crash_budget, max_iterations), `iterate()` lifecycle, governance harmonized to existing `ProcessSurface`/`SurfaceMachine`/`SurfaceHarness`.
 - 2026-04-24: README/product framing is bookkeeping-first with visual workflow graph as the organizing model.
   - Describe `l3dg3rr` as a strongly typed, ontologically linked graph of scriptable visual-first workflows for supervised AI/LLM ETL into CPA-auditable bookkeeping artifacts.
   - Keep README structure MECE: bookkeeping truth, typed domain model, ontology graph, scriptable policy, workflow control, visualization, MCP/agent boundary, and operator host.
