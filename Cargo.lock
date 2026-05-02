@@ -8627,6 +8627,7 @@ version = "1.8.0"
 dependencies = [
  "anyhow",
  "axum",
+ "b00t-iface",
  "ledger-core",
  "serde",
  "serde_json",
