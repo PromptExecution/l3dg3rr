@@ -126,7 +126,6 @@ pub fn tool_names() -> Vec<String> {
 
 /// Hook for external MCP providers.  Dispatches via the global provider registry.
 #[cfg(feature = "b00t")]
-#[cfg(feature = "legacy")]
 pub fn handle_external_tool(
     _registry: &ledgerr_mcp_core::McpProviderRegistry,
     tool_name: &str,
@@ -145,7 +144,6 @@ pub fn handle_external_tool(
 }
 
 #[cfg(not(feature = "b00t"))]
-#[cfg(feature = "legacy")]
 pub fn handle_external_tool(
     _registry: (),
     tool_name: &str,
@@ -160,7 +158,6 @@ pub fn handle_external_tool(
 
 #[cfg(feature = "legacy")]
 #[allow(clippy::vec_init_then_push)]
-#[cfg(feature = "legacy")]
 pub fn tool_names() -> Vec<String> {
     let mut features = Vec::new();
 

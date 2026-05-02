@@ -334,7 +334,8 @@ fn sanitize_class_name(label: &str) -> String {
     if name.starts_with(|c: char| c.is_ascii_digit() || c == '_') {
         name.insert(0, 'A');
     } else if let Some(first) = name.chars().next() {
-        // Capitalize first char in-place without an extra allocation.
+        // Capitalise the first character.  `to_uppercase` may expand to multiple
+        // chars (e.g. 'ß' → "SS") so we collect and splice.
         let upper: String = first.to_uppercase().collect();
         name.replace_range(..first.len_utf8(), &upper);
     }
@@ -342,9 +343,10 @@ fn sanitize_class_name(label: &str) -> String {
 }
 
 /// Minimal XML attribute value escaper for SMIL output.
-/// Only the characters that need escaping inside a double-quoted XML attribute.
-#[allow(dead_code)]
-fn xml_attr_escape(s: &str) -> String {
+/// Escapes characters that are unsafe inside a double-quoted XML attribute value.
+/// Callers generating `<animateTransform>` markup with dynamic label content should
+/// apply this before embedding string values in attribute positions.
+pub fn xml_attr_escape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
         match c {
