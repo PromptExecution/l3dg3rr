@@ -1,0 +1,152 @@
+/* ============================================================================
+   Isometric scene styles
+   ============================================================================ */
+
+#app {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 48px);
+  overflow: hidden;
+  background: #0f172a;
+}
+
+#iso-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ---- Isometric tile interaction ---- */
+
+.iso-tile {
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.iso-tile:hover {
+  filter: brightness(1.25) drop-shadow(0 0 4px rgba(99, 102, 241, 0.5));
+}
+
+.iso-tile:focus {
+  outline: none;
+  filter: brightness(1.3) drop-shadow(0 0 6px rgba(99, 102, 241, 0.8));
+}
+
+.iso-tile:active {
+  filter: brightness(0.9);
+}
+
+/* ---- Layer labels ---- */
+
+.layer-label {
+  pointer-events: none;
+  font-family: 'JetBrains Mono', 'Fira Mono', monospace;
+  letter-spacing: 0.05em;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+
+/* ---- Simulation output panel ---- */
+
+#sim-output {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 320px;
+  max-height: calc(100vh - 80px);
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid #334155;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  font-family: 'JetBrains Mono', 'Fira Mono', 'Courier New', monospace;
+  font-size: 12px;
+  color: #cbd5e1;
+  transform: translateX(340px);
+  transition: transform 0.25s ease;
+  backdrop-filter: blur(8px);
+  overflow: hidden;
+}
+
+#sim-output.sim-output--visible {
+  transform: translateX(0);
+}
+
+#sim-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+  flex-shrink: 0;
+}
+
+#sim-title {
+  font-weight: 600;
+  font-size: 11px;
+  color: #94a3b8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#sim-close {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 2px;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+#sim-close:hover {
+  color: #f1f5f9;
+}
+
+#sim-content {
+  padding: 12px;
+  overflow-y: auto;
+  flex: 1;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+
+.sim-loading {
+  color: #475569;
+  animation: sim-blink 1s ease-in-out infinite;
+}
+
+@keyframes sim-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+#sim-run {
+  margin: 8px 12px 12px;
+  padding: 7px 14px;
+  background: #1d4ed8;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+#sim-run:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+#sim-run:disabled {
+  background: #1e293b;
+  color: #475569;
+  cursor: not-allowed;
+}

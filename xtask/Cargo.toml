@@ -16,6 +16,7 @@ path = "src/lib.rs"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+ledger-core = { path = "../crates/ledger-core" }
 hex = "0.4"
 ledgerr-mcp = { path = "../crates/ledgerr-mcp" }
 serde = { version = "1", features = ["derive"] }

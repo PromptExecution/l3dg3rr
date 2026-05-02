@@ -3,6 +3,7 @@ members = [
   "crates/ledger-core",
   "crates/ledgerr-host",
   "crates/ledgerr-mcp",
+  "crates/ledgerr-mcp-core",
   "crates/ledgerr-xero",
   "crates/ledgerr-llm",
   "crates/mdbook-rhai-mermaid",
@@ -17,7 +18,7 @@ resolver = "2"
 [workspace.package]
 edition = "2021"
 license = "MIT"
-version = "1.8.0"
+version = "1.8.1"
 
 [workspace.dependencies]
 rust_xlsxwriter = "0.94.0"
@@ -37,6 +38,7 @@ statig = "0.4"
 anyhow = "1"
 ordered-float = { version = "4", features = ["serde"] }
 ledger-core = { path = "crates/ledger-core" }
+ledgerr-mcp-core = { path = "crates/ledgerr-mcp-core" }
 
 [workspace.lints.rust]
 # "deny" rather than "forbid" so proc-macro expansions (e.g. slint::slint!)
