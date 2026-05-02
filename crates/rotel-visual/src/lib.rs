@@ -404,9 +404,16 @@ async fn otlp_logs_handler(
                                 continue;
                             }
                         };
+                        let time_unix_nano = match record.time_unix_nano.parse() {
+                            Ok(t) => t,
+                            Err(e) => {
+                                error!("Invalid time_unix_nano '{}': {}", record.time_unix_nano, e);
+                                continue;
+                            }
+                        };
 
                         let log = OTelLogRecord::new(
-                            record.time_unix_nano.parse().unwrap_or(0),
+                            time_unix_nano,
                             severity,
                             body.clone(),
                         );
