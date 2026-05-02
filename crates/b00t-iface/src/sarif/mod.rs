@@ -7,6 +7,9 @@
 use serde::Serialize;
 use std::collections::HashMap;
 
+use crate::metric::{MetricRegistry, MetricValue};
+use datum::logic::{nand, nor, tokenize_shorthand, ShorthandToken};
+
 /// SARIF v2.1.0 log file.
 #[derive(Debug, Clone, Serialize)]
 pub struct SarifLog {
@@ -433,6 +436,80 @@ fn first_line_containing(content: &str, needle: &str) -> u64 {
         .unwrap_or(0)
 }
 
+/// Evaluate an observable OTel/Rotel build-gate expression using existing
+/// symbolic logic helpers. Supported forms are `log_shape && metric` and
+/// `log_shape || metric`; AND/OR are derived from NAND/NOR.
+pub fn evaluate_otel_logic_expression(expression: &str, log_shape_observed: bool, metric_observed: bool) -> bool {
+    let tokens = tokenize_shorthand(expression);
+    if tokens.iter().any(|t| matches!(t, ShorthandToken::Or)) {
+        !nor(log_shape_observed, metric_observed)
+    } else if tokens.iter().any(|t| matches!(t, ShorthandToken::And)) {
+        !nand(log_shape_observed, metric_observed)
+    } else {
+        log_shape_observed
+    }
+}
+
+/// Record an observable Rotel/OTel log-shape/metric SLI in `MetricRegistry` and
+/// emit SARIF when the SLO build gate is not met.
+pub fn check_otel_logic_slo_as_sarif(
+    registry: &mut MetricRegistry,
+    gate_name: &str,
+    expression: &str,
+    log_shape_observed: bool,
+    metric_observed: bool,
+    slo_expected: bool,
+) -> SarifLog {
+    let surface = format!("rotel-otel:{gate_name}");
+    let sli_met = evaluate_otel_logic_expression(expression, log_shape_observed, metric_observed);
+
+    registry.record(&surface, "log_shape_observed", MetricValue::Counter(log_shape_observed as u64));
+    registry.record(&surface, "metric_observed", MetricValue::Counter(metric_observed as u64));
+    registry.record(&surface, "sli_met", MetricValue::Gauge(if sli_met { 1.0 } else { 0.0 }));
+    registry.record(&surface, "slo_expected", MetricValue::Gauge(if slo_expected { 1.0 } else { 0.0 }));
+    registry.record(
+        &surface,
+        "build_gate",
+        MetricValue::State(if sli_met == slo_expected { "pass".into() } else { "fail".into() }),
+    );
+
+    let rule = LintRule {
+        id: "l3dg3rr/otel/build-gate-slo".into(),
+        short_desc: "Rotel OTel SLI satisfies build-gate SLO".into(),
+        long_desc: format!(
+            "OTel logic gate `{gate_name}` expected `{slo_expected}` for `{expression}` but observed `{sli_met}`"
+        ),
+        level: SarifLevel::Error,
+    };
+
+    let mut log = SarifLog::new();
+    let mut run = SarifRun::new("l3dg3rr-otel-slo", "1.0.0");
+    run.tool.driver.rules.push(rule.to_sarif_rule());
+
+    if sli_met != slo_expected {
+        let mut properties = HashMap::new();
+        properties.insert("sli.name".to_string(), gate_name.to_string());
+        properties.insert("sli.expression".to_string(), expression.to_string());
+        properties.insert("sli.value".to_string(), sli_met.to_string());
+        properties.insert("slo.expected".to_string(), slo_expected.to_string());
+        properties.insert("otel.log_shape_observed".to_string(), log_shape_observed.to_string());
+        properties.insert("otel.metric_observed".to_string(), metric_observed.to_string());
+        properties.insert("rotel.surface".to_string(), surface.clone());
+
+        run.add_result(SarifResult {
+            rule_id: rule.id,
+            level: SarifLevel::Error,
+            message: SarifMessage { text: rule.long_desc },
+            locations: None,
+            fixes: None,
+            properties: Some(properties),
+        });
+    }
+
+    log.add_run(run);
+    log
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -586,6 +663,63 @@ mod tests {
             .filter(|r| r.rule_id.contains("z3-kasuari-coherence"))
             .collect();
         assert!(coherence_results.is_empty(), "should pass when both z3 and constraints are used");
+    }
+
+    #[test]
+    fn otel_logic_and_gate_records_visual_metrics_and_passes_slo() {
+        let mut registry = MetricRegistry::new();
+        let report = check_otel_logic_slo_as_sarif(
+            &mut registry,
+            "gpu-driver-fault",
+            "log_shape && metric",
+            true,
+            true,
+            true,
+        );
+
+        assert!(!report.has_errors());
+        let flat = registry.flat_display();
+        let surface = flat.get("rotel-otel:gpu-driver-fault").expect("surface metrics");
+        assert_eq!(surface.get("log_shape_observed").map(String::as_str), Some("1"));
+        assert_eq!(surface.get("metric_observed").map(String::as_str), Some("1"));
+        assert_eq!(surface.get("build_gate").map(String::as_str), Some("pass"));
+    }
+
+    #[test]
+    fn otel_logic_and_gate_outputs_sarif_error_when_metric_missing() {
+        let mut registry = MetricRegistry::new();
+        let report = check_otel_logic_slo_as_sarif(
+            &mut registry,
+            "gpu-driver-fault",
+            "log_shape && metric",
+            true,
+            false,
+            true,
+        );
+
+        assert!(report.has_errors());
+        let result = &report.runs[0].results[0];
+        assert_eq!(result.rule_id, "l3dg3rr/otel/build-gate-slo");
+        let props = result.properties.as_ref().expect("sarif properties");
+        assert_eq!(props.get("sli.expression").map(String::as_str), Some("log_shape && metric"));
+        assert_eq!(props.get("sli.value").map(String::as_str), Some("false"));
+        assert_eq!(props.get("otel.metric_observed").map(String::as_str), Some("false"));
+    }
+
+    #[test]
+    fn otel_logic_or_gate_allows_log_shape_without_metric() {
+        let mut registry = MetricRegistry::new();
+        let report = check_otel_logic_slo_as_sarif(
+            &mut registry,
+            "classified-log-visible",
+            "log_shape || metric",
+            true,
+            false,
+            true,
+        );
+
+        assert!(!report.has_errors());
+        assert!(evaluate_otel_logic_expression("log_shape || metric", true, false));
     }
 
     #[test]
