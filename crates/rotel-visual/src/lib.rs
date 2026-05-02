@@ -398,9 +398,26 @@ async fn otlp_logs_handler(
                     for record in &scope_log.log_records {
                         let body = record.body.string_value.clone().unwrap_or_default();
                         let severity = otlp_severity_to_enum(record.severity_number);
+                        let timestamp = match record.time_unix_nano.parse() {
+                            Ok(timestamp) => timestamp,
+                            Err(error) => {
+                                error!(
+                                    "Invalid OTLP log record timeUnixNano '{}': {}",
+                                    record.time_unix_nano, error
+                                );
+                                let response = Json(serde_json::json!({
+                                    "error": format!(
+                                        "invalid OTLP log record timeUnixNano '{}': {}",
+                                        record.time_unix_nano, error
+                                    )
+                                }));
+                                return (axum::http::StatusCode::BAD_REQUEST, response)
+                                    .into_response();
+                            }
+                        };
 
                         let log = OTelLogRecord::new(
-                            record.time_unix_nano.parse().unwrap_or(0),
+                            timestamp,
                             severity,
                             body.clone(),
                         );
