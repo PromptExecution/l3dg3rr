@@ -354,18 +354,33 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
     let mut rx = state.telemetry_tx.subscribe();
 
     loop {
-        match rx.recv().await {
-            Ok(telemetry) => {
-                let msg = axum::extract::ws::Message::Text(
-                    serde_json::to_string(&telemetry).unwrap().into()
-                );
-                if let Err(err) = socket.send(msg).await {
-                    error!("Error sending telemetry data: {}", err);
-                    break;
+        tokio::select! {
+            ws_msg = socket.recv() => {
+                match ws_msg {
+                    Some(Ok(axum::extract::ws::Message::Close(_))) => break,
+                    Some(Ok(_)) => continue,
+                    Some(Err(err)) => {
+                        error!("Error receiving websocket message: {}", err);
+                        break;
+                    }
+                    None => break,
                 }
             }
-            Err(broadcast::error::RecvError::Lagged(_)) => continue,
-            Err(broadcast::error::RecvError::Closed) => break,
+            recv = rx.recv() => {
+                match recv {
+                    Ok(telemetry) => {
+                        let msg = axum::extract::ws::Message::Text(
+                            serde_json::to_string(&telemetry).unwrap().into()
+                        );
+                        if let Err(err) = socket.send(msg).await {
+                            error!("Error sending telemetry data: {}", err);
+                            break;
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Closed) => break,
+                }
+            }
         }
     }
 
