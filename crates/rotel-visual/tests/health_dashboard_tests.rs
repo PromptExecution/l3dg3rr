@@ -268,7 +268,27 @@ async fn test_metrics_endpoint_increments_after_ingestion() {
         "resourceMetrics": [
             {
                 "resource": { "attributes": [] },
-                "scopeMetrics": []
+                "scopeMetrics": [
+                    {
+                        "scope": {
+                            "name": "test-scope"
+                        },
+                        "metrics": [
+                            {
+                                "name": "test.metric",
+                                "gauge": {
+                                    "dataPoints": [
+                                        {
+                                            "asInt": "1",
+                                            "timeUnixNano": "1",
+                                            "attributes": []
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ]
             }
         ]
     });
