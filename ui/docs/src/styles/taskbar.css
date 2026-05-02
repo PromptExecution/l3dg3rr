@@ -1,0 +1,205 @@
+/* ============================================================================
+   Taskbar — fixed bottom strip
+   ============================================================================ */
+
+#taskbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 48px;
+  background: #1e293b;
+  border-top: 1px solid #334155;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  z-index: 1000;
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+
+.tb-spacer {
+  flex: 1;
+  min-width: 8px;
+}
+
+/* ---- Download pills ---- */
+
+.tb-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 20px;
+  padding: 3px 10px 3px 8px;
+  font-size: 11px;
+  color: #cbd5e1;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: opacity 0.2s;
+}
+
+.tb-download--complete {
+  color: #86efac;
+  border-color: #15803d;
+}
+
+.tb-download--error {
+  color: #fca5a5;
+  border-color: #b91c1c;
+}
+
+.tb-download__icon {
+  font-size: 10px;
+}
+
+.tb-download__label {
+  font-weight: 500;
+}
+
+.tb-download__bar {
+  display: inline-block;
+  width: 48px;
+  height: 4px;
+  background: #1e293b;
+  border-radius: 2px;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.tb-download__fill {
+  display: block;
+  height: 100%;
+  background: #3b82f6;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.tb-download--complete .tb-download__fill {
+  background: #22c55e;
+}
+
+.tb-download--error .tb-download__fill {
+  background: #ef4444;
+}
+
+.tb-download__pct {
+  font-variant-numeric: tabular-nums;
+  min-width: 28px;
+  text-align: right;
+}
+
+.tb-download__detail {
+  color: #64748b;
+  font-size: 10px;
+}
+
+/* ---- Toast chips ---- */
+
+.tb-toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--toast-color, #1d4ed8);
+  border-radius: 12px;
+  padding: 3px 8px 3px 10px;
+  font-size: 11px;
+  color: #f1f5f9;
+  white-space: nowrap;
+  flex-shrink: 0;
+  opacity: 0;
+  transform: translateY(6px);
+  animation: tb-slide-up 0.2s ease forwards;
+}
+
+@keyframes tb-slide-up {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tb-toast__msg {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tb-toast__dismiss {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.tb-toast__dismiss:hover {
+  opacity: 1;
+}
+
+/* ---- VCard ---- */
+
+.tb-vcard {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8fafc;
+  color: #0f172a;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 11px;
+  width: 180px;
+  flex-shrink: 0;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+
+.tb-vcard__avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.tb-vcard__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.tb-vcard__name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tb-vcard__subtitle {
+  color: #64748b;
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tb-vcard__action {
+  background: #1d4ed8;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.tb-vcard__action:hover {
+  background: #2563eb;
+}
