@@ -243,9 +243,10 @@ mod tests {
 
     #[test]
     fn datum_watcher_init_and_operate() {
+        let tmp = tempfile::tempdir().expect("failed to create temp directory");
         let mut watcher = DatumWatcher::new();
         let config = DatumWatcherConfig {
-            datum_dir: watcher.datum_dir.display().to_string(),
+            datum_dir: tmp.path().display().to_string(),
             poll_interval_secs: 30,
         };
         watcher.init(config).expect("init");
@@ -265,15 +266,17 @@ mod tests {
 
     #[test]
     fn datum_watcher_maintain() {
+        let tmp = tempfile::tempdir().expect("failed to create temp directory");
         let mut watcher = DatumWatcher::new();
         let config = DatumWatcherConfig {
-            datum_dir: watcher.datum_dir.display().to_string(),
+            datum_dir: tmp.path().display().to_string(),
             poll_interval_secs: 30,
         };
         watcher.init(config).expect("init");
         assert_eq!(watcher.maintain(), MaintenanceAction::NoOp);
     }
 
+    #[cfg(feature = "real_datums")]
     #[test]
     fn collect_datum_files() {
         let watcher = DatumWatcher::new();

@@ -301,6 +301,47 @@ pub fn unknown_tool_result(tool_name: &str) -> Value {
     })
 }
 
+/// Hook for external MCP providers (b00t, just, ir0ntology, etc.).
+/// Returns Some(result) if the tool is handled by an external provider, None otherwise.
+/// Defaults to unknown_tool_result when no provider matches.
+#[cfg(feature = "b00t")]
+pub fn handle_external_tool(
+    registry: &crate::provider::McpProviderRegistry,
+    tool_name: &str,
+    arguments: &Value,
+) -> Value {
+    match registry.call_tool("", tool_name, arguments.clone()) {
+        Ok(result) => json!({
+            "content": [text_content(result)],
+            "isError": false
+        }),
+        Err(e) => {
+            // Try fallback: search by tool name across all providers
+            for provider in registry.all_tool_descriptors() {
+                if provider.name == tool_name {
+                    if let Ok(result) = registry.call_tool("", tool_name, arguments.clone()) {
+                        return json!({
+                            "content": [text_content(result)],
+                            "isError": false
+                        });
+                    }
+                    break;
+                }
+            }
+            unknown_tool_result(tool_name)
+        }
+    }
+}
+
+#[cfg(not(feature = "b00t"))]
+pub fn handle_external_tool(
+    _registry: (),
+    tool_name: &str,
+    _arguments: &Value,
+) -> Value {
+    unknown_tool_result(tool_name)
+}
+
 fn handle_plugin_info(arguments: &Value) -> Value {
     let payload = crate::plugin_info::handle(arguments);
     json!({

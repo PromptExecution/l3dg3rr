@@ -27,6 +27,10 @@ pub mod hsm;
 pub mod mcp_adapter;
 pub mod ontology;
 pub mod plugin_info;
+#[cfg(feature = "b00t")]
+pub mod provider;
+#[cfg(feature = "b00t")]
+pub mod providers;
 pub mod reconciliation;
 pub mod shape_tool;
 pub mod tax_assist;

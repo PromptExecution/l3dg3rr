@@ -1,13 +1,9 @@
-//! b00t datum schema — foreign-variant invariants for the l3dg3rr node.
-//!
-//! This crate validates that `.datum` files from the `_b00t_/datums/`
-//! symlink exist and are well-formed markdown. b00t datums are freeform
-//! markdown documents with `#` headers and `##` sections — not structured
-//! serialization formats.
-//!
-//! Invariants enforced:
-//!   - Every datum file listed in `EXPECTED_DATUMS` exists and is non-empty.
-//!   - Each datum starts with a `# ` H1 header.
+#![recursion_limit = "256"]
+
+pub mod ast;
+pub mod logic;
+pub mod protocol;
+pub mod tomllmd;
 
 use std::path::Path;
 
@@ -21,7 +17,6 @@ pub enum DatumError {
     NoH1Header { path: String },
 }
 
-/// A verified datum: exists, non-empty, has H1 header.
 #[derive(Debug, Clone)]
 pub struct Datum {
     pub name: String,
@@ -30,12 +25,23 @@ pub struct Datum {
     pub line_count: usize,
 }
 
-/// Read a datum file and validate its structure.
+/// Read a datum file's content as a string (shared by load_datum and parse_datum_file).
+pub fn read_datum_content(base: &Path, name: &str) -> Result<String, DatumError> {
+    let path = base.join(format!("{name}.datum"));
+    let path_str = path.display().to_string();
+    std::fs::read_to_string(&path).map_err(|e| DatumError::Io {
+        path: path_str,
+        source: e,
+    })
+}
+
 pub fn load_datum(base: &Path, name: &str) -> Result<Datum, DatumError> {
     let path = base.join(format!("{name}.datum"));
     let path_str = path.display().to_string();
-    let content = std::fs::read_to_string(&path)
-        .map_err(|e| DatumError::Io { path: path_str.clone(), source: e })?;
+    let content = std::fs::read_to_string(&path).map_err(|e| DatumError::Io {
+        path: path_str.clone(),
+        source: e,
+    })?;
 
     if content.trim().is_empty() {
         return Err(DatumError::Empty { path: path_str });
@@ -44,7 +50,9 @@ pub fn load_datum(base: &Path, name: &str) -> Result<Datum, DatumError> {
     let h1 = content
         .lines()
         .find(|line| line.starts_with("# ") && !line.starts_with("##"))
-        .ok_or_else(|| DatumError::NoH1Header { path: path_str.clone() })?;
+        .ok_or_else(|| DatumError::NoH1Header {
+            path: path_str.clone(),
+        })?;
 
     Ok(Datum {
         name: name.to_owned(),
@@ -56,13 +64,49 @@ pub fn load_datum(base: &Path, name: &str) -> Result<Datum, DatumError> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "real_datums")]
     use super::*;
 
-    #[test]
-    fn load_all_expected_datums() {
-        let base = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../_b00t_/datums");
+    #[cfg(feature = "real_datums")]
+    fn datum_base() -> std::path::PathBuf {
+        // CARGO_MANIFEST_DIR is <repo>/crates/datum
+        let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let repo_root = crate_dir.join("..").join("..");
+        let repo_root = std::fs::canonicalize(&repo_root).unwrap_or(repo_root);
 
+        // Try resolved _b00t_ symlink first
+        let b00t_target = repo_root.join("_b00t_");
+        if b00t_target.is_dir() {
+            let datums = b00t_target.join("datums");
+            if datums.exists() {
+                return datums;
+            }
+        }
+
+        // _b00t_ is a text file containing a relative path like "../_b00t_"
+        if b00t_target.is_file() {
+            if let Ok(target) = std::fs::read_to_string(&b00t_target) {
+                let target = target.trim();
+                let path = repo_root.join(target).join("datums");
+                if path.exists() {
+                    return std::fs::canonicalize(&path).unwrap_or(path);
+                }
+            }
+        }
+
+        // Direct fallback for sibling _b00t_ repo
+        let sibling = repo_root.join("..").join("_b00t_").join("datums");
+        if sibling.exists() {
+            return std::fs::canonicalize(&sibling).unwrap_or(sibling);
+        }
+
+        repo_root.join("_b00t_").join("datums")
+    }
+
+    #[test]
+    #[cfg(feature = "real_datums")]
+    fn load_all_expected_datums() {
+        let base = datum_base();
         for name in &["opencode-codebase-memory-integration", "opencode", "b00t-opencode-gaps", "openagents-control"] {
             let datum = load_datum(&base, name)
                 .unwrap_or_else(|e| panic!("datum {name}: {e}"));
@@ -72,20 +116,17 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "real_datums")]
     fn load_nonexistent_fails() {
-        let base = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../_b00t_/datums");
+        let base = datum_base();
         let err = load_datum(&base, "does-not-exist").unwrap_err();
         assert!(matches!(err, DatumError::Io { .. }));
     }
 
     #[test]
-    fn symlink_resolves() {
-        let symlink = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../_b00t_");
-        assert!(symlink.exists(), "_b00t_ symlink must exist at project root");
-        assert!(
-            symlink.join("datums").exists(),
-            "_b00t_/datums must be accessible via symlink"
-        );
+    #[cfg(feature = "real_datums")]
+    fn datum_base_resolves() {
+        let base = datum_base();
+        assert!(base.exists(), "datum base must exist: {}", base.display());
     }
 }

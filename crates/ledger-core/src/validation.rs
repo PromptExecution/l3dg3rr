@@ -10,9 +10,8 @@ pub enum Disposition {
     /// Pipeline must stop. No recovery possible. Examples: zero-amount, corrupt source.
     Unrecoverable,
     /// Pipeline may continue with degraded confidence. Future rules may fix this.
-    /// Examples: wrong tax code, unusual amount, ambiguous vendor.
     Recoverable,
-    /// Not an error. Informational context only. Examples: new vendor, first of month.
+    /// Not an error. Informational context only.
     Advisory,
 }
 
@@ -92,30 +91,20 @@ impl Issue {
 }
 
 /// Accumulated state flowing forward through the pipeline.
-/// Each stage reads and extends this context.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct MetaCtx {
-    /// Compound confidence across all previous stages (0.0-1.0).
-    /// Degrades multiplicatively as issues accumulate.
     pub accumulated_confidence: f32,
-    /// Flags set by any upstream stage.
     pub flags: Vec<MetaFlag>,
-    /// Trace of each stage's confidence score for audit.
     pub stage_trace: Vec<StageScore>,
 }
 
 /// Flags set by stages, readable by downstream stages.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MetaFlag {
-    /// New vendor never seen before.
     NewVendor { vendor: String },
-    /// Data point is anomalous based on historical constraints.
     AnomalyDetected { code: String, impact: f32 },
-    /// A Rhai rule was automatically repaired.
     RepairApplied { rule_id: String },
-    /// Upstream stage produced low confidence.
     LowUpstreamConf { score: f32, stage: String },
-    /// Constraint solver found weak satisfaction.
     ConstraintWeak { constraint: String },
 }
 
@@ -128,42 +117,27 @@ pub struct StageScore {
 }
 
 impl MetaCtx {
-    /// Advance context with a new stage's results.
-    pub fn advance(
-        &self,
-        stage: &str,
-        stage_confidence: f32,
-        issues: &[Issue],
-    ) -> Self {
+    pub fn advance(&self, stage: &str, stage_confidence: f32, issues: &[Issue]) -> Self {
         let mut next = self.clone();
-
-        // Compound probability — accumulated_confidence degrades multiplicatively
         next.accumulated_confidence = if self.accumulated_confidence == 0.0 {
             stage_confidence
         } else {
             self.accumulated_confidence * stage_confidence
         };
-
         next.stage_trace.push(StageScore {
             stage: stage.to_string(),
             confidence: stage_confidence,
             issue_count: issues.len(),
         });
-
-        // Promote recoverable issues into MetaFlags
-        for _issue in issues.iter().filter(|i| {
-            matches!(i.disposition, Disposition::Recoverable)
-        }) {
+        for _issue in issues.iter().filter(|i| matches!(i.disposition, Disposition::Recoverable)) {
             next.flags.push(MetaFlag::LowUpstreamConf {
                 score: stage_confidence,
                 stage: stage.to_string(),
             });
         }
-
         next
     }
 
-    /// Create initial context for a pipeline run.
     pub fn initial() -> Self {
         Self::default()
     }
@@ -172,18 +146,13 @@ impl MetaCtx {
 /// Result of a pipeline stage.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StageResult<T> {
-    /// The stage's output data.
     pub data: T,
-    /// This stage's confidence score (0.0-1.0).
     pub confidence: f32,
-    /// Issues produced by this stage.
     pub issues: Vec<Issue>,
-    /// Updated context for next stage.
     pub meta: MetaCtx,
 }
 
 impl<T> StageResult<T> {
-    /// Create a successful stage result.
     pub fn ok(data: T, confidence: f32) -> Self {
         Self {
             data,
@@ -193,12 +162,7 @@ impl<T> StageResult<T> {
         }
     }
 
-    /// Create a stage result with issues.
-    pub fn with_issues(
-        data: T,
-        confidence: f32,
-        issues: impl Into<Vec<Issue>>,
-    ) -> Self {
+    pub fn with_issues(data: T, confidence: f32, issues: impl Into<Vec<Issue>>) -> Self {
         Self {
             data,
             confidence,
@@ -209,58 +173,61 @@ impl<T> StageResult<T> {
 }
 
 /// Pipe a stage result into the next stage, compounding confidence.
-/// The closure receives the current stage's MetaCtx and returns the next stage result.
 pub fn and_then<T, U, F>(current: StageResult<T>, stage: &str, f: F) -> StageResult<U>
 where
     F: FnOnce(MetaCtx) -> StageResult<U>,
 {
     let next = f(current.meta.clone());
     let issues = next.issues.clone();
-    StageResult {
+    let issue_count = issues.len();
+    let meta = next.meta.advance(stage, next.confidence, &issues);
+    let result = StageResult {
         data: next.data,
         confidence: next.confidence,
-        issues: next.issues,
-        meta: next.meta.advance(stage, next.confidence, &issues),
-    }
+        issues,
+        meta,
+    };
+    result
 }
 
 /// Reversibility defines whether a verb can be undone and under what conditions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Reversibility {
-    /// Can be retried at will with no side effects.
     Free,
-    /// Can be reversed but requires approval to do so.
     ReversibleWithAuth,
-    /// Permanent — requires approval to execute.
     Irreversible,
 }
 
 /// Access criteria for verb execution.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AccessCriteria {
-    /// Any caller can execute.
     Open,
-    /// Upstream confidence must meet minimum threshold.
     MinConfidence(f32),
-    /// Requires approval before execution.
     RequiresApproval(ApprovalGate),
-    /// Caller must hold this role.
     RequiresRole(String),
 }
 
 /// Approval gate types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ApprovalGate {
-    /// Desktop notification, operator clicks approve.
     Tray,
-    /// Second rig agent reviews before human sees it.
     DualModel,
-    /// Human only, no model pre-review.
     Human,
 }
 
+/// Gate decision for committing a reconciled transaction.
+/// Replaces unconditional tray-approval with confidence-aware routing.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum CommitGate {
+    /// All checks passed above threshold -- may commit automatically.
+    Approved { confidence: f32 },
+    /// Confidence is borderline -- route to operator for review.
+    PendingOperator { confidence: f32, reason: String },
+    /// One or more Unrecoverable issues -- commit is blocked.
+    Blocked { issues: Vec<Issue> },
+}
+
 /// Verb is the primary abstraction for pipeline actions.
-/// Each verb performs one action with a defined input, output, reversibility, and access.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VerbDef {
     pub name: String,
@@ -268,7 +235,6 @@ pub struct VerbDef {
     pub output_schema: String,
     pub reversible: Reversibility,
     pub access: AccessCriteria,
-    /// Path to Rhai handler file.
     pub rhai_handler: Option<String>,
 }
 
@@ -309,33 +275,22 @@ impl VerbDef {
 pub mod verbs {
     use super::*;
 
-    /// Detect: identify document shape from raw input.
     pub fn detect() -> VerbDef {
         VerbDef::new("detect").with_input("bytes").with_output("ShapeResult")
     }
 
-    /// Validate: check data plausibility and constraints.
     pub fn validate() -> VerbDef {
-        VerbDef::new("validate")
-            .with_input("ShapeResult")
-            .with_output("Validated")
+        VerbDef::new("validate").with_input("ShapeResult").with_output("Validated")
     }
 
-    /// Classify: assign account code and category.
     pub fn classify() -> VerbDef {
-        VerbDef::new("classify")
-            .with_input("Validated")
-            .with_output("Classified")
+        VerbDef::new("classify").with_input("Validated").with_output("Classified")
     }
 
-    /// Reconcile: prepare for backend (Xero, Excel).
     pub fn reconcile() -> VerbDef {
-        VerbDef::new("reconcile")
-            .with_input("Classified")
-            .with_output("Posting")
+        VerbDef::new("reconcile").with_input("Classified").with_output("Posting")
     }
 
-    /// Commit: permanently record (irreversible).
     pub fn commit() -> VerbDef {
         VerbDef::new("commit")
             .with_input("Posting")
@@ -343,7 +298,6 @@ pub mod verbs {
             .with_access(AccessCriteria::RequiresApproval(ApprovalGate::Tray))
     }
 
-    /// Reverse: undo a previous commit.
     pub fn reverse() -> VerbDef {
         VerbDef::new("reverse")
             .with_input("LedgerEntry")
@@ -384,7 +338,6 @@ mod tests {
         let ctx = MetaCtx::initial();
         let ctx1 = ctx.advance("stage1", 0.9, &[]);
         assert_eq!(ctx1.accumulated_confidence, 0.9);
-
         let ctx2 = ctx1.advance("stage2", 0.8, &[]);
         assert!((ctx2.accumulated_confidence - 0.72).abs() < 0.001);
     }
@@ -392,12 +345,10 @@ mod tests {
     #[test]
     fn test_stage_result_progression() {
         let stage1 = StageResult::ok("input".to_string(), 0.95);
-        assert_eq!(stage1.meta.accumulated_confidence, 0.0); // not yet advanced
-
-        let stage2 = and_then(stage1, "validate", |ctx| {
+        assert_eq!(stage1.meta.accumulated_confidence, 0.0);
+        let stage2 = and_then(stage1, "validate", |_ctx| {
             StageResult::ok("validated".to_string(), 0.9)
         });
-
         assert_eq!(stage2.data, "validated");
         assert!((stage2.meta.accumulated_confidence - 0.9).abs() < 0.001);
     }

@@ -274,6 +274,6 @@ mod tests {
         assert_eq!(MetricValue::Counter(42).to_string(), "42");
         assert_eq!(MetricValue::State("running".into()).to_string(), "running");
         assert_eq!(MetricValue::DurationMs(5000).to_string(), "5000ms");
-        assert!(!MetricValue::Gauge(3.14).to_string().is_empty());
+        assert!(!MetricValue::Gauge(std::f64::consts::PI).to_string().is_empty());
     }
 }

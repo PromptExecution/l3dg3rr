@@ -116,7 +116,8 @@ See [Capability Map](book/src/capability-map.md) for the full component table.
 | Document shape classifier | Implemented | vendor/format inference for bank statements and CSVs |
 | Business calendar | Implemented | US/AU tax defaults and recurring events |
 | Validation disposition model | Implemented | unrecoverable/recoverable/advisory issue handling |
-| Legal solver path | Partial | AU GST and US Schedule C hard predicates; native Z3 behind `ledger-core/legal-z3` |
+| Constraint + legal synergy layer | Implemented | `ConstraintEvaluation → Issue`, `Z3Result → Issue`, `CommitGate`, `verify_legal()`, `check_constraints()` wired into pipeline (PRD-7 Phase 0) |
+| Legal solver path | Implemented | AU GST s38-190/s40-5, AU FBT, US Schedule C, US FBAR, US FEIE; Z3 behind `ledger-core/legal-z3`; `Jurisdiction::legal_ruleset()` |
 | Workflow TOML compiler | Implemented | Mermaid, Rhai FSM, Rust enum generation |
 | mdBook Rhai-to-Mermaid preprocessor | Implemented | supports `fn`, `if`, and `match` diagram DSL lines |
 | Live Rhai docs editor | Implemented | synchronized isometric and Mermaid views |
@@ -126,6 +127,41 @@ See [Capability Map](book/src/capability-map.md) for the full component table.
 | Evidence traceability (arc-kit-au) | Implemented | petgraph-backed provenance graph with deterministic node identity |
 | Docling extraction bridge | Missing | planned local extraction sidecar |
 | File watcher | Missing | `notify` not yet wired as an end-to-end inbox loop |
+
+
+## Future Ambitions
+
+The roadmap beyond the current stable capability set spans three planned directions. See the linked PRDs for full specification.
+
+### PRD-7: Legal Intelligence Layer — Constraint Synergies
+
+[PRD-7.md](PRD-7.md) specifies the complete integration of the three verification layers (Kasuari constraint solver, Z3 legal solver, typed pipeline) into a unified, jurisdiction-aware pipeline.
+
+Phase 0 is implemented (constraint + legal signals now flow into `MetaCtx` and produce typed `Issue`s). Remaining phases:
+
+- **Phase 1:** FBAR, FEIE, AU s40-5, AU FBT production rule evaluation with `TransactionFacts` auto-populated from pipeline state
+- **Phase 2:** Symbolic Z3 upgrade — violations produce full Z3 models with satisfying assignments, not just witness strings; constraint consistency xtask checks vendor profiles against legal rule sets
+- **Phase 3:** Excel `_audit` sheet materialization — every committed transaction row gets `constraint_score`, `legal_result`, `disposition`, and `stage_trace_json` columns for CPA review
+
+### PRD-8: Kani Formal Verification
+
+[PRD-8.md](PRD-8.md) specifies a formal verification suite using the Kani bit-precise model checker to prove the type system has no arithmetic gaps between versions.
+
+Key harnesses planned:
+- `InvoiceConstraintSolver` arithmetic correctness (no overflow, correct GST tolerance)
+- `VendorConstraintSet` interval invariants (p05 ≤ p95, non-negative)
+- `EvidenceGraph` structural integrity (no duplicate nodes/edges, NodeId determinism)
+- `EvidenceChain<S>` typestate transition completeness
+- Blake3 ID determinism (same inputs → same hash, always)
+- `CommitGate` exhaustiveness (every `Reconciled` state routes to exactly one gate)
+
+### PRD-6-FUTURE: Type Attestation System
+
+[PRD-6-FUTURE.md](PRD-6-FUTURE.md) defines a longer-horizon capability: a `#[attested("invariant")]` proc-macro lint that forces any type claiming a formal property to provide machine-verifiable assertions checked by both Z3 (logical predicates) and Kasuari (numerical bounds), formally proved by Kani, and recorded in an immutable append-only invariant ledger.
+
+Core idea: the Excel workbook gains a `_invariants` sheet where every type-level claim (e.g., "this invoice GST arithmetic is valid", "this pipeline state has passed legal review") is a persistent, Blake3-chained record linking the runtime verification result to the Kani proof that held at build time. New invariants can be registered by any crate at runtime without modifying `ledger-core`, making the knowledge system self-extensible.
+
+This closes the gap between structural type safety (what the Rust type system currently enforces) and semantic correctness (what a CPA needs to trust the output).
 
 ## Documentation Map
 

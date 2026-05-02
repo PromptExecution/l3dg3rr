@@ -26,6 +26,9 @@ pub mod viz;
 pub mod metric;
 
 #[cfg(feature = "b00t")]
+pub mod ralph;
+
+#[cfg(feature = "b00t")]
 pub mod gated;
 
 #[cfg(feature = "autoresearch")]

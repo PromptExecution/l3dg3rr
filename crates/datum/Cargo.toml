@@ -4,7 +4,15 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+default = []
+# Enable tests against real _b00t_ datum files from the external b00t repo.
+# These tests use include_str! to embed datum contents at compile time.
+# CI should not enable this — the _b00t_ repo is not checked out there.
+real_datums = []
+
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
 serde_json = "1"
 thiserror = { workspace = true }
+toml = "0.8"
