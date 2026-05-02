@@ -1,0 +1,47 @@
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    tags: ['v[0-9]*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install just
+        run: cargo install just --locked
+
+      - name: Setup mdBook
+        uses: jontze/action-mdbook@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          use-mermaid: true
+
+      - name: Install mdbook binaries
+        run: cargo install mdbook mdbook-mermaid --locked
+
+      - name: Install mdbook-admonish
+        run: cargo install mdbook-admonish --locked
+
+      - name: Install mdbook-rhai-mermaid
+        run: cargo install --path crates/mdbook-rhai-mermaid
+
+      - name: Build docs
+        run: just docgen
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./book/book

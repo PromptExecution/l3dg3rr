@@ -189,6 +189,40 @@ Use `Justfile` as the executable workflow contract. When a command changes, upda
 
 The default MCP catalog should stay collapsed to the top-level `ledgerr_*` capability families. Add sub-operations through required `action` parameters instead of expanding the default tool list.
 
+## Release and Versioning Policy
+
+l3dg3rr follows an **odd/even minor version** convention, similar to the Ubuntu LTS model.
+
+| Minor version | Series | Characteristics |
+|---|---|---|
+| Even (`1.0`, `1.2`, `1.4`, `1.8`, …) | **Stable** | Long-term supported. Full test gate including local Phi-4 model-inference tests. GitHub release published. Suitable for production operator use. |
+| Odd (`1.1`, `1.3`, `1.5`, `1.7`, …) | **Dev / Experimental** | Fast-moving. Breaking changes within a major series are permitted. Model-inference tests may be skipped. GitHub pre-release created by the same `release` workflow. No LTS support. |
+
+### Release commands
+
+```sh
+# Release bump — outcome depends on the next version:
+# - even minor => stable release, full test gate including phi4 inference, GitHub release created
+# - odd minor => dev/experimental release, fast gate only, no stable GitHub release
+just release minor   # or: just release major / just release patch
+
+# Fast test gate only (excludes phi4 GGUF inference, ~seconds)
+just test-fast
+```
+
+### What the `release` recipe does
+
+1. Detects the next version's minor parity and selects the appropriate test gate:
+   - **Even minor (stable)** — full `cargo test` suite including phi4 GGUF inference
+   - **Odd minor (dev)** — fast gate only (`--skip phi4_produces_output --skip phi4_mistral_produces_output`)
+2. Runs `./scripts/e2e_mvp.sh` end-to-end smoke path
+3. Calls `cog bump --<version>` — sets version in all `Cargo.toml` files, creates a conventional-commit bump commit and a semver git tag
+4. Pushes branch and tags to origin with `git push --follow-tags`
+5. **Even minor** — creates a stable GitHub release (`gh release create --latest`)
+6. **Odd minor** — creates a GitHub pre-release (`gh release create --prerelease`)
+
+Pushing the tag triggers `.github/workflows/docs.yml`, which redeploys GitHub Pages regardless of minor parity.
+
 ## Docker
 
 ```bash
