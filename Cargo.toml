@@ -8,6 +8,8 @@ members = [
   "crates/mdbook-rhai-mermaid",
   "crates/ledgerr-tauri",
   "crates/arc-kit-au",
+  "crates/datum",
+  "crates/b00t-iface",
   "xtask",
 ]
 resolver = "2"
