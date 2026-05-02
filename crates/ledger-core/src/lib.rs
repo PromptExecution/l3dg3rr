@@ -14,6 +14,7 @@ pub mod layout;
 pub mod ledger_ops;
 pub mod legal;
 pub mod manifest;
+pub mod observability;
 pub mod ontology;
 pub mod pipeline;
 pub mod proposal;

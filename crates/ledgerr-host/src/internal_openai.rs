@@ -7,6 +7,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use ledger_core::observability::{OTelSignal, RotelEndpoint, RotelExportPlan};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -15,6 +16,11 @@ use crate::settings::ChatSettings;
 pub const INTERNAL_OPENAI_ADDR: &str = "127.0.0.1:15115";
 pub const INTERNAL_OPENAI_CHAT_URL: &str = "http://127.0.0.1:15115/v1/chat/completions";
 pub const INTERNAL_DOCS_URL: &str = "http://127.0.0.1:15115/docs/";
+pub const INTERNAL_ROTEL_HEALTH_URL: &str = "http://127.0.0.1:15115/rotel/health";
+pub const INTERNAL_ROTEL_EXPORT_PLAN_URL: &str = "http://127.0.0.1:15115/rotel/export-plan";
+pub const INTERNAL_ROTEL_LOGS_URL: &str = "http://127.0.0.1:15115/v1/logs";
+pub const INTERNAL_ROTEL_METRICS_URL: &str = "http://127.0.0.1:15115/v1/metrics";
+pub const INTERNAL_ROTEL_TRACES_URL: &str = "http://127.0.0.1:15115/v1/traces";
 pub const INTERNAL_PHI_MODEL: &str = "phi-4-mini-reasoning";
 pub const INTERNAL_LOCAL_API_KEY: &str = "local-tool-tray";
 pub const DEFAULT_CLOUD_CHAT_URL: &str = "https://api.openai.com/v1/chat/completions";
@@ -237,6 +243,26 @@ impl InternalOpenAiHandle {
     pub fn docs_url(&self) -> String {
         format!("http://{}/docs/", self.addr)
     }
+
+    pub fn rotel_health_url(&self) -> String {
+        format!("http://{}/rotel/health", self.addr)
+    }
+
+    pub fn rotel_export_plan_url(&self) -> String {
+        format!("http://{}/rotel/export-plan", self.addr)
+    }
+
+    pub fn rotel_logs_url(&self) -> String {
+        format!("http://{}/v1/logs", self.addr)
+    }
+
+    pub fn rotel_metrics_url(&self) -> String {
+        format!("http://{}/v1/metrics", self.addr)
+    }
+
+    pub fn rotel_traces_url(&self) -> String {
+        format!("http://{}/v1/traces", self.addr)
+    }
 }
 
 impl Drop for InternalOpenAiHandle {
@@ -433,6 +459,19 @@ pub fn docs_playbook_status() -> String {
         ),
         None => "Docs playbook is not built. Run `just docgen` to generate book/book before opening the local docs route.".to_string(),
     }
+}
+
+pub fn internal_rotel_status() -> String {
+    let plan = RotelExportPlan::from_endpoint(&internal_rotel_endpoint(INTERNAL_OPENAI_ADDR));
+    [
+        "rotel: embedded in internal OpenAI-compatible listener".to_string(),
+        format!("health_endpoint: {INTERNAL_ROTEL_HEALTH_URL}"),
+        format!("logs_endpoint: {}", plan.logs_url),
+        format!("metrics_endpoint: {}", plan.metrics_url),
+        format!("traces_endpoint: {}", plan.traces_url),
+        format!("arrow_connector_enabled: {}", plan.arrow_connector_enabled),
+    ]
+    .join("\n")
 }
 
 #[derive(Debug, Clone)]
@@ -734,12 +773,18 @@ fn serve_loop(
     backend: Arc<dyn InternalChatBackend>,
     docs_root: Option<PathBuf>,
 ) {
+    let server_addr = listener
+        .local_addr()
+        .map(|addr| addr.to_string())
+        .unwrap_or_else(|_| INTERNAL_OPENAI_ADDR.to_string());
     loop {
         if shutdown_rx.try_recv().is_ok() {
             break;
         }
         match listener.accept() {
-            Ok((stream, _)) => handle_stream(stream, backend.as_ref(), docs_root.as_deref()),
+            Ok((stream, _)) => {
+                handle_stream(stream, backend.as_ref(), docs_root.as_deref(), &server_addr)
+            }
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
                 thread::sleep(Duration::from_millis(25));
             }
@@ -752,6 +797,7 @@ fn handle_stream(
     mut stream: TcpStream,
     backend: &dyn InternalChatBackend,
     docs_root: Option<&Path>,
+    server_addr: &str,
 ) {
     let mut buffer = Vec::with_capacity(8192);
     let mut chunk = [0_u8; 2048];
@@ -769,7 +815,7 @@ fn handle_stream(
         }
     }
 
-    let response = route_http_request(&buffer, backend, docs_root);
+    let response = route_http_request_for_addr(&buffer, backend, docs_root, server_addr);
     let _ = stream.write_all(response.as_bytes());
     let _ = stream.flush();
 }
@@ -783,10 +829,20 @@ fn request_complete(buffer: &[u8]) -> bool {
     buffer.len() >= header_end + 4 + content_length
 }
 
+#[cfg(test)]
 fn route_http_request(
     raw: &[u8],
     backend: &dyn InternalChatBackend,
     docs_root: Option<&Path>,
+) -> String {
+    route_http_request_for_addr(raw, backend, docs_root, INTERNAL_OPENAI_ADDR)
+}
+
+fn route_http_request_for_addr(
+    raw: &[u8],
+    backend: &dyn InternalChatBackend,
+    docs_root: Option<&Path>,
+    server_addr: &str,
 ) -> String {
     let Some(header_end) = find_header_end(raw) else {
         return json_response(400, &serde_json::json!({ "error": "invalid request" }));
@@ -818,6 +874,19 @@ fn route_http_request(
         return json_response(200, &payload);
     }
 
+    if request_line.starts_with("GET /rotel/health ") {
+        return json_response(200, &rotel_health_payload(server_addr));
+    }
+
+    if request_line.starts_with("GET /rotel/export-plan ") {
+        let plan = RotelExportPlan::from_endpoint(&internal_rotel_endpoint(server_addr));
+        return json_response(200, &plan);
+    }
+
+    if let Some(signal) = otlp_signal_from_request_line(request_line) {
+        return rotel_otlp_response(signal, body);
+    }
+
     if !request_line.starts_with("POST /v1/chat/completions ") {
         return json_response(404, &serde_json::json!({ "error": "not found" }));
     }
@@ -844,6 +913,85 @@ fn route_http_request(
         Err(error) => return json_response(500, &serde_json::json!({ "error": error })),
     };
     json_response(200, &chat_response(&request, assistant_text))
+}
+
+fn internal_rotel_endpoint(addr: &str) -> RotelEndpoint {
+    RotelEndpoint {
+        otlp_http_endpoint: format!("http://{addr}"),
+        otlp_grpc_endpoint: "internal-listener-disabled".to_string(),
+        arrow_connector_enabled: true,
+    }
+}
+
+fn rotel_health_payload(addr: &str) -> serde_json::Value {
+    let endpoint = internal_rotel_endpoint(addr);
+    let plan = RotelExportPlan::from_endpoint(&endpoint);
+    serde_json::json!({
+        "status": "ok",
+        "service": "rotel-embedded",
+        "listener": "l3dg3rr-internal-openai",
+        "otlp_http_endpoint": endpoint.otlp_http_endpoint,
+        "otlp_grpc_endpoint": endpoint.otlp_grpc_endpoint,
+        "arrow_connector_enabled": endpoint.arrow_connector_enabled,
+        "routes": {
+            "logs": plan.logs_url,
+            "metrics": plan.metrics_url,
+            "traces": plan.traces_url,
+            "export_plan": format!("http://{addr}/rotel/export-plan")
+        }
+    })
+}
+
+fn otlp_signal_from_request_line(request_line: &str) -> Option<OTelSignal> {
+    if request_line.starts_with("POST /v1/logs ") {
+        Some(OTelSignal::Log)
+    } else if request_line.starts_with("POST /v1/metrics ") {
+        Some(OTelSignal::Metric)
+    } else if request_line.starts_with("POST /v1/traces ") {
+        Some(OTelSignal::Trace)
+    } else {
+        None
+    }
+}
+
+fn rotel_otlp_response(signal: OTelSignal, body: &[u8]) -> String {
+    let payload = match serde_json::from_slice::<serde_json::Value>(body) {
+        Ok(value) => value,
+        Err(error) => {
+            return json_response(
+                400,
+                &serde_json::json!({ "error": format!("invalid OTLP JSON payload: {error}") }),
+            );
+        }
+    };
+    let resource_count = otlp_resource_count(signal, &payload);
+    json_response(
+        202,
+        &serde_json::json!({
+            "accepted": true,
+            "service": "rotel-embedded",
+            "listener": "l3dg3rr-internal-openai",
+            "signal": signal.as_str(),
+            "content_type": "application/json",
+            "resource_count": resource_count,
+            "payload_bytes": body.len(),
+            "arrow_connector_enabled": true,
+            "classification_columns": ledger_core::observability::TelemetryArrowBatch::classification_columns(),
+        }),
+    )
+}
+
+fn otlp_resource_count(signal: OTelSignal, payload: &serde_json::Value) -> usize {
+    let key = match signal {
+        OTelSignal::Log => "resourceLogs",
+        OTelSignal::Metric => "resourceMetrics",
+        OTelSignal::Trace => "resourceSpans",
+    };
+    payload
+        .get(key)
+        .and_then(serde_json::Value::as_array)
+        .map(Vec::len)
+        .unwrap_or_default()
 }
 
 pub fn open_internal_docs_in_browser() -> std::io::Result<()> {
@@ -945,6 +1093,8 @@ fn redirect_response(location: &str) -> String {
 fn bytes_response(status: u16, content_type: &str, body: &[u8]) -> String {
     let reason = match status {
         200 => "OK",
+        202 => "Accepted",
+        400 => "Bad Request",
         404 => "Not Found",
         _ => "OK",
     };
@@ -995,6 +1145,7 @@ fn json_response(status: u16, payload: &impl Serialize) -> String {
         .unwrap_or_else(|_| "{\"error\":\"serialization failure\"}".to_string());
     let reason = match status {
         200 => "OK",
+        202 => "Accepted",
         400 => "Bad Request",
         404 => "Not Found",
         500 => "Internal Server Error",
@@ -1139,6 +1290,110 @@ mod tests {
 
         assert!(response.starts_with("HTTP/1.1 200 OK"));
         assert!(response.contains("\"id\":\"phi-4-mini-reasoning\""));
+    }
+
+    #[test]
+    fn rotel_health_route_is_hosted_on_internal_listener() {
+        let raw = "GET /rotel/health HTTP/1.1\r\nHost: localhost\r\n\r\n";
+
+        let response = route_http_request(raw.as_bytes(), &FixedBackend, None);
+
+        assert!(response.starts_with("HTTP/1.1 200 OK"));
+        assert!(response.contains("\"service\":\"rotel-embedded\""));
+        assert!(response.contains("\"listener\":\"l3dg3rr-internal-openai\""));
+        assert!(response.contains("\"logs\":\"http://127.0.0.1:15115/v1/logs\""));
+        assert!(response.contains("\"arrow_connector_enabled\":true"));
+    }
+
+    #[test]
+    fn rotel_export_plan_reuses_core_otlp_shape() {
+        let raw = "GET /rotel/export-plan HTTP/1.1\r\nHost: localhost\r\n\r\n";
+
+        let response = route_http_request(raw.as_bytes(), &FixedBackend, None);
+
+        assert!(response.starts_with("HTTP/1.1 200 OK"));
+        assert!(response.contains("\"logs_url\":\"http://127.0.0.1:15115/v1/logs\""));
+        assert!(response.contains("\"metrics_url\":\"http://127.0.0.1:15115/v1/metrics\""));
+        assert!(response.contains("\"traces_url\":\"http://127.0.0.1:15115/v1/traces\""));
+        assert!(response.contains("\"abstract_regex_type\""));
+    }
+
+    #[test]
+    fn rotel_export_plan_reflects_bound_listener_address() {
+        let raw = "GET /rotel/export-plan HTTP/1.1\r\nHost: localhost\r\n\r\n";
+
+        let response =
+            route_http_request_for_addr(raw.as_bytes(), &FixedBackend, None, "127.0.0.1:18081");
+
+        assert!(response.starts_with("HTTP/1.1 200 OK"));
+        assert!(response.contains("\"logs_url\":\"http://127.0.0.1:18081/v1/logs\""));
+        assert!(response.contains("\"metrics_url\":\"http://127.0.0.1:18081/v1/metrics\""));
+        assert!(response.contains("\"traces_url\":\"http://127.0.0.1:18081/v1/traces\""));
+    }
+
+    #[test]
+    fn rotel_otlp_logs_route_accepts_json_payloads() {
+        let body = serde_json::json!({
+            "resourceLogs": [
+                {
+                    "resource": { "attributes": [] },
+                    "scopeLogs": []
+                }
+            ]
+        })
+        .to_string();
+        let raw = format!(
+            "POST /v1/logs HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
+            body.len(),
+            body
+        );
+
+        let response = route_http_request(raw.as_bytes(), &FixedBackend, None);
+
+        assert!(response.starts_with("HTTP/1.1 202 Accepted"));
+        assert!(response.contains("\"accepted\":true"));
+        assert!(response.contains("\"signal\":\"log\""));
+        assert!(response.contains("\"resource_count\":1"));
+        assert!(response.contains("\"classification_columns\""));
+    }
+
+    #[test]
+    fn rotel_otlp_route_rejects_invalid_json() {
+        let raw =
+            "POST /v1/metrics HTTP/1.1\r\nHost: localhost\r\nContent-Length: 8\r\n\r\nnot-json";
+
+        let response = route_http_request(raw.as_bytes(), &FixedBackend, None);
+
+        assert!(response.starts_with("HTTP/1.1 400 Bad Request"));
+        assert!(response.contains("invalid OTLP JSON payload"));
+    }
+
+    #[test]
+    fn internal_openai_handle_exposes_rotel_listener_urls() {
+        let (shutdown_tx, _shutdown_rx) = mpsc::channel();
+        let handle = InternalOpenAiHandle {
+            addr: "127.0.0.1:18080".to_string(),
+            shutdown_tx,
+            join: None,
+        };
+
+        assert_eq!(
+            handle.rotel_health_url(),
+            "http://127.0.0.1:18080/rotel/health"
+        );
+        assert_eq!(
+            handle.rotel_export_plan_url(),
+            "http://127.0.0.1:18080/rotel/export-plan"
+        );
+        assert_eq!(handle.rotel_logs_url(), "http://127.0.0.1:18080/v1/logs");
+        assert_eq!(
+            handle.rotel_metrics_url(),
+            "http://127.0.0.1:18080/v1/metrics"
+        );
+        assert_eq!(
+            handle.rotel_traces_url(),
+            "http://127.0.0.1:18080/v1/traces"
+        );
     }
 
     #[test]

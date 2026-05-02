@@ -11,7 +11,7 @@ members = [
   "crates/arc-kit-au",
   "crates/datum",
   "crates/b00t-iface",
-  "xtask",
+  "xtask", "crates/rotel-visual",
 ]
 resolver = "2"
 
