@@ -268,53 +268,57 @@ pub fn wait_stable(current: bool, previous: bool, debounce_ticks: u64, tick: u64
 
 /// Macro: `symbolic_gate_test!` — compile-time reasoned logic test generator.
 ///
-/// Accepts token-tree gate expressions. All gate names validated at
+/// Accepts comma-separated gate expressions. All gate names validated at
 /// compile time — unknown idents produce `compile_error!`.
-/// No macro recursion — only one expansion per invocation via `$()*`.
+/// No inner macro calls — each token repeats via `$()*` to emit a direct
+/// `codes.push(N)` or nothing, entirely within one expansion pass.
 ///
 /// ```ignore
-/// mod ex { symbolic_gate_test!(RX >> WAIT >> CAP); }
-/// mod st { symbolic_gate_test!(stable: RX >> WAIT >> CAP); }
+/// symbolic_gate_test!(NAND, TX, CAP);
+/// symbolic_gate_test!(stable => RX, WAIT, CAP);
 /// ```
 #[macro_export]
 macro_rules! symbolic_gate_test {
-    // stable: generates a test that verifies meta-stability
-    (stable: $($toks:tt)*) => {
+    // stable variant: each gate token emits a codes.push()
+    (stable => $($gate:ident),+ $(,)?) => {
         #[allow(non_snake_case)]
         #[test]
         fn stable() {
             let mut codes: Vec<u8> = Vec::new();
-            $($crate::symbolic_gate_test!(@push codes $toks);)*
+            $(
+                $crate::symbolic_gate_test!(@emit codes $gate);
+            )*
             let kinds: Vec<$crate::logic::GateKind> = codes.iter()
                 .filter_map(|c| $crate::logic::GateKind::from_code(*c))
                 .collect();
             $crate::logic::run_stable_test(&kinds);
         }
     };
-    // basic: validates gate names compile, runs no stability check
-    ($($toks:tt)*) => {
+    // basic variant
+    ($($gate:ident),+ $(,)?) => {
         #[allow(non_snake_case)]
         #[test]
         fn basic() {
             let mut codes: Vec<u8> = Vec::new();
-            $($crate::symbolic_gate_test!(@push codes $toks);)*
+            $(
+                $crate::symbolic_gate_test!(@emit codes $gate);
+            )*
             let kinds: Vec<$crate::logic::GateKind> = codes.iter()
                 .filter_map(|c| $crate::logic::GateKind::from_code(*c))
                 .collect();
             assert!(!kinds.is_empty(), "at least one gate required");
         }
     };
-    // @push: maps a token — push code to vec or no-op for operators
-    (@push $v:ident NAND) => { $v.push(0_u8); };
-    (@push $v:ident NOR)  => { $v.push(1_u8); };
-    (@push $v:ident ADD)  => { $v.push(2_u8); };
-    (@push $v:ident WAIT) => { $v.push(3_u8); };
-    (@push $v:ident TX)   => { $v.push(4_u8); };
-    (@push $v:ident RX)   => { $v.push(5_u8); };
-    (@push $v:ident CAP)  => { $v.push(6_u8); };
-    (@push $v:ident >>)   => {};
-    (@push $v:ident &&)   => {};
-    (@push $v:ident $unknown:ident) => {
+    // Single token dispatch — each arm emits a push() call
+    (@emit $v:ident NAND) => { $v.push(0_u8); };
+    (@emit $v:ident NOR)  => { $v.push(1_u8); };
+    (@emit $v:ident ADD)  => { $v.push(2_u8); };
+    (@emit $v:ident WAIT) => { $v.push(3_u8); };
+    (@emit $v:ident TX)   => { $v.push(4_u8); };
+    (@emit $v:ident RX)   => { $v.push(5_u8); };
+    (@emit $v:ident CAP)  => { $v.push(6_u8); };
+    // Compile-time error: unknown gate ident
+    (@emit $v:ident $unknown:ident) => {
         compile_error!(concat!("symbolic_gate_test: unknown gate '", stringify!($unknown), "'"))
     };
 }
@@ -493,13 +497,12 @@ mod tests {
         assert_eq!(tokens[1], ShorthandToken::Number(42));
     }
 
-    // ── symbolic_gate_test! token-tree invocations ──────────────────
+    // ── symbolic_gate_test! invocations ────────────────────────────
     // Each generates a test that validates gate names at compile time.
-    // Runtime body delegates to a shared function.
 
-    mod gate_nand_tx_cap { symbolic_gate_test!(NAND >> TX >> CAP); }
-    mod gate_rx_nand { symbolic_gate_test!(RX >> NAND); }
+    mod gate_nand_tx_cap { symbolic_gate_test!(NAND, TX, CAP); }
+    mod gate_rx_nand { symbolic_gate_test!(RX, NAND); }
     mod gate_tx_only { symbolic_gate_test!(TX); }
-    mod gate_rx_wait_cap_stable { symbolic_gate_test!(stable: RX >> WAIT >> CAP); }
-    mod gate_rx_nand_stable { symbolic_gate_test!(stable: RX >> NAND && RX); }
+    mod gate_rx_wait_cap_stable { symbolic_gate_test!(stable => RX, WAIT, CAP); }
+    mod gate_rx_nand_stable { symbolic_gate_test!(stable => RX, NAND, RX); }
 }
