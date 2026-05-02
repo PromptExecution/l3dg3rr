@@ -152,10 +152,11 @@ mod tests {
 
     #[test]
     fn harness_runs_datum_watcher_lifecycle() {
+        let tmp = tempfile::tempdir().unwrap();
         let watcher = crate::core::DatumWatcher::new();
         let mut harness = SurfaceHarness::new(watcher);
         let config = DatumWatcherConfig {
-            datum_dir: harness.surface.datum_dir.display().to_string(),
+            datum_dir: tmp.path().display().to_string(),
             poll_interval_secs: 30,
         };
         let outcome = harness.run_lifecycle(config);
@@ -178,10 +179,11 @@ mod tests {
 
     #[test]
     fn harness_tracks_machine_state() {
+        let tmp = tempfile::tempdir().unwrap();
         let watcher = crate::core::DatumWatcher::new();
         let mut harness = SurfaceHarness::new(watcher);
         let config = DatumWatcherConfig {
-            datum_dir: harness.surface.datum_dir.display().to_string(),
+            datum_dir: tmp.path().display().to_string(),
             poll_interval_secs: 30,
         };
         let _ = harness.run_lifecycle(config);
@@ -190,11 +192,12 @@ mod tests {
 
     #[test]
     fn governance_violation_captured() {
+        let tmp = tempfile::tempdir().unwrap();
         let watcher = crate::core::DatumWatcher::new();
         let mut harness = SurfaceHarness::new(watcher);
         harness.capability.governance.crash_budget = crate::core::MAX_CRASH_BUDGET + 1;
         let config = DatumWatcherConfig {
-            datum_dir: harness.surface.datum_dir.display().to_string(),
+            datum_dir: tmp.path().display().to_string(),
             poll_interval_secs: 30,
         };
         let outcome = harness.run_lifecycle(config);
