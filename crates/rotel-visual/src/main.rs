@@ -4,5 +4,8 @@ async fn main() {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    rotel_visual::run_server().await;
+    if let Err(err) = rotel_visual::run_server().await {
+        eprintln!("Fatal: {err}");
+        std::process::exit(1);
+    }
 }

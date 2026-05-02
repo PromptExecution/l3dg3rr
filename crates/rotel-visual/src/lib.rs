@@ -227,11 +227,17 @@ async fn dashboard_handler() -> impl IntoResponse {
                 if (data.classified) updateClassified(data.classified);
             }
 
+            function escapeHtml(str) {
+                const div = document.createElement('div');
+                div.textContent = String(str);
+                return div.innerHTML;
+            }
+
             function updateLogs(logs) {
                 logsDiv.innerHTML = logs.map(log => `
-                    <div class="log-entry ${log.level.toLowerCase()}">
-                        <strong>${log.timestamp}</strong> [${log.level}] ${log.message}
-                        <small>(Shape: ${log.shape})</small>
+                    <div class="log-entry ${escapeHtml(log.level.toLowerCase())}">
+                        <strong>${escapeHtml(log.timestamp)}</strong> [${escapeHtml(log.level)}] ${escapeHtml(log.message)}
+                        <small>(Shape: ${escapeHtml(log.shape)})</small>
                     </div>
                 `).join('');
             }
@@ -239,8 +245,8 @@ async fn dashboard_handler() -> impl IntoResponse {
             function updateMetrics(metrics) {
                 metricsDiv.innerHTML = metrics.map(metric => `
                     <div>
-                        <strong>${metric.name}</strong>: ${metric.value}
-                        <small>${metric.labels.map(l => `${l.key}=${l.value}`).join(', ')}</small>
+                        <strong>${escapeHtml(metric.name)}</strong>: ${escapeHtml(metric.value)}
+                        <small>${metric.labels.map(l => `${escapeHtml(l.key)}=${escapeHtml(l.value)}`).join(', ')}</small>
                     </div>
                 `).join('');
             }
@@ -248,10 +254,10 @@ async fn dashboard_handler() -> impl IntoResponse {
             function updateSpans(spans) {
                 spansDiv.innerHTML = spans.map(span => `
                     <div>
-                        <strong>${span.name}</strong>
-                        <small>Trace: ${span.trace_id.substring(0, 8)}...</small>
-                        <small>Span: ${span.span_id.substring(0, 8)}...</small>
-                        <small>Status: ${span.status}</small>
+                        <strong>${escapeHtml(span.name)}</strong>
+                        <small>Trace: ${escapeHtml(span.trace_id.substring(0, 8))}...</small>
+                        <small>Span: ${escapeHtml(span.span_id.substring(0, 8))}...</small>
+                        <small>Status: ${escapeHtml(span.status)}</small>
                     </div>
                 `).join('');
             }
@@ -259,10 +265,10 @@ async fn dashboard_handler() -> impl IntoResponse {
             function updateClassified(artifacts) {
                 classifiedDiv.innerHTML = artifacts.map(artifact => `
                     <div class="artifact">
-                        <strong>${artifact.abstract_regex_type}</strong>
-                        <small>Metric: ${artifact.metric_name} (+${artifact.metric_delta})</small>
-                        <small>Severity: ${artifact.severity_text}</small>
-                        <small>Excerpt: ${artifact.matched_excerpt.substring(0, 60)}...</small>
+                        <strong>${escapeHtml(artifact.abstract_regex_type)}</strong>
+                        <small>Metric: ${escapeHtml(artifact.metric_name)} (+${escapeHtml(artifact.metric_delta)})</small>
+                        <small>Severity: ${escapeHtml(artifact.severity_text)}</small>
+                        <small>Excerpt: ${escapeHtml(artifact.matched_excerpt.substring(0, 60))}...</small>
                     </div>
                 `).join('');
             }
@@ -295,9 +301,14 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
     // Replay ring buffer first
     let replay = state.replay_buffer().await;
     for batch in replay {
-        let msg = axum::extract::ws::Message::Text(
-            serde_json::to_string(&batch).unwrap().into()
-        );
+        let json = match serde_json::to_string(&batch) {
+            Ok(s) => s,
+            Err(err) => {
+                error!("Failed to serialize replay batch: {}", err);
+                return;
+            }
+        };
+        let msg = axum::extract::ws::Message::Text(json);
         if let Err(err) = socket.send(msg).await {
             error!("Error sending replay data: {}", err);
             return;
@@ -310,9 +321,14 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
     loop {
         match rx.recv().await {
             Ok(telemetry) => {
-                let msg = axum::extract::ws::Message::Text(
-                    serde_json::to_string(&telemetry).unwrap().into()
-                );
+                let json = match serde_json::to_string(&telemetry) {
+                    Ok(s) => s,
+                    Err(err) => {
+                        error!("Failed to serialize telemetry: {}", err);
+                        continue;
+                    }
+                };
+                let msg = axum::extract::ws::Message::Text(json);
                 if let Err(err) = socket.send(msg).await {
                     error!("Error sending telemetry data: {}", err);
                     break;
@@ -385,91 +401,92 @@ struct OtlpIngestResponse {
 #[instrument]
 async fn otlp_logs_handler(
     State(state): State<Arc<AppState>>,
-    Json(payload): Json<serde_json::Value>,
+    Json(req): Json<OtlpLogsRequest>,
 ) -> impl IntoResponse {
-    let request: Result<OtlpLogsRequest, _> = serde_json::from_value(payload.clone());
-    match request {
-        Ok(req) => {
-            let mut logs = Vec::new();
-            let mut classified = Vec::new();
+    let mut logs = Vec::new();
+    let mut classified = Vec::new();
 
-            for resource_log in &req.resource_logs {
-                for scope_log in &resource_log.scope_logs {
-                    for record in &scope_log.log_records {
-                        let body = record.body.string_value.clone().unwrap_or_default();
-                        let severity = otlp_severity_to_enum(record.severity_number);
-                        let timestamp = match record.time_unix_nano.parse() {
-                            Ok(timestamp) => timestamp,
-                            Err(error) => {
-                                error!(
-                                    "Invalid OTLP log record timeUnixNano '{}': {}",
-                                    record.time_unix_nano, error
-                                );
-                                let response = Json(serde_json::json!({
-                                    "error": format!(
-                                        "invalid OTLP log record timeUnixNano '{}': {}",
-                                        record.time_unix_nano, error
-                                    )
-                                }));
-                                return (axum::http::StatusCode::BAD_REQUEST, response)
-                                    .into_response();
-                            }
-                        };
-
-                        let log = OTelLogRecord::new(
-                            timestamp,
-                            severity,
-                            body.clone(),
+    for resource_log in &req.resource_logs {
+        for scope_log in &resource_log.scope_logs {
+            for record in &scope_log.log_records {
+                let body = record.body.string_value.clone().unwrap_or_default();
+                let severity = otlp_severity_to_enum(record.severity_number);
+                let timestamp = match record.time_unix_nano.parse() {
+                    Ok(timestamp) => timestamp,
+                    Err(error) => {
+                        error!(
+                            "Invalid OTLP log record timeUnixNano '{}': {}",
+                            record.time_unix_nano, error
                         );
+                        let response = Json(serde_json::json!({
+                            "error": format!(
+                                "invalid OTLP log record timeUnixNano '{}': {}",
+                                record.time_unix_nano, error
+                            )
+                        }));
+                        return (axum::http::StatusCode::BAD_REQUEST, response)
+                            .into_response();
+                    }
+                };
 
-                        // Classify the log
-                        let artifacts = state.classifier.classify_log(&log);
-                        for artifact in &artifacts {
-                            classified.push(ClassifiedArtifactView::from(artifact));
-                        }
+                let mut log = OTelLogRecord::new(timestamp, severity, body.clone());
 
-                        logs.push(LogRecord {
-                            timestamp: record.time_unix_nano.clone(),
-                            level: record.severity_text.clone(),
-                            message: body,
-                            shape: if artifacts.is_empty() {
-                                "unclassified".to_string()
-                            } else {
-                                artifacts[0].abstract_regex_type.clone()
-                            },
-                        });
+                // Extract log-record-level attributes
+                for attr in &record.attributes {
+                    if let Some(val) = &attr.value.string_value {
+                        log.attributes.insert(attr.key.clone(), val.clone());
                     }
                 }
+                // Extract resource-level attributes (log record wins on collision)
+                if let Some(resource) = &resource_log.resource {
+                    for attr in &resource.attributes {
+                        if let Some(val) = &attr.value.string_value {
+                            log.attributes
+                                .entry(attr.key.clone())
+                                .or_insert_with(|| val.clone());
+                        }
+                    }
+                }
+
+                // Classify the log
+                let artifacts = state.classifier.classify_log(&log);
+                for artifact in &artifacts {
+                    classified.push(ClassifiedArtifactView::from(artifact));
+                }
+
+                logs.push(LogRecord {
+                    timestamp: record.time_unix_nano.clone(),
+                    level: record.severity_text.clone(),
+                    message: body,
+                    shape: if artifacts.is_empty() {
+                        "unclassified".to_string()
+                    } else {
+                        artifacts[0].abstract_regex_type.clone()
+                    },
+                });
             }
-
-            let telemetry = TelemetryData {
-                logs,
-                metrics: vec![],
-                spans: vec![],
-                classified,
-            };
-
-            state.broadcast(telemetry).await;
-
-            let response = Json(OtlpIngestResponse {
-                accepted: true,
-                signal: "log".to_string(),
-                resource_count: req.resource_logs.len(),
-                classification_columns: TelemetryArrowBatch::classification_columns()
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect(),
-            });
-            (axum::http::StatusCode::ACCEPTED, response).into_response()
-        }
-        Err(error) => {
-            error!("Invalid OTLP JSON payload: {}", error);
-            let response = Json(serde_json::json!({
-                "error": format!("invalid OTLP JSON payload: {error}")
-            }));
-            return (axum::http::StatusCode::BAD_REQUEST, response).into_response();
         }
     }
+
+    let telemetry = TelemetryData {
+        logs,
+        metrics: vec![],
+        spans: vec![],
+        classified,
+    };
+
+    state.broadcast(telemetry).await;
+
+    let response = Json(OtlpIngestResponse {
+        accepted: true,
+        signal: "log".to_string(),
+        resource_count: req.resource_logs.len(),
+        classification_columns: TelemetryArrowBatch::classification_columns()
+            .iter()
+            .map(|s| s.to_string())
+            .collect(),
+    });
+    (axum::http::StatusCode::ACCEPTED, response).into_response()
 }
 
 fn otlp_severity_to_enum(severity_number: u8) -> OTelSeverityNumber {
@@ -527,24 +544,23 @@ async fn otlp_traces_handler(
     (axum::http::StatusCode::ACCEPTED, response).into_response()
 }
 
-pub fn create_app() -> Router {
-    let state = Arc::new(AppState::new().expect("Failed to initialize app state"));
+pub fn create_app() -> Result<Router, anyhow::Error> {
+    let state = Arc::new(AppState::new()?);
 
-    Router::new()
+    Ok(Router::new()
         .route("/", get(dashboard_handler))
         .route("/health", get(health_handler))
         .route("/ws/telemetry", get(websocket_handler))
         .route("/v1/logs", post(otlp_logs_handler))
         .route("/v1/metrics", post(otlp_metrics_handler))
         .route("/v1/traces", post(otlp_traces_handler))
-        .with_state(state)
+        .with_state(state))
 }
 
-pub async fn run_server() {
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080")
-        .await
-        .unwrap();
+pub async fn run_server() -> Result<(), anyhow::Error> {
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await?;
     info!("Rotel Visual OTel Surface starting on 0.0.0.0:8080");
 
-    axum::serve(listener, create_app()).await.unwrap();
+    axum::serve(listener, create_app()?).await?;
+    Ok(())
 }
