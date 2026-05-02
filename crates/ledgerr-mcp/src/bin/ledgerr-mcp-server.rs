@@ -4,11 +4,43 @@ use std::sync::OnceLock;
 use ledgerr_mcp::{mcp_adapter, TurboLedgerService};
 use serde_json::{json, Value};
 
+#[cfg(feature = "b00t")]
+use ledgerr_mcp::provider::McpProviderRegistry;
+#[cfg(feature = "b00t")]
+use ledgerr_mcp::providers::definitions::register_default_providers;
+
 fn main() {
     // Serve a minimal stdio MCP transport boundary for initialize/tools/list/tools/call.
     // Stdout is reserved for protocol payloads only.
+
+    #[cfg(feature = "b00t")]
+    initialize_providers();
+
     serve(io::stdin().lock(), io::stdout());
 }
+
+#[cfg(feature = "b00t")]
+fn initialize_providers() {
+    let mut registry = McpProviderRegistry::new();
+    register_default_providers(&mut registry, None, None);
+    let results = registry.initialize_all();
+    for (name, result) in &results {
+        match result {
+            Ok(info) => tracing::info!(provider = %name, tools = info.tools.len(), "external provider registered"),
+            Err(e) => tracing::warn!(provider = %name, error = %e, "external provider init failed"),
+        }
+    }
+    // Store registry for dispatch
+    let _ = PROVIDER_REGISTRY.set(registry);
+}
+
+#[cfg(feature = "b00t")]
+fn global_provider_registry() -> &'static McpProviderRegistry {
+    PROVIDER_REGISTRY.get().expect("McpProviderRegistry not initialized")
+}
+
+#[cfg(feature = "b00t")]
+static PROVIDER_REGISTRY: std::sync::OnceLock<McpProviderRegistry> = std::sync::OnceLock::new();
 
 fn serve<R: BufRead, W: Write>(reader: R, mut writer: W) {
     for line in reader.lines() {
@@ -212,7 +244,16 @@ fn handle_request(request: Value) -> Option<Value> {
                         &json!({ "action": "plugin_info", "subcommand": arguments.get("subcommand").cloned().unwrap_or(Value::String("check".to_string())) }),
                     )
                 }
-                _ => mcp_adapter::unknown_tool_result(tool_name),
+                _ => {
+                    #[cfg(feature = "b00t")] {
+                        let registry = global_provider_registry();
+                        let ext_args = params.get("arguments").cloned().unwrap_or(Value::Null);
+                        mcp_adapter::handle_external_tool(registry, tool_name, &ext_args)
+                    }
+                    #[cfg(not(feature = "b00t"))] {
+                        mcp_adapter::unknown_tool_result(tool_name)
+                    }
+                }
             };
             Some(json!({
                 "jsonrpc": "2.0",
