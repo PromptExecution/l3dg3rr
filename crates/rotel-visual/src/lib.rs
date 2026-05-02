@@ -562,18 +562,59 @@ async fn otlp_metrics_handler(
     (axum::http::StatusCode::ACCEPTED, response).into_response()
 }
 
+#[derive(Deserialize, Debug)]
+struct OtlpTraceExportRequest {
+    #[serde(rename = "resourceSpans")]
+    resource_spans: Vec<OtlpResourceSpans>,
+}
+
+#[derive(Deserialize, Debug)]
+struct OtlpResourceSpans {
+    #[serde(rename = "scopeSpans")]
+    scope_spans: Vec<OtlpScopeSpans>,
+}
+
+#[derive(Deserialize, Debug)]
+struct OtlpScopeSpans {
+    spans: Vec<OtlpSpan>,
+}
+
+#[derive(Deserialize, Debug)]
+struct OtlpSpan {
+    #[serde(rename = "traceId")]
+    trace_id: String,
+    #[serde(rename = "spanId")]
+    span_id: String,
+    name: String,
+}
+
 #[instrument]
 async fn otlp_traces_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
-    let resource_count = payload
-        .get("resourceSpans")
-        .and_then(|v| v.as_array())
-        .map(|a| a.len())
-        .unwrap_or(0);
+    let request: OtlpTraceExportRequest = match serde_json::from_value(payload) {
+        Ok(request) => request,
+        Err(error) => {
+            let response = Json(serde_json::json!({
+                "accepted": false,
+                "signal": "trace",
+                "error": format!("invalid OTLP trace payload: {error}"),
+            }));
+            return (axum::http::StatusCode::BAD_REQUEST, response).into_response();
+        }
+    };
 
-    state.metrics.inc_traces_ingested(resource_count as u64);
+    let resource_count = request.resource_spans.len();
+    let span_records: Vec<(&str, &str, &str)> = request
+        .resource_spans
+        .iter()
+        .flat_map(|resource_spans| resource_spans.scope_spans.iter())
+        .flat_map(|scope_spans| scope_spans.spans.iter())
+        .map(|span| (span.trace_id.as_str(), span.span_id.as_str(), span.name.as_str()))
+        .collect();
+
+    state.metrics.inc_traces_ingested(span_records.len() as u64);
 
     let response = Json(OtlpIngestResponse {
         accepted: true,
