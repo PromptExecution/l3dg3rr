@@ -1,7 +1,21 @@
+//! Legacy MCP adapter — direct TurboLedgerService dispatch.
+//!
+//! This module contains the original dispatch layer where each MCP tool
+//! call goes directly through `&TurboLedgerService` method calls.  It is
+//! gated behind the `legacy` feature flag for historical reference.
+//!
+//! New code should route through `actor::ServiceHandle` instead.
+//!
+//! ──ℹ── Historical snapshot ──ℹ──
+//! This code was the primary tool dispatch from 2025-Q3 through 2026-Q2.
+//! It was replaced by the actor/gate channel system in PRD-7 Phase 0-4.
+
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
 use ledger_core::ingest::{deterministic_tx_id, TransactionInput};
+use ledgerr_mcp_core::ToolDescriptor;
 use serde::Serialize;
 use serde_json::{json, Value};
 
@@ -21,11 +35,119 @@ use crate::{
     TaxAssistRequest, TaxEvidenceChainRequest, ToolError, TurboLedgerService, TurboLedgerTools,
 };
 
+// Global provider registry — set once at startup by the server binary.
+// Feature-gated because the registry type comes from ledgerr-mcp-core (b00t feature).
+#[cfg(feature = "b00t")]
+static GLOBAL_PROVIDER_REGISTRY: OnceLock<ledgerr_mcp_core::McpProviderRegistry> = OnceLock::new();
+
+/// Register the global provider registry for external tool dispatch.
+/// Called once at startup by the server binary.
+#[cfg(feature = "b00t")]
+pub fn set_global_provider_registry(registry: ledgerr_mcp_core::McpProviderRegistry) {
+    let _ = GLOBAL_PROVIDER_REGISTRY.set(registry);
+}
+
+/// Return all external provider tool descriptors for inclusion in tools/list.
+#[cfg(feature = "b00t")]
+fn external_tool_descriptors() -> Vec<Value> {
+    let Some(registry) = GLOBAL_PROVIDER_REGISTRY.get() else {
+        return Vec::new();
+    };
+    registry
+        .all_tool_descriptors()
+        .into_iter()
+        .map(|td: ToolDescriptor| {
+            json!({ "name": td.name, "inputSchema": td.input_schema })
+        })
+        .collect()
+}
+
+#[cfg(not(feature = "b00t"))]
+fn external_tool_descriptors() -> Vec<Value> {
+    Vec::new()
+}
+
+// Public re-exports are always available (they're just constants).
 pub use crate::contract::{
     AUDIT_TOOL, DOCUMENTS_TOOL, EVIDENCE_TOOL, ONTOLOGY_TOOL, RECONCILIATION_TOOL, REVIEW_TOOL,
     TAX_TOOL, WORKFLOW_TOOL, XERO_TOOL,
 };
 
+// ── Default dispatch ──────────────────────────────────────────────────────────
+// These always-compiled functions provide the core dispatch surface.  When the
+// `legacy` feature is active they are joined by the original direct-dispatch
+// functions (tool_names, tool_names_for, tool_input_schema, handle_*_tool, etc.)
+// which are compiled alongside these.
+
+/// Non-legacy tool descriptors: returns built-in + external provider tools.
+pub fn tool_descriptors() -> Vec<Value> {
+    let mut tools: Vec<Value> = BUILTIN_TOOL_NAMES
+        .iter()
+        .map(|name| {
+            let schema = builtin_tool_input_schema(name);
+            json!({ "name": name, "inputSchema": schema })
+        })
+        .collect();
+    let ext_tools = external_tool_descriptors();
+    for ext in ext_tools {
+        let ext_name = ext["name"].as_str().unwrap_or("");
+        if !tools.iter().any(|t| t["name"].as_str() == Some(ext_name)) {
+            tools.push(ext);
+        }
+    }
+    tools
+}
+
+/// Hardcoded list of published tool names (always available).
+const BUILTIN_TOOL_NAMES: &[&str] = &[
+    DOCUMENTS_TOOL,
+    REVIEW_TOOL,
+    RECONCILIATION_TOOL,
+    WORKFLOW_TOOL,
+    AUDIT_TOOL,
+    TAX_TOOL,
+    ONTOLOGY_TOOL,
+    XERO_TOOL,
+    EVIDENCE_TOOL,
+];
+
+fn builtin_tool_input_schema(name: &str) -> Value {
+    crate::contract::tool_input_schema(name)
+}
+
+/// Hook for external MCP providers.  Dispatches via the global provider registry.
+#[cfg(feature = "b00t")]
+pub fn handle_external_tool(
+    _registry: &ledgerr_mcp_core::McpProviderRegistry,
+    tool_name: &str,
+    arguments: &Value,
+) -> Value {
+    let Some(reg) = GLOBAL_PROVIDER_REGISTRY.get() else {
+        return unknown_tool_result(tool_name);
+    };
+    match reg.call_tool("", tool_name, arguments.clone()) {
+        Ok(result) => json!({
+            "content": [text_content(result)],
+            "isError": false
+        }),
+        Err(_) => unknown_tool_result(tool_name),
+    }
+}
+
+#[cfg(not(feature = "b00t"))]
+pub fn handle_external_tool(
+    _registry: (),
+    tool_name: &str,
+    _arguments: &Value,
+) -> Value {
+    unknown_tool_result(tool_name)
+}
+
+// ── Legacy dispatch (cfg-gated) ───────────────────────────────────────────────
+// The functions below are the original direct-dispatch path.  They are kept for
+// historical reference and are only compiled when the `legacy` feature is active.
+
+#[cfg(feature = "legacy")]
 #[allow(clippy::vec_init_then_push)]
 pub fn tool_names() -> Vec<String> {
     let mut features = Vec::new();
@@ -56,6 +178,7 @@ pub fn tool_names() -> Vec<String> {
     tool_names_for(&features)
 }
 
+#[cfg(feature = "legacy")]
 pub fn tool_names_for(features: &[&str]) -> Vec<String> {
     let mut tools = Vec::new();
 
@@ -89,15 +212,25 @@ pub fn tool_names_for(features: &[&str]) -> Vec<String> {
 }
 
 /// Return the full MCP-spec tool objects (name + inputSchema) for all enabled tools.
+/// Includes both built-in ledgerr_* tools and any registered external provider tools.
 /// Use this in tools/list responses — do NOT use tool_names() directly for that.
 pub fn tool_descriptors() -> Vec<Value> {
-    tool_names()
+    let mut tools: Vec<Value> = tool_names()
         .into_iter()
         .map(|name| {
             let schema = tool_input_schema(&name);
             json!({ "name": name, "inputSchema": schema })
         })
-        .collect()
+        .collect();
+    // Merge external provider tools (dedup by name).
+    let ext_tools = external_tool_descriptors();
+    for ext in ext_tools {
+        let ext_name = ext["name"].as_str().unwrap_or("");
+        if !tools.iter().any(|t| t["name"].as_str() == Some(ext_name)) {
+            tools.push(ext);
+        }
+    }
+    tools
 }
 
 /// Returns the JSON Schema for the input arguments of a named tool.
@@ -302,34 +435,25 @@ pub fn unknown_tool_result(tool_name: &str) -> Value {
 }
 
 /// Hook for external MCP providers (b00t, just, ir0ntology, etc.).
-/// Returns Some(result) if the tool is handled by an external provider, None otherwise.
-/// Defaults to unknown_tool_result when no provider matches.
+/// Dispatches to the global provider registry (set once at startup).
+/// Returns unknown_tool_result when no provider matches.
 #[cfg(feature = "b00t")]
 pub fn handle_external_tool(
-    registry: &crate::provider::McpProviderRegistry,
+    _registry: &ledgerr_mcp_core::McpProviderRegistry,
     tool_name: &str,
     arguments: &Value,
 ) -> Value {
-    match registry.call_tool("", tool_name, arguments.clone()) {
+    let Some(reg) = GLOBAL_PROVIDER_REGISTRY.get() else {
+        return unknown_tool_result(tool_name);
+    };
+    // call_tool with empty provider_name triggers tool-name search
+    // across all registered providers.
+    match reg.call_tool("", tool_name, arguments.clone()) {
         Ok(result) => json!({
             "content": [text_content(result)],
             "isError": false
         }),
-        Err(e) => {
-            // Try fallback: search by tool name across all providers
-            for provider in registry.all_tool_descriptors() {
-                if provider.name == tool_name {
-                    if let Ok(result) = registry.call_tool("", tool_name, arguments.clone()) {
-                        return json!({
-                            "content": [text_content(result)],
-                            "isError": false
-                        });
-                    }
-                    break;
-                }
-            }
-            unknown_tool_result(tool_name)
-        }
+        Err(_) => unknown_tool_result(tool_name),
     }
 }
 
