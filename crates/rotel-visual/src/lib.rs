@@ -207,7 +207,8 @@ async fn dashboard_handler() -> impl IntoResponse {
             const spansDiv = document.getElementById('spans');
             const classifiedDiv = document.getElementById('classified');
 
-            const ws = new WebSocket('ws://' + location.host + '/ws/telemetry');
+            const wsProtocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
+            const ws = new WebSocket(wsProtocol + location.host + '/ws/telemetry');
 
             ws.onmessage = function(event) {
                 const data = JSON.parse(event.data);
