@@ -12,6 +12,7 @@ ledger-core = { version = "=1.8.0", path = "../ledger-core" }
 ledgerr-mcp-core = { workspace = true }
 ledgerr-xero = { version = "=1.8.0", path = "../ledgerr-xero", optional = true }
 crossbeam = "0.8"
+cfg-if = "1.0"
 ledgerr-llm = { version = "=1.8.0", path = "../ledgerr-llm", optional = true }
 rust_decimal = { version = "1.41.0", features = ["serde"] }
 rust_xlsxwriter = { workspace = true }
@@ -34,7 +35,7 @@ semver = { version = "1", optional = true }
 winreg = "0.52"
 
 [features]
-default = ["core", "events", "reconciliation", "hsm", "ontology", "classification", "audit", "tax", "xero", "llm"]
+default = ["core", "events", "reconciliation", "hsm", "ontology", "classification", "audit", "tax", "xero", "llm", "legacy"]
 b00t = []
 core = []
 events = ["core"]
