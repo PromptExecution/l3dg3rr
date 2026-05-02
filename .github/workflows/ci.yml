@@ -2,7 +2,7 @@ name: CI with MCP Registry Publish
 
 on:
   push:
-    branches: [main, milestone/**, feature/**]
+    branches: [main, milestone/**, feature/**, feat/**]
   pull_request:
 
 permissions:

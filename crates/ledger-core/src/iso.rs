@@ -522,6 +522,8 @@ fn sanitize_class_name(label: &str) -> String {
     name
 }
 
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
 /// Minimal XML attribute value escaper for SMIL output.
 /// Escapes characters that are unsafe inside a double-quoted XML attribute value.
 /// Callers generating `<animateTransform>` markup with dynamic label content should
@@ -539,19 +541,39 @@ pub fn xml_attr_escape(s: &str) -> String {
     }
     out
 }
+=======
+>>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
 
 // ============================================================================
 // VIZ MANIFEST (for xtask export and docs UI)
 // ============================================================================
 
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
 /// Serializable mirror of `VisualizationSpec` with owned fields.
 /// `rhai_dsl` is a `RhaiDslOwned` so the manifest carries pre-extracted symbols
 /// for browser-side LSP/syntax-highlighting without re-parsing.
+=======
+/// Serializable mirror of VisualizationSpec with owned String fields.
+>>>>>>> Stashed changes
+=======
+/// Serializable mirror of VisualizationSpec with owned String fields.
+>>>>>>> Stashed changes
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct VizSpecOwned {
     pub semantic_type: String,
     pub z_layer: String,
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
     pub rhai_dsl: RhaiDslOwned,
+=======
+    pub rhai_dsl: String,
+>>>>>>> Stashed changes
+=======
+    pub rhai_dsl: String,
+>>>>>>> Stashed changes
     pub description: String,
 }
 
@@ -560,7 +582,15 @@ impl From<VisualizationSpec> for VizSpecOwned {
         VizSpecOwned {
             semantic_type: spec.semantic_type.known_name().to_string(),
             z_layer: spec.z_layer.label().to_string(),
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
             rhai_dsl: RhaiDslOwned::from(spec.rhai_dsl),
+=======
+            rhai_dsl: spec.rhai_dsl.to_string(),
+>>>>>>> Stashed changes
+=======
+            rhai_dsl: spec.rhai_dsl.to_string(),
+>>>>>>> Stashed changes
             description: spec.description.to_string(),
         }
     }
@@ -573,7 +603,15 @@ pub struct VizManifestEntry {
     pub spec: VizSpecOwned,
 }
 
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
 /// Full visualization manifest for the docs UI, exported by xtask.
+=======
+/// Full visualization manifest for the docs UI, exported by .
+>>>>>>> Stashed changes
+=======
+/// Full visualization manifest for the docs UI, exported by .
+>>>>>>> Stashed changes
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct VizManifest {
     pub version: String,
