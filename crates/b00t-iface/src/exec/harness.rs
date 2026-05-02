@@ -16,6 +16,9 @@ pub struct LifecycleOutcome<H: Clone> {
     pub surface: String,
     pub chain: PromiseChain<H>,
     pub governance_violations: Vec<String>,
+    pub audit: Option<AuditRecord>,
+    pub policy: GovernancePolicy,
+    pub maintenance_action: MaintenanceAction,
 }
 
 /// The executive harness — wraps a surface with governance + machine.
@@ -43,8 +46,8 @@ impl<S: ProcessSurface> SurfaceHarness<S> {
     where
         S::Handle: Clone,
     {
-        let governance = &self.capability.governance;
-        if let Err(v) = governance.validate() {
+        let policy = self.capability.governance.clone();
+        if let Err(v) = self.capability.governance.validate() {
             self.governance_violations.push(v);
         }
 
@@ -81,7 +84,7 @@ impl<S: ProcessSurface> SurfaceHarness<S> {
             .apply_maintenance(&maintain_action, now.elapsed())
         {
             Ok(()) => {
-                LifecyclePromise::fulfilled(PromiseOp::Maintain, now.elapsed(), maintain_action)
+                LifecyclePromise::fulfilled(PromiseOp::Maintain, now.elapsed(), maintain_action.clone())
             }
             Err(e) => LifecyclePromise::rejected(PromiseOp::Maintain, now.elapsed(), e),
         };
@@ -103,6 +106,9 @@ impl<S: ProcessSurface> SurfaceHarness<S> {
                         ),
                     },
                     governance_violations: self.governance_violations.clone(),
+                    policy,
+                    maintenance_action: MaintenanceAction::NoOp,
+                    audit: None,
                 };
             }
         };
@@ -120,6 +126,17 @@ impl<S: ProcessSurface> SurfaceHarness<S> {
             }
         };
 
+        let audit = match &terminate_promise.value {
+            crate::core::PromiseValue::Fulfilled(_) => Some(AuditRecord {
+                surface_name: self.capability.name.to_owned(),
+                uptime: now.elapsed(),
+                exit_reason: "terminated".into(),
+                crash_count: self.machine.crash_count,
+                bytes_logged: 0,
+            }),
+            _ => None,
+        };
+
         LifecycleOutcome {
             surface: self.capability.name.to_owned(),
             chain: PromiseChain {
@@ -129,6 +146,9 @@ impl<S: ProcessSurface> SurfaceHarness<S> {
                 terminate: terminate_promise,
             },
             governance_violations: self.governance_violations.clone(),
+            policy,
+            maintenance_action: maintain_action,
+            audit,
         }
     }
 
@@ -158,6 +178,9 @@ impl<S: ProcessSurface> SurfaceHarness<S> {
                 ),
             },
             governance_violations: self.governance_violations.clone(),
+            policy: self.capability.governance.clone(),
+            maintenance_action: MaintenanceAction::Terminate,
+            audit: None,
         }
     }
 }

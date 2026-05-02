@@ -372,7 +372,7 @@ pub mod mock {
             self.call_result
                 .as_ref()
                 .map_err(|e| e.clone())
-                .and_then(|v| Ok(v.clone()))
+                .map(|v| v.clone())
         }
 
         fn shutdown(&self) {}

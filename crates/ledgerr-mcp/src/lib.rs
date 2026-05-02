@@ -1121,7 +1121,6 @@ impl TurboLedgerService {
 
     fn emit_ingest_evidence(&self, row: &TransactionInput, tx_id: &str) -> Result<(), ToolError> {
         use arc_kit_au::node::{ExtractedRow, SourceDoc, Transaction};
-        use arc_kit_au::EdgeType;
         use chrono::Utc;
 
         let mut evidence = self

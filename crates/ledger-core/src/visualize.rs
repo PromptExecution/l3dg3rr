@@ -471,7 +471,7 @@ pub mod layout {
 
                 let left_edge = left_x + left_w;
                 solver
-                    .add_constraint(left_edge + self.gap | LE(Strength::REQUIRED) | right_x)
+                    .add_constraint((left_edge + self.gap) | LE(Strength::REQUIRED) | right_x)
                     .ok();
             }
 

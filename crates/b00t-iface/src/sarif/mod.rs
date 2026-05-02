@@ -636,7 +636,7 @@ mod tests {
     fn valid_mermaid_passes_lint() {
         let content = "```rhai\nfn foo() -> bar\n```\n\n```mermaid\nflowchart TD\nfoo[bar]\n```";
         let report = check_l3dg3rr_standards(&[("good.md", content)]);
-        let mermaid_results: Vec<_> = report.runs[0]
+        let _mermaid_results: Vec<_> = report.runs[0]
             .results
             .iter()
             .filter(|r| r.rule_id.contains("mermaid-parse"))

@@ -182,7 +182,7 @@ where
 {
     let next = f(current.meta.clone());
     let issues = next.issues.clone();
-    let issue_count = issues.len();
+    let _issue_count = issues.len();
     let meta = next.meta.advance(stage, next.confidence, &issues);
     let result = StageResult {
         data: next.data,

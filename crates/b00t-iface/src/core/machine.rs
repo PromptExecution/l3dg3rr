@@ -35,7 +35,7 @@
 //!                         Terminated
 //! ```
 
-use super::surface::{AuditRecord, MaintenanceAction};
+use super::surface::MaintenanceAction;
 use std::fmt;
 use std::time::Duration;
 
