@@ -44,7 +44,7 @@ jobs:
           sarif_file: clippy.sarif
 
       - name: Validate datum AST parser and linter
-        run: cargo test -p datum --features real_datums 2>&1 || echo "WARNING: real_datums tests require _b00t_ repo, skipping"
+        run: cargo test -p datum 2>&1
 
       - name: Cargo test
         run: cargo test --workspace --all-targets --features 'audit,autoresearch,b00t,classification,core,default,events,full,hsm,legacy,legal-z3,llm,local-llm,mistralrs-llm,ontology,reconciliation,self-update,tax,xero'

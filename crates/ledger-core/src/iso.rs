@@ -157,6 +157,187 @@ impl std::fmt::Display for SemanticType {
 }
 
 // ============================================================================
+// RHAI DSL TYPE
+// ============================================================================
+
+/// Classification of a symbol extracted from a Rhai DSL snippet.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum DslSymbolKind {
+    FunctionCall,
+    Variable,
+    Keyword,
+}
+
+/// Source position within a DSL snippet (1-based line and column).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DslSpan {
+    pub line: u32,
+    pub col: u32,
+}
+
+/// A named symbol extracted from a Rhai DSL snippet, with kind and source position.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DslSymbol {
+    pub kind: DslSymbolKind,
+    pub name: String,
+    pub span: Option<DslSpan>,
+}
+
+/// A Rhai DSL snippet that is both displayable as source text and parseable as an AST.
+///
+/// Holds a `&'static str` for zero-allocation use in const contexts. For runtime-
+/// constructed or deserialized snippets use `RhaiDslOwned`.
+#[derive(Debug, Clone, Copy)]
+pub struct RhaiDsl {
+    source: &'static str,
+}
+
+impl RhaiDsl {
+    pub const fn new(source: &'static str) -> Self {
+        Self { source }
+    }
+
+    pub fn source(&self) -> &str {
+        self.source
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.source.is_empty()
+    }
+
+    /// Parse and validate the snippet via the Rhai engine. Returns the AST on success.
+    pub fn parse(&self) -> Result<rhai::AST, Box<rhai::EvalAltResult>> {
+        rhai::Engine::new().compile(self.source)
+    }
+
+    /// Extract named symbols (function calls, variables, keywords) with source positions.
+    pub fn symbols(&self) -> Vec<DslSymbol> {
+        extract_dsl_symbols(self.source)
+    }
+}
+
+impl std::fmt::Display for RhaiDsl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.source)
+    }
+}
+
+impl serde::Serialize for RhaiDsl {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(self.source)
+    }
+}
+
+/// Owned, deserializable counterpart to `RhaiDsl` for manifest serialization and
+/// runtime-constructed snippets. Shares the same parse/symbol API.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RhaiDslOwned {
+    pub source: String,
+    pub symbols: Vec<DslSymbol>,
+}
+
+impl RhaiDslOwned {
+    pub fn new(source: impl Into<String>) -> Self {
+        let source = source.into();
+        let symbols = extract_dsl_symbols(&source);
+        Self { source, symbols }
+    }
+
+    pub fn source(&self) -> &str {
+        &self.source
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.source.is_empty()
+    }
+
+    /// Parse and validate the snippet via the Rhai engine.
+    pub fn parse(&self) -> Result<rhai::AST, Box<rhai::EvalAltResult>> {
+        rhai::Engine::new().compile(&self.source)
+    }
+}
+
+impl std::fmt::Display for RhaiDslOwned {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.source)
+    }
+}
+
+impl From<RhaiDsl> for RhaiDslOwned {
+    fn from(dsl: RhaiDsl) -> Self {
+        Self::new(dsl.source)
+    }
+}
+
+const RHAI_KEYWORDS: &[&str] = &[
+    "let", "const", "if", "else", "match", "fn", "for", "while", "loop",
+    "return", "break", "continue", "true", "false", "import", "export",
+    "throw", "try", "catch", "in", "is",
+];
+
+/// Extract identifiers from Rhai source with line/col spans and kind classification.
+/// FunctionCall: identifier immediately followed by `(`.
+/// Keyword: one of the Rhai reserved keywords.
+/// Variable: any other bare identifier.
+fn extract_dsl_symbols(source: &str) -> Vec<DslSymbol> {
+    let mut symbols = Vec::new();
+    let chars: Vec<char> = source.chars().collect();
+    let mut i = 0;
+    let mut line = 1u32;
+    let mut col = 1u32;
+
+    while i < chars.len() {
+        let c = chars[i];
+        if c == '\n' {
+            line += 1;
+            col = 1;
+            i += 1;
+            continue;
+        }
+        // Skip line comments
+        if c == '/' && i + 1 < chars.len() && chars[i + 1] == '/' {
+            while i < chars.len() && chars[i] != '\n' { i += 1; }
+            continue;
+        }
+        // Skip string literals (avoid picking up identifiers inside strings)
+        if c == '"' || c == '\'' {
+            let quote = c;
+            i += 1; col += 1;
+            while i < chars.len() && chars[i] != quote {
+                if chars[i] == '\n' { line += 1; col = 1; } else { col += 1; }
+                i += 1;
+            }
+            i += 1; col += 1;
+            continue;
+        }
+        if c.is_alphabetic() || c == '_' {
+            let span = DslSpan { line, col };
+            let start = i;
+            while i < chars.len() && (chars[i].is_alphanumeric() || chars[i] == '_') {
+                i += 1;
+                col += 1;
+            }
+            let name: String = chars[start..i].iter().collect();
+            // Peek past whitespace to detect function call
+            let mut j = i;
+            while j < chars.len() && chars[j] == ' ' { j += 1; }
+            let kind = if RHAI_KEYWORDS.contains(&name.as_str()) {
+                DslSymbolKind::Keyword
+            } else if j < chars.len() && chars[j] == '(' {
+                DslSymbolKind::FunctionCall
+            } else {
+                DslSymbolKind::Variable
+            };
+            symbols.push(DslSymbol { kind, name, span: Some(span) });
+            continue;
+        }
+        col += 1;
+        i += 1;
+    }
+    symbols
+}
+
+// ============================================================================
 // VISUALIZATION SPEC + TRAIT
 // ============================================================================
 
@@ -165,8 +346,7 @@ impl std::fmt::Display for SemanticType {
 pub struct VisualizationSpec {
     pub semantic_type: SemanticType,
     pub z_layer: ZLayer,
-    /// Short Rhai snippet illustrating DSL usage for this type.
-    pub rhai_dsl: &'static str,
+    pub rhai_dsl: RhaiDsl,
     pub description: &'static str,
 }
 
@@ -364,12 +544,14 @@ pub fn xml_attr_escape(s: &str) -> String {
 // VIZ MANIFEST (for xtask export and docs UI)
 // ============================================================================
 
-/// Serializable mirror of VisualizationSpec with owned String fields.
+/// Serializable mirror of `VisualizationSpec` with owned fields.
+/// `rhai_dsl` is a `RhaiDslOwned` so the manifest carries pre-extracted symbols
+/// for browser-side LSP/syntax-highlighting without re-parsing.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct VizSpecOwned {
     pub semantic_type: String,
     pub z_layer: String,
-    pub rhai_dsl: String,
+    pub rhai_dsl: RhaiDslOwned,
     pub description: String,
 }
 
@@ -378,7 +560,7 @@ impl From<VisualizationSpec> for VizSpecOwned {
         VizSpecOwned {
             semantic_type: spec.semantic_type.known_name().to_string(),
             z_layer: spec.z_layer.label().to_string(),
-            rhai_dsl: spec.rhai_dsl.to_string(),
+            rhai_dsl: RhaiDslOwned::from(spec.rhai_dsl),
             description: spec.description.to_string(),
         }
     }
