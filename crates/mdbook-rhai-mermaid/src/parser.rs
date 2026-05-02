@@ -658,4 +658,75 @@ mod tests {
         assert_eq!(ingest.identity_key, "ingest");
         assert_eq!(ingest.label, "ingest");
     }
+
+    // -----------------------------------------------------------------------
+    // Malformed / negative input tests — parser must not panic and should
+    // gracefully skip or partially parse malformed lines.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_malformed_misspelled_fn() {
+        let g = parse("fnn ingest() -> classify\n");
+        assert!(g.nodes.is_empty());
+        assert!(g.edges.is_empty());
+    }
+
+    #[test]
+    fn test_malformed_missing_target_arrow() {
+        let g = parse("fn ingest()\n");
+        assert!(g.nodes.is_empty());
+        assert!(g.edges.is_empty());
+    }
+
+    #[test]
+    fn test_malformed_if_missing_target() {
+        let g = parse("if confidence > 0.5 ->\n");
+        assert!(g.nodes.is_empty());
+        assert!(g.edges.is_empty());
+    }
+
+    #[test]
+    fn test_malformed_double_arrow() {
+        // split_once("->") splits on first occurrence, so target is "-> classify"
+        // which is non-empty — parser produces a node named "-> classify".
+        // Still must not panic and should produce a valid Graph.
+        // split_once("->") captures "-> classify" as the target.
+        // sanitize_id turns "-> classify" into "___classify".
+        let g = parse("fn ingest() -> -> classify\n");
+        assert!(g.nodes.contains_key("ingest"));
+        assert!(g.nodes.contains_key("___classify"));
+        assert_eq!(g.nodes.len(), 2);
+        assert_eq!(g.edges.len(), 1);
+    }
+
+    #[test]
+    fn test_malformed_empty_target_name() {
+        let g = parse("fn ingest() -> \n");
+        assert!(g.nodes.is_empty());
+        assert!(g.edges.is_empty());
+    }
+
+    #[test]
+    fn test_malformed_match_missing_arm() {
+        let src = "match result -> Unrecoverable -> \n";
+        let g = parse(src);
+        // match needs expr, arm, AND target all non-empty — empty target skips
+        assert!(g.nodes.is_empty());
+        assert!(g.edges.is_empty());
+    }
+
+    #[test]
+    fn test_malformed_very_long_label() {
+        let long_name = "x".repeat(1000);
+        let src = format!("fn {}() -> done\n", long_name);
+        let g = parse(&src);
+        // Parser may or may not include the node, but must not panic.
+        // The sanitized id will be valid since 'x' is alphanumeric.
+        assert!(g.nodes.is_empty() || g.nodes.len() == 2);
+        assert!(g.edges.is_empty() || g.edges.len() == 1);
+        if let Some(node) = g.nodes.get(&long_name) {
+            assert_eq!(node.id, long_name);
+            assert_eq!(node.identity_key, long_name);
+        }
+    }
 }

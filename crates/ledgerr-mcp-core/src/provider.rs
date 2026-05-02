@@ -303,8 +303,7 @@ impl Default for McpProviderRegistry {
 // Mock provider for testing
 // ============================================================================
 
-#[cfg(test)]
-pub(crate) mod mock {
+pub mod mock {
     use super::*;
     use std::sync::atomic::{AtomicU64, Ordering};
 
