@@ -466,3 +466,45 @@ docgen-check:
     @echo "Running live-editor unit tests..."
     @node --test book/theme/rhai-live-core.test.js
     @echo "All documentation diagrams validated!"
+
+# ─── wrkflw: local CI pipeline runner ──────────────────────────────────────
+
+# Run the wrkflw-local-docgen workflow locally using emulation mode (no Docker).
+# Tests all visualization pipeline stages: Rhai parser, iso lint, viz derive,
+# legal Z3, docgen build, Kasuari constraints, iso objects, live-editor JS.
+# Requires: cargo install wrkflw
+wrkflw-docgen-test emulation="secure-emulation":
+    @if ! command -v wrkflw >/dev/null 2>&1; then echo "error: wrkflw not found — run: cargo install wrkflw"; exit 1; fi
+    @echo "=== wrkflw: Running docgen visualization pipeline ==="
+    wrkflw run --runtime {{emulation}} .github/workflows/wrkflw-docgen.yml
+    @echo "=== wrkflw-docgen-test complete ==="
+
+# Validate the wrkflw workflow definition for syntax correctness
+wrkflw-validate:
+    @if ! command -v wrkflw >/dev/null 2>&1; then echo "error: wrkflw not found — run: cargo install wrkflw"; exit 1; fi
+    wrkflw validate --verbose .github/workflows/wrkflw-docgen.yml
+    @echo "✓ wrkflw-docgen workflow validates"
+
+# List all workflows wrkflw can discover
+wrkflw-list:
+    @if ! command -v wrkflw >/dev/null 2>&1; then echo "error: wrkflw not found — run: cargo install wrkflw"; exit 1; fi
+    wrkflw list
+
+# Run specific stages of the docgen pipeline via wrkflw with job selection
+wrkflw-job job="stage-1-rhai-parser-tests" emulation="secure-emulation":
+    @if ! command -v wrkflw >/dev/null 2>&1; then echo "error: wrkflw not found — run: cargo install wrkflw"; exit 1; fi
+    wrkflw run --job "{{job}}" --runtime {{emulation}} .github/workflows/wrkflw-docgen.yml
+
+# Open wrkflw TUI to inspect and run workflows interactively
+wrkflw-tui:
+    @if ! command -v wrkflw >/dev/null 2>&1; then echo "error: wrkflw not found — run: cargo install wrkflw"; exit 1; fi
+    wrkflw tui
+
+# Full wrkflw test: validate first, then run the full docgen pipeline
+wrkflw-full-test emulation="secure-emulation":
+    @if ! command -v wrkflw >/dev/null 2>&1; then echo "error: wrkflw not found — run: cargo install wrkflw"; exit 1; fi
+    @echo "=== Step 1: Validate ==="
+    wrkflw validate .github/workflows/wrkflw-docgen.yml
+    @echo ""
+    @echo "=== Step 2: Run docgen pipeline ==="
+    wrkflw run --runtime {{emulation}} .github/workflows/wrkflw-docgen.yml
