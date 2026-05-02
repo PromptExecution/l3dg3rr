@@ -148,13 +148,12 @@ async fn test_otlp_logs_rejects_invalid_json_with_400() {
 }
 
 #[tokio::test]
-async fn test_otlp_logs_classifies_and_ingests_artifacts() {
-    // This test verifies that when OTLP logs are ingested they are classified
-    // and the handler returns 202. WebSocket broadcast is tested separately.
-    let app = rotel_visual::create_app().expect("create_app failed");
+async fn test_classified_artifacts_are_accepted_via_otlp_logs() {
+    // This test verifies that an OTLP log payload matching a classification
+    // rule is accepted by the ingestion endpoint.
 
     // Ingest a log that matches the GPU fault rule
-    let body = json!({
+    // Ingest a log that matches the GPU fault rule.
         "resourceLogs": [
             {
                 "resource": {
