@@ -270,8 +270,8 @@ impl PipelineGraph {
                     if let Some(&(px, _pw)) = pl.get(name) {
                         if (px - x).abs() > 0.5 {
                             let text_fill = "#fff";
-                let font_family = "sans-serif";
-                group.push_str(&format!(
+                            let font_family = "sans-serif";
+                            group.push_str(&format!(
                                 r#"  <g>
     <rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{nh:.1}" rx="{rx:.1}" fill="{fill}" class="{cls}">
       <animateTransform attributeName="transform" type="translate"
@@ -279,8 +279,7 @@ impl PipelineGraph {
     </rect>
     <text x="{tx:.1}" y="{ty:.1}" text-anchor="middle" fill="{tf}" font-size="12" font-family="{ff}">
       <animateTransform attributeName="transform" type="translate"
-        from="{dx:.1} 0" to="0 0" dur="{dur}ms" fill="freeze" />
-{label}
+        from="{dx:.1} 0" to="0 0" dur="{dur}ms" fill="freeze" /><tspan>{label}</tspan>
     </text>
   </g>
 "#,
