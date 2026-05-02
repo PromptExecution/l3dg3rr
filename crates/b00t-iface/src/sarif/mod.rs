@@ -242,7 +242,7 @@ impl LintRule {
 
 // ─── Concrete lint rules for l3dg3rr docs & code standards ──────────────
 
-/// Returns the canonical list of lint rules for l3dg3rr documentation.
+/// Returns the canonical list of lint rules for l3dg3rr documentation and code.
 pub fn l3dg3rr_doc_rules() -> Vec<LintRule> {
     vec![
         LintRule {
@@ -286,6 +286,31 @@ pub fn l3dg3rr_doc_rules() -> Vec<LintRule> {
             short_desc: "Surface lifecycle invariants hold".into(),
             long_desc: "Every ProcessSurface impl passes init → operate → maintain → terminate without governance violations.".into(),
             level: SarifLevel::Error,
+        },
+        // ── Runtime validation / synergistic lint rules ───────────────────
+        LintRule {
+            id: "l3dg3rr/code/dead-builder-field".into(),
+            short_desc: "PipelineBuilder must not have #[allow(dead_code)] fields".into(),
+            long_desc: "Every PipelineBuilder field must be consumed by build(). #[allow(dead_code)] indicates a gap between declaration and wiring.".into(),
+            level: SarifLevel::Warning,
+        },
+        LintRule {
+            id: "l3dg3rr/code/unwired-legal-verification".into(),
+            short_desc: "LegalSolver must be instantiated when enable_legal_verification is true".into(),
+            long_desc: "PipelineBuilder::build() must call with_legal_solver() when enable_legal_verification is true. The pipeline must surface Z3Result through StageResult.".into(),
+            level: SarifLevel::Error,
+        },
+        LintRule {
+            id: "l3dg3rr/code/mcp-provider-unwired".into(),
+            short_desc: "McpProviderRegistry must be wired into tool dispatch".into(),
+            long_desc: "McpProvider, McpProviderRegistry, and concrete providers (B00tProvider, JustProvider, Ir0ntologyProvider) must be injected into mcp_adapter tool dispatch or ledgerr-mcp-server.rs.".into(),
+            level: SarifLevel::Error,
+        },
+        LintRule {
+            id: "l3dg3rr/code/z3-kasuari-coherence".into(),
+            short_desc: "Z3 and Kasuari constraint strengths must be mutually consistent".into(),
+            long_desc: "GovernancePolicy constraints expressed in Z3 legal rules must match the ConstraintStrength taxonomy used by VendorConstraintSet and InvoiceConstraintSolver. Disposition from LegalSolver must be compatible with MetaCtx advance semantics.".into(),
+            level: SarifLevel::Warning,
         },
     ]
 }
@@ -335,6 +360,61 @@ pub fn check_l3dg3rr_standards(
                             fixes: None,
                             properties: None,
                         });
+                    }
+                }
+            }
+
+            // ── Runtime validation / synergistic lint rules ───────────────
+            if rule.id.contains("dead-builder-field") && content.contains("#[allow(dead_code)]") {
+                for (i, line_content) in content.lines().enumerate() {
+                    if line_content.contains("#[allow(dead_code)]") {
+                        run.add_result(rule.to_result(
+                            file,
+                            (i + 1) as u64,
+                            "PipelineBuilder field with #[allow(dead_code)] — field is declared but never consumed by build()",
+                        ));
+                    }
+                }
+            }
+
+            if rule.id.contains("unwired-legal-verification") {
+                // Check that PipelineBuilder::build() references LegalSolver
+                if content.contains("PipelineBuilder") && content.contains("fn build(") {
+                    if !content.contains("LegalSolver") && !content.contains("legal_solver") {
+                        run.add_result(rule.to_result(
+                            file,
+                            first_line_containing(content, "fn build("),
+                            "PipelineBuilder::build() does not instantiate LegalSolver — enable_legal_verification flag is dead code",
+                        ));
+                    }
+                }
+            }
+
+            if rule.id.contains("mcp-provider-unwired") {
+                // Check that McpProviderRegistry is referenced in mcp_adapter or server
+                if (content.contains("mcp_adapter") || content.contains("ledgerr-mcp-server"))
+                    && content.contains("tool_name")
+                    && content.contains("match")
+                {
+                    if !content.contains("McpProviderRegistry") && !content.contains("handle_external_tool") {
+                        run.add_result(rule.to_result(
+                            file,
+                            first_line_containing(content, "fn handle_request"),
+                            "Tool dispatch in ledgerr-mcp-server does not reference McpProviderRegistry — external providers are unreachable",
+                        ));
+                    }
+                }
+            }
+
+            if rule.id.contains("z3-kasuari-coherence") {
+                // Check that both Z3 and Kasuari concepts are used together
+                if content.contains("verify_legal") || content.contains("LegalSolver::verify") {
+                    if !content.contains("constraints") && !content.contains("VendorConstraintSet") {
+                        run.add_result(rule.to_result(
+                            file,
+                            first_line_containing(content, "verify_legal"),
+                            "Legal verification runs without constraint checking — Z3 result should feed into Kasuari-style constraint evaluation",
+                        ));
                     }
                 }
             }
@@ -442,5 +522,85 @@ mod tests {
         let json = log.to_json_pretty().expect("serialize");
         assert!(json.contains("\"level\": \"note\""));
         assert!(json.contains("\"tool\":"));
+    }
+
+    // ── Runtime validation / synergistic lint tests ──────────────────────
+
+    #[test]
+    fn dead_builder_field_detected() {
+        let content = "#[allow(dead_code)]\nmax_retries: usize,\nenable_legal_verification: bool,\n}\n\npub fn build(self) -> LedgerPipeline {";
+        let report = check_l3dg3rr_standards(&[("pipeline.rs", content)]);
+        let dead_results: Vec<_> = report.runs[0].results.iter()
+            .filter(|r| r.rule_id.contains("dead-builder-field"))
+            .collect();
+        assert!(!dead_results.is_empty(), "should flag dead builder fields");
+    }
+
+    #[test]
+    fn unwired_legal_verification_detected() {
+        // Simulate content where build() references PipelineBuilder but not LegalSolver
+        let content = "impl PipelineBuilder {\n    pub fn build(self) -> LedgerPipeline {\n        LedgerPipeline::new(self.jurisdiction)\n    }\n}";
+        let report = check_l3dg3rr_standards(&[("pipeline.rs", content)]);
+        let legal_results: Vec<_> = report.runs[0].results.iter()
+            .filter(|r| r.rule_id.contains("unwired-legal-verification"))
+            .collect();
+        assert!(!legal_results.is_empty(), "should flag unwired legal verification");
+    }
+
+    #[test]
+    fn wired_legal_verification_passes() {
+        let content = "impl PipelineBuilder {\n    pub fn build(self) -> LedgerPipeline {\n        let solver = LegalSolver::new();\n        LedgerPipeline::new(self.jurisdiction).with_legal_solver(solver)\n    }\n}";
+        let report = check_l3dg3rr_standards(&[("pipeline.rs", content)]);
+        let legal_results: Vec<_> = report.runs[0].results.iter()
+            .filter(|r| r.rule_id.contains("unwired-legal-verification"))
+            .collect();
+        assert!(legal_results.is_empty(), "should pass when LegalSolver is wired");
+    }
+
+    #[test]
+    fn mcp_provider_unwired_detected() {
+        let content = "fn handle_request(request: Value) -> Option<Value> {\n    let tool_name = params.get(\"name\").and_then(Value::as_str).unwrap_or(\"\");\n    match tool_name {\n        mcp_adapter::DOCUMENTS_TOOL => { }\n        _ => mcp_adapter::unknown_tool_result(tool_name),\n    }\n}";
+        let report = check_l3dg3rr_standards(&[("ledgerr-mcp-server.rs", content)]);
+        let mcp_results: Vec<_> = report.runs[0].results.iter()
+            .filter(|r| r.rule_id.contains("mcp-provider-unwired"))
+            .collect();
+        assert!(!mcp_results.is_empty(), "should flag unwired MCP provider");
+    }
+
+    #[test]
+    fn z3_kasuari_coherence_detected() {
+        // Pipeline has legal verification but no constraint checking
+        let content = "fn verify_legal(&self, solver, rules) {\n    let result = solver.verify(rule, facts);\n    // no constraint evaluation after legal check\n}";
+        let report = check_l3dg3rr_standards(&[("pipeline.rs", content)]);
+        let coherence_results: Vec<_> = report.runs[0].results.iter()
+            .filter(|r| r.rule_id.contains("z3-kasuari-coherence"))
+            .collect();
+        assert!(!coherence_results.is_empty(), "should flag missing kasuari constraints after z3");
+    }
+
+    #[test]
+    fn z3_kasuari_coherence_passes_when_composed() {
+        let content = "fn process_tx(&self, solver, rules, constraints) {\n    let result = solver.verify_all(rules, &facts);\n    let eval = constraints.evaluate(amount, day, tax_code, account);\n}";
+        let report = check_l3dg3rr_standards(&[("pipeline.rs", content)]);
+        let coherence_results: Vec<_> = report.runs[0].results.iter()
+            .filter(|r| r.rule_id.contains("z3-kasuari-coherence"))
+            .collect();
+        assert!(coherence_results.is_empty(), "should pass when both z3 and constraints are used");
+    }
+
+    #[test]
+    fn runtime_rules_have_all_ids() {
+        let rules = l3dg3rr_doc_rules();
+        assert!(rules.len() >= 11, "expected at least 11 rules (7 doc + 4 runtime), got {}", rules.len());
+        let runtime_ids = [
+            "l3dg3rr/code/dead-builder-field",
+            "l3dg3rr/code/unwired-legal-verification",
+            "l3dg3rr/code/mcp-provider-unwired",
+            "l3dg3rr/code/z3-kasuari-coherence",
+        ];
+        let all_ids: Vec<_> = rules.iter().map(|r| r.id.as_str()).collect();
+        for id in &runtime_ids {
+            assert!(all_ids.contains(id), "missing runtime rule: {id}");
+        }
     }
 }
