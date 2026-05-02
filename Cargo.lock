@@ -341,7 +341,7 @@ dependencies = [
 
 [[package]]
 name = "arc-kit-au"
-version = "1.8.0"
+version = "1.8.1"
 dependencies = [
  "blake3",
  "chrono",
@@ -729,7 +729,7 @@ dependencies = [
 
 [[package]]
 name = "b00t-iface"
-version = "1.8.0"
+version = "1.8.1"
 dependencies = [
  "datum",
  "dirs",
@@ -1828,6 +1828,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "790eea4361631c5e7d22598ecd5723ff611904e3344ce8720784c93e3d83d40b"
 
 [[package]]
+name = "crossbeam"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1137cd7e7fc0fb5d3c5a8678be38ec56e819125d8d7907411fe24ccb943faca8"
+dependencies = [
+ "crossbeam-channel",
+ "crossbeam-deque",
+ "crossbeam-epoch",
+ "crossbeam-queue",
+ "crossbeam-utils",
+]
+
+[[package]]
 name = "crossbeam-channel"
 version = "0.5.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1851,6 +1864,15 @@ name = "crossbeam-epoch"
 version = "0.9.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b82ac4a3c2ca9c3460964f020e1402edd5753411d7737aa39c3714ad1b5420e"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
+name = "crossbeam-queue"
+version = "0.3.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f58bbc28f91df819d0aa2a2c00cd19754769c2fad90579b3592b1c9ba7a3115"
 dependencies = [
  "crossbeam-utils",
 ]
@@ -2112,7 +2134,7 @@ checksum = "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376"
 
 [[package]]
 name = "datum"
-version = "1.8.0"
+version = "1.8.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -5104,7 +5126,7 @@ checksum = "7a79a3332a6609480d7d0c9eab957bca6b455b91bb84e66d19f5ff66294b85b8"
 
 [[package]]
 name = "ledger-core"
-version = "1.8.0"
+version = "1.8.1"
 dependencies = [
  "anyhow",
  "arc-kit-au",
@@ -5135,7 +5157,7 @@ dependencies = [
 
 [[package]]
 name = "ledgerr-host"
-version = "1.8.0"
+version = "1.8.1"
 dependencies = [
  "anyhow",
  "arc-kit-au",
@@ -5161,7 +5183,7 @@ dependencies = [
 
 [[package]]
 name = "ledgerr-llm"
-version = "1.8.0"
+version = "1.8.1"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -5176,14 +5198,17 @@ dependencies = [
 
 [[package]]
 name = "ledgerr-mcp"
-version = "1.8.0"
+version = "1.8.1"
 dependencies = [
  "arc-kit-au",
  "blake3",
  "calamine",
+ "cfg-if",
  "chrono",
+ "crossbeam",
  "ledger-core",
  "ledgerr-llm",
+ "ledgerr-mcp-core",
  "ledgerr-xero",
  "reqwest 0.12.28",
  "rust_decimal",
@@ -5201,8 +5226,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ledgerr-mcp-core"
+version = "1.8.1"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
 name = "ledgerr-tauri"
-version = "1.8.0"
+version = "1.8.1"
 dependencies = [
  "anyhow",
  "ledgerr-host",
@@ -5216,7 +5251,7 @@ dependencies = [
 
 [[package]]
 name = "ledgerr-xero"
-version = "1.8.0"
+version = "1.8.1"
 dependencies = [
  "base64 0.22.1",
  "blake3",
@@ -5604,7 +5639,7 @@ dependencies = [
 
 [[package]]
 name = "mdbook-rhai-mermaid"
-version = "1.8.0"
+version = "1.8.1"
 dependencies = [
  "indexmap 2.13.0",
  "serde",
@@ -13020,10 +13055,11 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask-mcpb"
-version = "1.8.0"
+version = "1.8.1"
 dependencies = [
  "clap",
  "hex",
+ "ledger-core",
  "ledgerr-mcp",
  "serde",
  "serde_json",

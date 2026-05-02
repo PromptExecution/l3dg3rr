@@ -184,7 +184,7 @@ pub fn render_tomllmd(tomllmd: &Tomllmd, tier: &str) -> String {
     }
 
     for (name, levels) in &tomllmd.sections {
-        let heading = name.replace('_', " ").replace('-', " ");
+        let heading = name.replace(['_', '-'], " ");
         let heading = heading
             .chars()
             .enumerate()

@@ -8,6 +8,8 @@ pub mod fs_meta;
 pub mod graph;
 pub mod ingest;
 pub mod journal;
+pub mod iso;
+pub mod iso_objects;
 pub mod layout;
 pub mod ledger_ops;
 pub mod legal;

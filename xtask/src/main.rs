@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::PathBuf;
 
+mod viz_manifest;
+
 use clap::{Parser, Subcommand};
 
 use xtask_mcpb::{
@@ -84,6 +86,12 @@ enum Commands {
     GenerateTypeTables {
         /// Output directory for generated markdown tables.
         #[arg(long, default_value = "book/src/")]
+        output: PathBuf,
+    },
+    /// Export VisualizationSpec JSON manifest for the docs UI
+    ExportVizManifest {
+        /// Output path (default: ui/docs/public/viz-manifest.json)
+        #[arg(long, default_value = "ui/docs/public/viz-manifest.json")]
         output: PathBuf,
     },
 }
@@ -191,6 +199,9 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::GenerateTypeTables { output } => {
             generate_type_tables(&output)?;
+        }
+        Commands::ExportVizManifest { output } => {
+            viz_manifest::export_viz_manifest(&output)?;
         }
     }
     Ok(())

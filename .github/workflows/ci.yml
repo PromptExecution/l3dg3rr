@@ -2,7 +2,7 @@ name: CI with MCP Registry Publish
 
 on:
   push:
-    branches: [main, milestone/**, feature/**]
+    branches: [main, milestone/**, feature/**, feat/**]
   pull_request:
 
 permissions:
@@ -35,7 +35,7 @@ jobs:
 
       - name: Generate Clippy SARIF
         run: |
-          cargo clippy --workspace --all-targets --all-features --message-format=json > clippy.json
+          cargo clippy --workspace --all-targets --features 'audit,autoresearch,b00t,classification,core,default,events,full,hsm,legacy,legal-z3,llm,local-llm,mistralrs-llm,ontology,reconciliation,self-update,tax,xero' --message-format=json > clippy.json
           clippy-sarif < clippy.json > clippy.sarif
 
       - name: Upload Clippy SARIF
@@ -47,7 +47,7 @@ jobs:
         run: cargo test -p datum 2>&1
 
       - name: Cargo test
-        run: cargo test --workspace --all-targets --all-features
+        run: cargo test --workspace --all-targets --features 'audit,autoresearch,b00t,classification,core,default,events,full,hsm,legacy,legal-z3,llm,local-llm,mistralrs-llm,ontology,reconciliation,self-update,tax,xero'
 
       - name: Test legal-z3 feature with native Z3
         run: cargo test -p ledger-core --test legal_z3_integration --features legal-z3
@@ -125,6 +125,9 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
 
       - name: Install just
         run: cargo install just --locked

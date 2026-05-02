@@ -1,7 +1,23 @@
+//! Legacy MCP adapter — direct TurboLedgerService dispatch.
+//!
+//! This module contains the original dispatch layer where each MCP tool
+//! call goes directly through `&TurboLedgerService` method calls.  It is
+//! gated behind the `legacy` feature flag for historical reference.
+//!
+//! New code should route through `actor::ServiceHandle` instead.
+//!
+//! ──ℹ── Historical snapshot ──ℹ──
+//! This code was the primary tool dispatch from 2025-Q3 through 2026-Q2.
+//! It was replaced by the actor/gate channel system in PRD-7 Phase 0-4.
+
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+#[cfg(feature = "b00t")]
+use std::sync::OnceLock;
 
 use ledger_core::ingest::{deterministic_tx_id, TransactionInput};
+#[cfg(feature = "b00t")]
+use ledgerr_mcp_core::ToolDescriptor;
 use serde::Serialize;
 use serde_json::{json, Value};
 
@@ -21,11 +37,126 @@ use crate::{
     TaxAssistRequest, TaxEvidenceChainRequest, ToolError, TurboLedgerService, TurboLedgerTools,
 };
 
+// Global provider registry — set once at startup by the server binary.
+// Feature-gated because the registry type comes from ledgerr-mcp-core (b00t feature).
+#[cfg(feature = "b00t")]
+static GLOBAL_PROVIDER_REGISTRY: OnceLock<ledgerr_mcp_core::McpProviderRegistry> = OnceLock::new();
+
+/// Register the global provider registry for external tool dispatch.
+/// Called once at startup by the server binary.
+#[cfg(feature = "b00t")]
+pub fn set_global_provider_registry(registry: ledgerr_mcp_core::McpProviderRegistry) {
+    let _ = GLOBAL_PROVIDER_REGISTRY.set(registry);
+}
+
+/// Return all external provider tool descriptors for inclusion in tools/list.
+#[cfg(feature = "b00t")]
+fn external_tool_descriptors() -> Vec<Value> {
+    let Some(registry) = GLOBAL_PROVIDER_REGISTRY.get() else {
+        return Vec::new();
+    };
+    registry
+        .all_tool_descriptors()
+        .into_iter()
+        .map(|td: ToolDescriptor| {
+            json!({ "name": td.name, "inputSchema": td.input_schema })
+        })
+        .collect()
+}
+
+#[cfg(not(feature = "b00t"))]
+fn external_tool_descriptors() -> Vec<Value> {
+    Vec::new()
+}
+
+// Public re-exports are always available (they're just constants).
 pub use crate::contract::{
     AUDIT_TOOL, DOCUMENTS_TOOL, EVIDENCE_TOOL, ONTOLOGY_TOOL, RECONCILIATION_TOOL, REVIEW_TOOL,
     TAX_TOOL, WORKFLOW_TOOL, XERO_TOOL,
 };
 
+// ── Default dispatch ──────────────────────────────────────────────────────────
+// These always-compiled functions provide the core dispatch surface.  When the
+// `legacy` feature is active they are joined by the original direct-dispatch
+// functions (tool_names, tool_names_for, tool_input_schema, handle_*_tool, etc.)
+// which are compiled alongside these.
+
+/// Non-legacy tool descriptors: returns built-in + external provider tools.
+pub fn tool_descriptors() -> Vec<Value> {
+    let mut tools: Vec<Value> = BUILTIN_TOOL_NAMES
+        .iter()
+        .map(|name| {
+            let schema = builtin_tool_input_schema(name);
+            json!({ "name": name, "inputSchema": schema })
+        })
+        .collect();
+    let ext_tools = external_tool_descriptors();
+    for ext in ext_tools {
+        let ext_name = ext["name"].as_str().unwrap_or("");
+        if !tools.iter().any(|t| t["name"].as_str() == Some(ext_name)) {
+            tools.push(ext);
+        }
+    }
+    tools
+}
+
+/// Hardcoded list of published tool names (always available).
+const BUILTIN_TOOL_NAMES: &[&str] = &[
+    DOCUMENTS_TOOL,
+    REVIEW_TOOL,
+    RECONCILIATION_TOOL,
+    WORKFLOW_TOOL,
+    AUDIT_TOOL,
+    TAX_TOOL,
+    ONTOLOGY_TOOL,
+    XERO_TOOL,
+    EVIDENCE_TOOL,
+];
+
+fn builtin_tool_input_schema(name: &str) -> Value {
+    crate::contract::tool_input_schema(name)
+}
+
+/// Returns the names of all top-level published tools.
+/// When the `legacy` feature is inactive this is derived from `BUILTIN_TOOL_NAMES`.
+#[cfg(not(feature = "legacy"))]
+pub fn tool_names() -> Vec<String> {
+    BUILTIN_TOOL_NAMES.iter().map(|s| s.to_string()).collect()
+}
+
+/// Hook for external MCP providers.  Dispatches via the global provider registry.
+#[cfg(feature = "b00t")]
+pub fn handle_external_tool(
+    _registry: &ledgerr_mcp_core::McpProviderRegistry,
+    tool_name: &str,
+    arguments: &Value,
+) -> Value {
+    let Some(reg) = GLOBAL_PROVIDER_REGISTRY.get() else {
+        return unknown_tool_result(tool_name);
+    };
+    match reg.call_tool("", tool_name, arguments.clone()) {
+        Ok(result) => json!({
+            "content": [text_content(result)],
+            "isError": false
+        }),
+        Err(_) => unknown_tool_result(tool_name),
+    }
+}
+
+#[cfg(not(feature = "b00t"))]
+pub fn handle_external_tool(
+    _registry: (),
+    tool_name: &str,
+    _arguments: &Value,
+) -> Value {
+    unknown_tool_result(tool_name)
+}
+
+// ── Legacy dispatch (cfg-gated) ───────────────────────────────────────────────
+// The functions below are the original direct-dispatch path.  They are kept for
+// historical reference and are only compiled when the `legacy` feature is active.
+
+#[cfg(feature = "legacy")]
 #[allow(clippy::vec_init_then_push)]
 pub fn tool_names() -> Vec<String> {
     let mut features = Vec::new();
@@ -56,6 +187,7 @@ pub fn tool_names() -> Vec<String> {
     tool_names_for(&features)
 }
 
+#[cfg(feature = "legacy")]
 pub fn tool_names_for(features: &[&str]) -> Vec<String> {
     let mut tools = Vec::new();
 
@@ -88,23 +220,13 @@ pub fn tool_names_for(features: &[&str]) -> Vec<String> {
     tools
 }
 
-/// Return the full MCP-spec tool objects (name + inputSchema) for all enabled tools.
-/// Use this in tools/list responses — do NOT use tool_names() directly for that.
-pub fn tool_descriptors() -> Vec<Value> {
-    tool_names()
-        .into_iter()
-        .map(|name| {
-            let schema = tool_input_schema(&name);
-            json!({ "name": name, "inputSchema": schema })
-        })
-        .collect()
-}
-
 /// Returns the JSON Schema for the input arguments of a named tool.
+#[cfg(feature = "legacy")]
 pub fn tool_input_schema(name: &str) -> Value {
     contract::tool_input_schema(name)
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_list_accounts(service: &TurboLedgerService) -> Value {
     match service.list_accounts_tool(ListAccountsRequest) {
         Ok(response) => {
@@ -122,6 +244,7 @@ pub fn handle_list_accounts(service: &TurboLedgerService) -> Value {
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_document_inventory(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_document_inventory_request(arguments) {
         Ok(request) => request,
@@ -165,6 +288,7 @@ pub fn handle_document_inventory(service: &TurboLedgerService, arguments: &Value
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_get_raw_context(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_get_raw_context_request(arguments) {
         Ok(request) => request,
@@ -187,6 +311,7 @@ pub struct PipelineStatusResponse {
     pub next_hint: String,
 }
 
+#[cfg(feature = "legacy")]
 pub fn get_pipeline_status(
     manifest_ready: bool,
     rustledger_ready: bool,
@@ -220,6 +345,7 @@ pub fn get_pipeline_status(
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_pipeline_status(
     manifest_ready: bool,
     rustledger_ready: bool,
@@ -237,6 +363,7 @@ pub fn handle_pipeline_status(
     })
 }
 
+#[cfg(feature = "legacy")]
 pub fn rows_to_json_with_provenance(
     provider: &str,
     backend_tool: &str,
@@ -290,6 +417,7 @@ pub fn error_payload(error: &ToolError) -> Value {
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn unknown_tool_result(tool_name: &str) -> Value {
     json!({
         "content": [text_content(json!({
@@ -301,47 +429,6 @@ pub fn unknown_tool_result(tool_name: &str) -> Value {
     })
 }
 
-/// Hook for external MCP providers (b00t, just, ir0ntology, etc.).
-/// Returns Some(result) if the tool is handled by an external provider, None otherwise.
-/// Defaults to unknown_tool_result when no provider matches.
-#[cfg(feature = "b00t")]
-pub fn handle_external_tool(
-    registry: &crate::provider::McpProviderRegistry,
-    tool_name: &str,
-    arguments: &Value,
-) -> Value {
-    match registry.call_tool("", tool_name, arguments.clone()) {
-        Ok(result) => json!({
-            "content": [text_content(result)],
-            "isError": false
-        }),
-        Err(e) => {
-            // Try fallback: search by tool name across all providers
-            for provider in registry.all_tool_descriptors() {
-                if provider.name == tool_name {
-                    if let Ok(result) = registry.call_tool("", tool_name, arguments.clone()) {
-                        return json!({
-                            "content": [text_content(result)],
-                            "isError": false
-                        });
-                    }
-                    break;
-                }
-            }
-            unknown_tool_result(tool_name)
-        }
-    }
-}
-
-#[cfg(not(feature = "b00t"))]
-pub fn handle_external_tool(
-    _registry: (),
-    tool_name: &str,
-    _arguments: &Value,
-) -> Value {
-    unknown_tool_result(tool_name)
-}
-
 fn handle_plugin_info(arguments: &Value) -> Value {
     let payload = crate::plugin_info::handle(arguments);
     json!({
@@ -350,6 +437,7 @@ fn handle_plugin_info(arguments: &Value) -> Value {
     })
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_documents_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match contract::parse_documents(arguments) {
         Ok(request) => request,
@@ -568,6 +656,7 @@ pub fn handle_documents_tool(service: &TurboLedgerService, arguments: &Value) ->
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_xero_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
     use contract::{parse_xero, XeroArgs};
 
@@ -611,6 +700,7 @@ pub fn handle_xero_tool(service: &TurboLedgerService, arguments: &Value) -> Valu
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_review_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match contract::parse_review(arguments) {
         Ok(request) => request,
@@ -697,6 +787,7 @@ pub fn handle_review_tool(service: &TurboLedgerService, arguments: &Value) -> Va
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_reconciliation_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match contract::parse_reconciliation(arguments) {
         Ok(request) => request,
@@ -746,6 +837,7 @@ pub fn handle_reconciliation_tool(service: &TurboLedgerService, arguments: &Valu
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_workflow_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match contract::parse_workflow(arguments) {
         Ok(request) => request,
@@ -778,6 +870,7 @@ pub fn handle_workflow_tool(service: &TurboLedgerService, arguments: &Value) -> 
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_audit_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match contract::parse_audit(arguments) {
         Ok(request) => request,
@@ -813,6 +906,7 @@ pub fn handle_audit_tool(service: &TurboLedgerService, arguments: &Value) -> Val
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_tax_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match contract::parse_tax(arguments) {
         Ok(request) => request,
@@ -883,6 +977,7 @@ pub fn handle_tax_tool(service: &TurboLedgerService, arguments: &Value) -> Value
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_ontology_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match contract::parse_ontology(arguments) {
         Ok(request) => request,
@@ -931,6 +1026,7 @@ pub fn handle_ontology_tool(service: &TurboLedgerService, arguments: &Value) -> 
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn protocol_method_not_found(id: Value, method: &str) -> Value {
     json!({
         "jsonrpc": "2.0",
@@ -996,6 +1092,7 @@ fn parse_ingest_statement_rows_request(
     })
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_ingest_pdf<T: TurboLedgerTools>(
     service: &T,
     arguments: &Value,
@@ -1038,6 +1135,7 @@ pub fn handle_ingest_pdf<T: TurboLedgerTools>(
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_ingest_statement_rows<T: TurboLedgerTools>(
     service: &T,
     arguments: &Value,
@@ -1082,6 +1180,7 @@ pub fn handle_ingest_statement_rows<T: TurboLedgerTools>(
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_ontology_query_path(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_ontology_query_path_request(arguments) {
         Ok(request) => request,
@@ -1100,6 +1199,7 @@ pub fn handle_ontology_query_path(service: &TurboLedgerService, arguments: &Valu
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_ontology_export_snapshot(service: &TurboLedgerService, arguments: &Value) -> Value {
     let ontology_path = match parse_ontology_path(arguments) {
         Ok(path) => path,
@@ -1122,6 +1222,7 @@ pub fn handle_ontology_export_snapshot(service: &TurboLedgerService, arguments: 
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn dispatch_reconciliation(
     service: &TurboLedgerService,
     tool_name: &str,
@@ -1184,6 +1285,7 @@ pub fn dispatch_reconciliation(
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn dispatch_hsm(service: &TurboLedgerService, tool_name: &str, arguments: &Value) -> Value {
     match tool_name {
         "transition" => {
@@ -1278,6 +1380,7 @@ pub fn dispatch_hsm(service: &TurboLedgerService, tool_name: &str, arguments: &V
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_event_history(service: &TurboLedgerService, arguments: &Value) -> Value {
     let filter = match parse_event_history_filter(arguments) {
         Ok(filter) => filter,
@@ -1333,6 +1436,7 @@ pub fn handle_event_history(service: &TurboLedgerService, arguments: &Value) -> 
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_event_replay(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_replay_lifecycle_request(arguments) {
         Ok(request) => request,
@@ -1358,6 +1462,7 @@ pub fn handle_event_replay(service: &TurboLedgerService, arguments: &Value) -> V
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_tax_assist(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_tax_assist_request(arguments) {
         Ok(request) => request,
@@ -1400,6 +1505,7 @@ pub fn handle_tax_assist(service: &TurboLedgerService, arguments: &Value) -> Val
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_tax_evidence_chain(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_tax_evidence_chain_request(arguments) {
         Ok(request) => request,
@@ -1420,6 +1526,7 @@ pub fn handle_tax_evidence_chain(service: &TurboLedgerService, arguments: &Value
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_tax_ambiguity_review(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_tax_ambiguity_review_request(arguments) {
         Ok(request) => request,
@@ -1456,6 +1563,7 @@ pub fn handle_tax_ambiguity_review(service: &TurboLedgerService, arguments: &Val
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_classify_ingested(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_classify_ingested_request(arguments) {
         Ok(request) => request,
@@ -1486,6 +1594,7 @@ pub fn handle_classify_ingested(service: &TurboLedgerService, arguments: &Value)
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_query_flags(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_query_flags_request(arguments) {
         Ok(request) => request,
@@ -1520,6 +1629,7 @@ pub fn handle_query_flags(service: &TurboLedgerService, arguments: &Value) -> Va
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_query_audit_log(service: &TurboLedgerService, arguments: &Value) -> Value {
     let _request = match parse_query_audit_log_request(arguments) {
         Ok(request) => request,
@@ -1552,6 +1662,7 @@ pub fn handle_query_audit_log(service: &TurboLedgerService, arguments: &Value) -
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_classify_transaction(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_classify_transaction_request(arguments) {
         Ok(request) => request,
@@ -1589,6 +1700,7 @@ pub fn handle_classify_transaction(service: &TurboLedgerService, arguments: &Val
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_reconcile_excel_classification(
     service: &TurboLedgerService,
     arguments: &Value,
@@ -1629,6 +1741,7 @@ pub fn handle_reconcile_excel_classification(
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_get_schedule_summary(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_get_schedule_summary_request(arguments) {
         Ok(request) => request,
@@ -1667,6 +1780,7 @@ pub fn handle_get_schedule_summary(service: &TurboLedgerService, arguments: &Val
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_export_cpa_workbook(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_export_cpa_workbook_request(arguments) {
         Ok(request) => request,
@@ -1682,6 +1796,7 @@ pub fn handle_export_cpa_workbook(service: &TurboLedgerService, arguments: &Valu
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_ontology_upsert_entities(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_ontology_upsert_entities_request(arguments) {
         Ok(request) => request,
@@ -1697,6 +1812,7 @@ pub fn handle_ontology_upsert_entities(service: &TurboLedgerService, arguments: 
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_ontology_upsert_edges(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_ontology_upsert_edges_request(arguments) {
         Ok(request) => request,
@@ -2232,6 +2348,7 @@ fn parse_ontology_entity_kind(raw: Option<&str>) -> Result<crate::OntologyEntity
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_evidence_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
     use crate::contract::parse_evidence;
 

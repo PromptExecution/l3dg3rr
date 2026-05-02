@@ -163,6 +163,89 @@ Core idea: the Excel workbook gains a `_invariants` sheet where every type-level
 
 This closes the gap between structural type safety (what the Rust type system currently enforces) and semantic correctness (what a CPA needs to trust the output).
 
+## <|🥾|> b00t — Capability Surface
+
+`l3dg3rr` works in concert with the `_b00t_` ecosystem: a mesh of typed, lazy-loaded capabilities that govern how agents discover, install, and execute skills, roles, and blessings.
+
+### Datum Types
+
+Every capability in the b00t mesh is expressed as a `.datum` file — a typed document with a structured AST (`crates/datum/src/ast.rs`), logic gate primitives (`crates/datum/src/logic.rs`), protocol encoding analysis (`crates/datum/src/protocol.rs`), and `.tomllmd` compound document format for summary-level distillation (`verbatim` / `executive` / `epigram`).
+
+Core datum types in the mesh:
+
+| Type | Purpose | Example |
+|---|---|---|
+| `mcp` | MCP server capability | `b00t-mcp.mcp`, `just-mcp.mcp` |
+| `cli` | CLI tool capability | `just.cli`, `uv.cli`, `task.cli` |
+| `install` | Installation recipe | `rust.install`, `docker.install` |
+| `config` | Configuration schema | `opencode.config`, `b00t.config` |
+| `skill` | Agent skill definition | `managing-kubernetes-clusters.skill` |
+| `workflow` | Multi-step automation | `release.workflow`, `deploy.workflow` |
+| `ontology` | Entity relationship graph | `capability.ontology` |
+| `agent` | Agent role/persona | `executive.agent`, `operator.agent` |
+| `provider` | MCP provider registration | `b00t.provider`, `just.provider` |
+| `surface` | ProcessSurface lifecycle | `ralph-loop.surface` |
+
+### Lazy Loading
+
+Skills are lazy-loaded by progressive disclosure: a skill is only ingested into context when a matching capability trigger fires. The capability map (`B00T-CAPABILITY-MAP.md`) tracks which datums map to which skill names, and the `RuleRegistry` (`crates/ledger-core/src/rule_registry.rs`) uses deterministic keyword waterfall + semantic candidate selection to route requests to the right rule set.
+
+### Ralph Loop & Autoresearch
+
+Between capability loads and skill iterations, the Ralph loop (`crates/b00t-iface/src/ralph.rs`) drives an iterative propose → execute → judge → record cycle:
+
+```text
+Init → [Propose → Execute → Judge → Record → Maintain]^n → Terminate
+```
+
+This generalizes the [karpathy/autoresearch](https://github.com/karpathy/autoresearch) pattern as a typed `ProcessSurface` with governance-enforced TTL, crash budget, max iterations, and cadence. Each iteration generates an `ExperimentVerdict` (Pass/Fail) that feeds into the next proposal — the agent keeps iterating until the task objective is met or the budget is exhausted.
+
+The `SurfaceHarness` (`crates/b00t-iface/src/exec/harness.rs`) wraps any `ProcessSurface` with a `SurfaceMachine` state machine and `GovernancePolicy` constraints, producing a `PromiseChain` audit record for every lifecycle transition.
+
+### Soul Configuration
+
+The system determines capability preference using an ordered match of agent role tier (`sm0l` / `ch0nky` / `frontier`), skill invariant tags, and context window budget. Selection follows:
+
+1. Agent role tier (Executive → Operator → Specialist → Auditor)
+2. Skill invariant tags (`#kebab-case` tags from `crates/ledger-core/src/tags.rs`)
+3. Context window budget (truncation-aware, preferring smaller datum summary levels)
+4. Compounding metadata — `.tomllmd` merge strategies can combine two+ datums at different summary levels into a higher-order meta-learn datum
+
+### Datum Visualization
+
+Datum types have a dedicated visualization layer:
+- **Gate-level**: `crates/datum/src/logic.rs` defines NAND, NOR, ADD, WAIT, TX, RX, CAP gates with typed port arity and flux capacitor meta-state stability
+- **Protocol encoding**: `crates/datum/src/protocol.rs` evaluates Z3-style XOR optimality (`O = P XOR B`) and constraint strength (Required / Strong / Medium / Weak)
+- **Isometric rendering**: `crates/b00t-iface/src/viz/mod.rs` produces SVG/glTF scene graphs with semantic role-driven icon/color/layout
+- **Live editor**: The mdBook live Rhai editor (synchronized isometric and Mermaid views) renders datum-type graphs with animated SVG reflow
+
+### Agent/MCP Interop
+
+The `McpProvider` trait (`crates/ledgerr-mcp/src/provider.rs`) and `McpProviderRegistry` allow b00t's external MCP providers (b00t-mcp, just, ir0ntology) to register their tools alongside the built-in `ledgerr_*` capability families. The `ServiceActor` gate system (`crates/ledgerr-mcp/src/actor.rs`, `gate.rs`) routes typed messages through channels, forming the concrete dataflow that maps to the flux capacitor gate metaphor.
+
+---
+
+# Humble Beginnings
+
+This project started as a local-first bookkeeping pipeline — ingest PDF statements, classify transactions with Rhai rules, export a CPA-auditable Excel workbook. The system thesis was a single directed graph of financial document processing:
+
+```rhai
+fn source_documents() -> typed_document_graph
+fn typed_document_graph() -> extraction_and_normalization
+fn extraction_and_normalization() -> transaction_classification
+fn transaction_classification() -> validation_and_legal_checks
+fn validation_and_legal_checks() -> reconciliation
+fn reconciliation() -> workbook_export
+fn workbook_export() -> cpa_review
+fn cpa_review() -> audit_history
+```
+
+That pipeline is still real and still works. But the architecture kept revealing a deeper structure: the bookkeeping pipeline was one *surface* of a more general executive dashboarding and logic process system. The same typed-state machine that governs document ingest is now also governing agent capability discovery, skill lifecycle, and LLM verification loops. The same `MetaCtx` carry-forward confidence model that compounds validation scores also governs which b00t capabilities load into agent context.
+
+The workbook remains the canonical human/accountant artifact. But the system behind it is now a formally grounded logic process control plane, where every transition — financial or agentic — is typed, traced, and governed by the same verification infrastructure.
+
+---
+
 ## Documentation Map
 
 The published book is the detailed reference and should be preferred over expanding the README indefinitely:
