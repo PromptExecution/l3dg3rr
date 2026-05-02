@@ -189,7 +189,7 @@ impl TryFrom<&otlp_json::LogRecord> for OTelLogRecord {
     type Error = ObservabilityError;
 
     fn try_from(record: &otlp_json::LogRecord) -> Result<Self, Self::Error> {
-        let time_unix_nano = record.time_unix_nano.parse().unwrap_or(0);
+        let time_unix_nano = record.time_unix_nano.parse()?;
         let severity = OTelSeverityNumber::try_from(record.severity_number)?;
         let body = record.body.string_value.clone().unwrap_or_default();
         Ok(Self::new(time_unix_nano, severity, body))
