@@ -470,18 +470,70 @@ async fn otlp_logs_handler(
     }
 }
 
+#[derive(Debug, serde::Deserialize)]
+struct OtlpMetricsRequest {
+    #[serde(rename = "resourceMetrics")]
+    resource_metrics: Vec<OtlpResourceMetrics>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct OtlpResourceMetrics {
+    #[serde(rename = "scopeMetrics", default)]
+    scope_metrics: Vec<OtlpScopeMetrics>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct OtlpScopeMetrics {
+    #[serde(default)]
+    metrics: Vec<OtlpMetric>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct OtlpMetric {
+    name: String,
+}
+
 #[instrument]
 async fn otlp_metrics_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
-    let resource_count = payload
-        .get("resourceMetrics")
-        .and_then(|v| v.as_array())
-        .map(|a| a.len())
-        .unwrap_or(0);
+    let request = match serde_json::from_value::<OtlpMetricsRequest>(payload) {
+        Ok(request) if !request.resource_metrics.is_empty() => request,
+        Ok(_) => {
+            return (
+                axum::http::StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "accepted": false,
+                    "signal": "metric",
+                    "error": "invalid OTLP metric payload: resourceMetrics must be a non-empty array"
+                })),
+            )
+                .into_response();
+        }
+        Err(error) => {
+            return (
+                axum::http::StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "accepted": false,
+                    "signal": "metric",
+                    "error": format!("invalid OTLP metric payload: {error}")
+                })),
+            )
+                .into_response();
+        }
+    };
 
-    state.metrics.inc_metrics_ingested(resource_count as u64);
+    let resource_count = request.resource_metrics.len();
+    let metric_count = request
+        .resource_metrics
+        .iter()
+        .flat_map(|resource| resource.scope_metrics.iter())
+        .flat_map(|scope| scope.metrics.iter())
+        .filter(|metric| !metric.name.is_empty())
+        .count();
+
+    state.metrics.inc_metrics_ingested(metric_count as u64);
 
     let response = Json(OtlpIngestResponse {
         accepted: true,
