@@ -243,7 +243,7 @@ mod tests {
 
     #[test]
     fn datum_watcher_init_and_operate() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = tempfile::tempdir().expect("failed to create temp directory");
         let mut watcher = DatumWatcher::new();
         let config = DatumWatcherConfig {
             datum_dir: tmp.path().display().to_string(),
@@ -266,7 +266,7 @@ mod tests {
 
     #[test]
     fn datum_watcher_maintain() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = tempfile::tempdir().expect("failed to create temp directory");
         let mut watcher = DatumWatcher::new();
         let config = DatumWatcherConfig {
             datum_dir: tmp.path().display().to_string(),

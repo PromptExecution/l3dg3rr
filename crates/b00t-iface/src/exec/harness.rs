@@ -152,7 +152,7 @@ mod tests {
 
     #[test]
     fn harness_runs_datum_watcher_lifecycle() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = tempfile::tempdir().expect("failed to create temp directory");
         let watcher = crate::core::DatumWatcher::new();
         let mut harness = SurfaceHarness::new(watcher);
         let config = DatumWatcherConfig {
@@ -179,7 +179,7 @@ mod tests {
 
     #[test]
     fn harness_tracks_machine_state() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = tempfile::tempdir().expect("failed to create temp directory");
         let watcher = crate::core::DatumWatcher::new();
         let mut harness = SurfaceHarness::new(watcher);
         let config = DatumWatcherConfig {
@@ -192,7 +192,7 @@ mod tests {
 
     #[test]
     fn governance_violation_captured() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = tempfile::tempdir().expect("failed to create temp directory");
         let watcher = crate::core::DatumWatcher::new();
         let mut harness = SurfaceHarness::new(watcher);
         harness.capability.governance.crash_budget = crate::core::MAX_CRASH_BUDGET + 1;
