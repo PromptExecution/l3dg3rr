@@ -261,7 +261,7 @@ async fn test_metrics_endpoint_increments_after_ingestion() {
         .await
         .unwrap();
     let baseline_json: serde_json::Value = serde_json::from_slice(&baseline_body).unwrap();
-    let baseline_logs = baseline_json["logs_ingested_total"].as_u64().unwrap();
+    let baseline_logs = baseline_json["metrics_ingested_total"].as_u64().unwrap();
 
     // Ingest a metric
     let body = json!({
