@@ -27,3 +27,4 @@ book/book/
 
 # app4dog — external project datum files (not tracked in this repo)
 app4dog*
+.codebase-memory/
