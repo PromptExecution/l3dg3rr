@@ -9,7 +9,7 @@
 // CORE GEOMETRY
 // ============================================================================
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Vec3 {
     pub x: f32,
     pub y: f32,
@@ -23,7 +23,7 @@ impl Vec3 {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct IsoProjected {
     pub screen_x: f32,
     pub screen_y: f32,
@@ -43,7 +43,7 @@ pub fn iso_project(pt: Vec3, scale: f32, origin_x: f32, origin_y: f32) -> IsoPro
 // ============================================================================
 
 /// Semantic depth layers for the pipeline visualization stack.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum ZLayer {
     Document,
     Pipeline,
@@ -114,7 +114,7 @@ impl std::fmt::Display for ZLayer {
 // ============================================================================
 
 /// Classification of a pipeline object's semantic role for visualization routing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum SemanticType {
     Document,
     Pipeline,
@@ -161,7 +161,7 @@ impl std::fmt::Display for SemanticType {
 // ============================================================================
 
 /// Full visualization descriptor for a domain type.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct VisualizationSpec {
     pub semantic_type: SemanticType,
     pub z_layer: ZLayer,
@@ -358,6 +358,54 @@ pub fn xml_attr_escape(s: &str) -> String {
         }
     }
     out
+}
+
+// ============================================================================
+// VIZ MANIFEST (for xtask export and docs UI)
+// ============================================================================
+
+/// Serializable mirror of VisualizationSpec with owned String fields.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct VizSpecOwned {
+    pub semantic_type: String,
+    pub z_layer: String,
+    pub rhai_dsl: String,
+    pub description: String,
+}
+
+impl From<VisualizationSpec> for VizSpecOwned {
+    fn from(spec: VisualizationSpec) -> Self {
+        VizSpecOwned {
+            semantic_type: spec.semantic_type.known_name().to_string(),
+            z_layer: spec.z_layer.label().to_string(),
+            rhai_dsl: spec.rhai_dsl.to_string(),
+            description: spec.description.to_string(),
+        }
+    }
+}
+
+/// Single entry in the viz manifest exported to the docs UI.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct VizManifestEntry {
+    pub type_name: String,
+    pub spec: VizSpecOwned,
+}
+
+/// Full visualization manifest for the docs UI, exported by xtask.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct VizManifest {
+    pub version: String,
+    pub objects: Vec<VizManifestEntry>,
+}
+
+impl VizManifestEntry {
+    /// Convenience constructor from a HasVisualization type.
+    pub fn new(type_name: impl Into<String>, spec: VisualizationSpec) -> Self {
+        VizManifestEntry {
+            type_name: type_name.into(),
+            spec: VizSpecOwned::from(spec),
+        }
+    }
 }
 
 // ============================================================================

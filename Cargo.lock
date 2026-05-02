@@ -13059,6 +13059,7 @@ version = "1.8.1"
 dependencies = [
  "clap",
  "hex",
+ "ledger-core",
  "ledgerr-mcp",
  "serde",
  "serde_json",
