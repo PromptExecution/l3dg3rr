@@ -8625,7 +8625,9 @@ dependencies = [
 name = "rotel-visual"
 version = "1.8.0"
 dependencies = [
+ "anyhow",
  "axum",
+ "ledger-core",
  "serde",
  "serde_json",
  "tokio",
