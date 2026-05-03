@@ -372,6 +372,12 @@ Treat this as a standing operational gate, not a one-time migration task.
   - Describe `l3dg3rr` as a strongly typed, ontologically linked graph of scriptable visual-first workflows for supervised AI/LLM ETL into CPA-auditable bookkeeping artifacts.
   - Keep README structure MECE: bookkeeping truth, typed domain model, ontology graph, scriptable policy, workflow control, visualization, MCP/agent boundary, and operator host.
   - Clarify Rhai surfaces separately: transaction rules use `fn classify(tx)`, workflow compiler output may emit Rhai `switch`, and docs visualization uses the narrow `match expr => Arm -> target` DSL.
+- 2026-05-04: Evidence graph surfaced through MCP query tools and Tauri dashboard.
+  - **arc-kit-au evidence graph (PR #76, issue #52)**: Added 3 new actions to `ledgerr_evidence` MCP tool: `summary` (node/edge counts + work queue), `list_nodes` (filterable node enumeration), `node_detail` (full node by NodeId). Handler uses local `parse_node_type` rather than pulling FromStr into the arc-kit-au crate.
+  - **Tauri dashboard (PR #77→#78, issue #51)**: Panels refactored from hardcoded sequential numbering to a single `PANELS` JS array (`[{id, icon, label}, ...]`). `buildUI()` generates sidebar buttons and panel divs; `panelTemplate(id)` provides panel HTML. Adding a panel = edit one array + one template entry. Zero hardcoded indices.
+  - **Force-push guard**: Pre-push hook installed at `.git/hooks/pre-push` that blocks non-fast-forward pushes to main/master. Documented in AGENTS.md Execution Loop section. Lesson recorded in b00t.
+  - **Lesson**: Never manually number UI panels across multiple files. Define once, generate the rest. This preserves context for future agents and avoids search noise.
+  - **Pre-existing**: Tauri build on WSL still fails (cross-filesystem path issue). Rust code correctness verified by cargo check (only the Tauri build script fails — documented CI exclusion).
 
 
 <!-- GSD:profile-start -->
