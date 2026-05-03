@@ -282,8 +282,7 @@ impl PipelineGraph {
     </rect>
     <text x="{tx:.1}" y="{ty:.1}" text-anchor="middle" fill="{tf}" font-size="12" font-family="{ff}">
       <animateTransform attributeName="transform" type="translate"
-        from="{dx:.1} 0" to="0 0" dur="{dur}ms" fill="freeze" />
-{label}
+        from="{dx:.1} 0" to="0 0" dur="{dur}ms" fill="freeze" /><tspan>{label}</tspan>
     </text>
   </g>
 "#,
@@ -466,7 +465,7 @@ pub mod layout {
             // sequential ordering: x_i + w_i + gap <= x_{i+1}
             for pair in nodes.windows(2) {
                 let left_x = x_vars[pair[0]];
-                let left_w = x_vars[pair[0]];
+                let left_w = w_vars[pair[0]];
                 let right_x = x_vars[pair[1]];
 
                 let left_edge = left_x + left_w;
@@ -651,7 +650,6 @@ mod tests {
         assert!((committed.1 - 100.0).abs() < 1.0, "Committed width ~100");
     }
 
-
     #[test]
     fn test_animated_svg_static() {
         let mut graph = PipelineGraph::new();
@@ -688,6 +686,7 @@ mod tests {
 
     #[test]
     fn test_animated_svg_reflow() {
+        // graph1: narrow layout; current_state = Ingested (width ~120)
         let mut graph1 = PipelineGraph::new();
         graph1
             .nodes
@@ -701,6 +700,7 @@ mod tests {
         graph1.current_state = "Ingested".to_string();
         graph1.accumulated_confidence = 0.9;
 
+        // graph2: different current_state => Ingested shrinks, Classifying expands => positions shift
         let mut graph2 = PipelineGraph::new();
         graph2
             .nodes
@@ -730,6 +730,7 @@ mod tests {
             "animateTransform should freeze"
         );
 
+        // static same-graph call should have no animation
         let static_svg = graph2.to_animated_svg(None);
         assert!(
             !static_svg.contains("animateTransform"),

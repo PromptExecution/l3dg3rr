@@ -456,29 +456,15 @@ impl LedgerOperation for ExportWorkbookOp {
                 .map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
             ws.write_string(0, 0, "tx_id")
                 .map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
-            ws.write_string(0, 1, "account_id")
+            ws.write_string(0, 1, "category")
                 .map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
-            ws.write_string(0, 2, "date")
-                .map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
-            ws.write_string(0, 3, "amount")
-                .map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
-            ws.write_string(0, 4, "description")
-                .map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
-            ws.write_string(0, 5, "source_ref")
+            ws.write_string(0, 2, "reason")
                 .map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
             for (idx, row) in rows.iter().enumerate() {
                 let r = (idx + 1) as u32;
                 ws.write_string(r, 0, &row.tx_id)
                     .map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
-                ws.write_string(r, 1, &row.account_id)
-                    .map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
-                ws.write_string(r, 2, &row.date)
-                    .map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
-                ws.write_string(r, 3, &row.amount)
-                    .map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
-                ws.write_string(r, 4, &row.description)
-                    .map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
-                ws.write_string(r, 5, &row.source_ref)
+                ws.write_string(r, 2, &row.source_ref)
                     .map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
             }
             Ok(())
