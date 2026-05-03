@@ -2266,5 +2266,126 @@ pub fn handle_evidence_tool(service: &TurboLedgerService, arguments: &Value) -> 
                 }),
             }
         }
+        EvidenceArgs::Summary => {
+            let evidence = match service.evidence.lock() {
+                Ok(e) => e,
+                Err(_) => return error_envelope(&ToolError::Internal("evidence mutex poisoned".to_string())),
+            };
+            let wq = evidence.work_queue_summary();
+            use arc_kit_au::NodeType;
+            let mut node_counts = serde_json::Map::new();
+            node_counts.insert("source_docs".to_string(), serde_json::Value::Number(serde_json::Number::from(evidence.nodes_of_type(NodeType::SourceDoc).len())));
+            node_counts.insert("extracted_rows".to_string(), serde_json::Value::Number(serde_json::Number::from(evidence.nodes_of_type(NodeType::ExtractedRow).len())));
+            node_counts.insert("transactions".to_string(), serde_json::Value::Number(serde_json::Number::from(evidence.nodes_of_type(NodeType::Transaction).len())));
+            node_counts.insert("classifications".to_string(), serde_json::Value::Number(serde_json::Number::from(evidence.nodes_of_type(NodeType::Classification).len())));
+            node_counts.insert("model_proposals".to_string(), serde_json::Value::Number(serde_json::Number::from(evidence.nodes_of_type(NodeType::ModelProposal).len())));
+            node_counts.insert("operator_approvals".to_string(), serde_json::Value::Number(serde_json::Number::from(evidence.nodes_of_type(NodeType::OperatorApproval).len())));
+            node_counts.insert("workbook_rows".to_string(), serde_json::Value::Number(serde_json::Number::from(evidence.nodes_of_type(NodeType::WorkbookRow).len())));
+            node_counts.insert("validation_issues".to_string(), serde_json::Value::Number(serde_json::Number::from(evidence.nodes_of_type(NodeType::ValidationIssue).len())));
+            json!({
+                "content": [text_content(json!({
+                    "action": "summary",
+                    "total_nodes": evidence.node_count(),
+                    "total_edges": evidence.edge_count(),
+                    "node_counts": node_counts,
+                    "work_queue": {
+                        "total_transactions": wq.total_transactions,
+                        "ready_to_review": wq.ready_to_review,
+                        "blocked": wq.blocked,
+                        "exported": wq.exported,
+                        "with_validation_issues": wq.with_validation_issues,
+                    },
+                }))],
+                "isError": false
+            })
+        }
+        EvidenceArgs::ListNodes { node_type } => {
+            let evidence = match service.evidence.lock() {
+                Ok(e) => e,
+                Err(_) => return error_envelope(&ToolError::Internal("evidence mutex poisoned".to_string())),
+            };
+            use arc_kit_au::NodeType;
+            fn parse_node_type(s: &str) -> Option<NodeType> {
+                Some(match s {
+                    "source_doc" | "doc" => NodeType::SourceDoc,
+                    "extracted_row" | "row" => NodeType::ExtractedRow,
+                    "transaction" | "tx" => NodeType::Transaction,
+                    "classification" | "cls" => NodeType::Classification,
+                    "model_proposal" | "prop" => NodeType::ModelProposal,
+                    "operator_approval" | "approval" => NodeType::OperatorApproval,
+                    "workbook_row" | "wb" => NodeType::WorkbookRow,
+                    "validation_issue" | "vi" => NodeType::ValidationIssue,
+                    _ => return None,
+                })
+            }
+            fn node_type_label(nt: NodeType) -> &'static str {
+                match nt {
+                    NodeType::SourceDoc => "source_doc",
+                    NodeType::ExtractedRow => "extracted_row",
+                    NodeType::Transaction => "transaction",
+                    NodeType::Classification => "classification",
+                    NodeType::ModelProposal => "model_proposal",
+                    NodeType::OperatorApproval => "operator_approval",
+                    NodeType::WorkbookRow => "workbook_row",
+                    NodeType::ValidationIssue => "validation_issue",
+                    NodeType::Unknown => "unknown",
+                }
+            }
+            let nodes: Vec<&arc_kit_au::EvidenceNode> = match node_type {
+                Some(ref nt) => {
+                    match parse_node_type(nt) {
+                        Some(parsed) => evidence.nodes_of_type(parsed),
+                        None => return json!({
+                            "content": [text_content(json!({
+                                "error": format!("Unknown node type: {nt}. Valid types: source_doc, extracted_row, transaction, classification, model_proposal, operator_approval, workbook_row, validation_issue"),
+                            }))],
+                            "isError": true,
+                        }),
+                    }
+                }
+                None => evidence.all_nodes().iter().collect(),
+            };
+            let node_summaries: Vec<_> = nodes
+                .iter()
+                .map(|n| json!({
+                    "node_id": n.node_id().to_string(),
+                    "node_type": node_type_label(n.node_type()),
+                }))
+                .collect();
+            json!({
+                "content": [text_content(json!({
+                    "action": "list_nodes",
+                    "count": node_summaries.len(),
+                    "nodes": node_summaries,
+                }))],
+                "isError": false
+            })
+        }
+        EvidenceArgs::NodeDetail { node_id } => {
+            let evidence = match service.evidence.lock() {
+                Ok(e) => e,
+                Err(_) => return error_envelope(&ToolError::Internal("evidence mutex poisoned".to_string())),
+            };
+            use arc_kit_au::NodeId;
+            let id = NodeId(node_id.clone());
+            match evidence.get_node(&id) {
+                Some(node) => json!({
+                    "content": [text_content(json!({
+                        "action": "node_detail",
+                        "node_id": node_id,
+                        "node": node,
+                    }))],
+                    "isError": false
+                }),
+                None => json!({
+                    "content": [text_content(json!({
+                        "action": "node_detail",
+                        "node_id": node_id,
+                        "error": "Node not found in evidence graph",
+                    }))],
+                    "isError": true,
+                }),
+            }
+        }
     }
 }
