@@ -11,7 +11,10 @@ members = [
   "crates/arc-kit-au",
   "crates/datum",
   "crates/b00t-iface",
-  "xtask", "crates/rotel-visual",
+  "xtask",
+  "crates/rotel-visual",
+  "crates/ontology-extractor",
+  "crates/lfmf-counter",
 ]
 resolver = "2"
 
@@ -42,6 +45,6 @@ ledgerr-mcp-core = { path = "crates/ledgerr-mcp-core" }
 
 [workspace.lints.rust]
 # "deny" rather than "forbid" so proc-macro expansions (e.g. slint::slint!)
-# can emit #[allow(unsafe_code)] for their own generated unsafe blocks without
+# can emit #[allow(unsafe_code)] for their own generated blocks without
 # triggering E0453.  The rule is still enforced at error level everywhere.
 unsafe_code = "deny"
