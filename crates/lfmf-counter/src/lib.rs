@@ -165,7 +165,9 @@ impl LfmfCounter {
 
     /// Get statistics for all tools
     pub async fn get_stats(&self) -> Result<Vec<ToolCounter>> {
-        Ok(self.counters.values().cloned().collect())
+        let mut stats: Vec<_> = self.counters.values().cloned().collect();
+        stats.sort_by(|a, b| a.tool.cmp(&b.tool));
+        Ok(stats)
     }
 
     /// Get counter for specific tool
