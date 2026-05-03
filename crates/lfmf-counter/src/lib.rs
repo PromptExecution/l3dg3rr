@@ -307,10 +307,22 @@ impl CounterDisplay {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn test_counter() -> LfmfCounter {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        LfmfCounter {
+            counters: HashMap::new(),
+            storage_path: std::env::temp_dir().join(format!("lfmf-counter-{nonce}.json")),
+        }
+    }
 
     #[tokio::test]
     async fn test_counter_increment() {
-        let mut counter = LfmfCounter::default();
+        let mut counter = test_counter();
 
         // Test skunk increment
         counter.increment_skunk("test_tool").await.unwrap();
@@ -347,7 +359,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_summary() {
-        let mut counter = LfmfCounter::default();
+        let mut counter = test_counter();
 
         counter.increment_skunk("tool1").await.unwrap();
         counter.increment_bug("tool2").await.unwrap();
