@@ -50,6 +50,15 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(app_state)
+        .setup(|app| {
+            if let Some(w) = app.get_webview_window("main") {
+                let build = std::env::var("TAURI_BUILD_NUMBER")
+                    .unwrap_or_else(|_| "0".to_string());
+                let title = format!("ledgrrr v{}+b{}", env!("CARGO_PKG_VERSION"), build);
+                let _ = w.set_title(&title);
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::get_initial_state,
             commands::save_settings,
@@ -60,6 +69,8 @@ fn main() {
             commands::use_cloud_model,
             commands::open_docs_playbook,
             commands::get_test_harness_config,
+            commands::write_dom_dump,
+            commands::get_cargo_pkg_version,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ledgerr-tauri application");

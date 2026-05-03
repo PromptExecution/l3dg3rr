@@ -26,6 +26,20 @@ pub struct TestHarnessConfig {
 }
 
 #[tauri::command]
+pub fn get_cargo_pkg_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+#[tauri::command]
+pub fn write_dom_dump(dump: String) -> String {
+    let path = std::env::temp_dir().join("host-tauri-dom-dump.txt");
+    match std::fs::write(&path, &dump) {
+        Ok(()) => format!("wrote {} bytes to {}", dump.len(), path.display()),
+        Err(e) => format!("write error: {e}"),
+    }
+}
+
+#[tauri::command]
 pub fn get_test_harness_config() -> TestHarnessConfig {
     TestHarnessConfig {
         kill_delay_ms: std::env::var("TAURI_TEST_KILL_DELAY")
