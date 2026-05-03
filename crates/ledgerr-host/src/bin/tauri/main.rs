@@ -3,19 +3,26 @@
     windows_subsystem = "windows"
 )]
 
+#[cfg(target_os = "windows")]
 mod commands;
+#[cfg(target_os = "windows")]
 mod state;
 
-use std::sync::{Arc, Mutex};
-
-use ledgerr_host::chat::{ChatTurn, ReviewLog};
-use ledgerr_host::internal_openai::InternalOpenAiHandle;
-use ledgerr_host::settings::{default_settings_path, SettingsStore};
-
-use state::AppState;
-
+#[cfg(not(target_os = "windows"))]
 fn main() {
-    // Telemetry UUID signal path — read from env, echo back so test harness can verify
+    eprintln!("host-tauri: this binary is Windows-only");
+    std::process::exit(0);
+}
+
+#[cfg(target_os = "windows")]
+fn main() {
+    use std::panic;
+    panic::set_hook(Box::new(|info| {
+        let msg = format!("panic: {info}");
+        eprintln!("{msg}");
+        let _ = std::fs::write(std::env::temp_dir().join("host-tauri-panic.txt"), &msg);
+    }));
+
     if let Ok(uuid) = std::env::var("TAURI_TEST_UUID") {
         eprintln!("[telemetry] TAURI_TEST_UUID={uuid}");
         let _ = std::fs::write(
@@ -23,17 +30,23 @@ fn main() {
             format!("TAURI_TEST_UUID={uuid}\n"),
         );
     }
-    // Kill delay for autorun countdown — passed to JS via HTML meta tag
     if let Ok(delay) = std::env::var("TAURI_TEST_KILL_DELAY") {
         eprintln!("[telemetry] TAURI_TEST_KILL_DELAY={delay}");
         let _ = std::fs::write(
             std::env::temp_dir().join("host-tauri-kill-delay.txt"),
-            format!("TAURI_TEST_KILL_DELAY={delay}\n"),
+            format!("TAURI_TEST_KILL_DELAY={delay}\npid={}\n", std::process::id()),
         );
     }
     if let Ok(shots) = std::env::var("TAURI_TEST_SCREENSHOT_PATH") {
         eprintln!("[telemetry] TAURI_TEST_SCREENSHOT_PATH={shots}");
     }
+
+    use std::sync::{Arc, Mutex};
+    use ledgerr_host::chat::{ChatTurn, ReviewLog};
+    use ledgerr_host::internal_openai::InternalOpenAiHandle;
+    use ledgerr_host::settings::{default_settings_path, SettingsStore};
+    use tauri::Manager;
+    use state::AppState;
 
     let store = Arc::new(SettingsStore::new(default_settings_path()));
     let history: Arc<Mutex<Vec<ChatTurn>>> = Arc::new(Mutex::new(Vec::new()));
@@ -51,11 +64,15 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .manage(app_state)
         .setup(|app| {
+            let _ = std::fs::write(
+                std::env::temp_dir().join("host-tauri-setup-ok.txt"),
+                format!("setup hook ran at {}\n", std::process::id()),
+            );
             if let Some(w) = app.get_webview_window("main") {
                 let build = std::env::var("TAURI_BUILD_NUMBER")
                     .unwrap_or_else(|_| "0".to_string());
                 let title = format!("ledgrrr v{}+b{}", env!("CARGO_PKG_VERSION"), build);
-                let _ = w.set_title(&title);
+                let _: std::result::Result<(), _> = w.set_title(&title);
             }
             Ok(())
         })
@@ -72,6 +89,18 @@ fn main() {
             commands::write_dom_dump,
             commands::get_cargo_pkg_version,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running ledgerr-tauri application");
+        .build(tauri::generate_context!())
+        .unwrap_or_else(|e| {
+            eprintln!("[build error] {e}");
+            let _ = std::fs::write(
+                std::env::temp_dir().join("host-tauri-build-error.txt"),
+                format!("{e}\n"),
+            );
+            std::process::exit(1);
+        })
+        .run(|_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                eprintln!("[run event] Exit");
+            }
+        });
 }

@@ -23,6 +23,8 @@ use super::state::AppState;
 pub struct TestHarnessConfig {
     pub kill_delay_ms: u64,
     pub screenshot_path: String,
+    pub pkg_version: String,
+    pub build_number: String,
 }
 
 #[tauri::command]
@@ -41,12 +43,20 @@ pub fn write_dom_dump(dump: String) -> String {
 
 #[tauri::command]
 pub fn get_test_harness_config() -> TestHarnessConfig {
+    let _ = std::fs::write(
+        std::env::temp_dir().join("host-tauri-ipc-alive.txt"),
+        format!("get_test_harness_config called\n"),
+    );
     TestHarnessConfig {
         kill_delay_ms: std::env::var("TAURI_TEST_KILL_DELAY")
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(0),
         screenshot_path: std::env::var("TAURI_TEST_SCREENSHOT_PATH")
+            .ok()
+            .unwrap_or_default(),
+        pkg_version: env!("CARGO_PKG_VERSION").to_string(),
+        build_number: std::env::var("TAURI_BUILD_NUMBER")
             .ok()
             .unwrap_or_default(),
     }
