@@ -18,11 +18,21 @@ fn main() {
     // Telemetry UUID signal path — read from env, echo back so test harness can verify
     if let Ok(uuid) = std::env::var("TAURI_TEST_UUID") {
         eprintln!("[telemetry] TAURI_TEST_UUID={uuid}");
-        // Also write to a temp file for the harness to find
         let _ = std::fs::write(
             std::env::temp_dir().join("host-tauri-telemetry-signal.txt"),
             format!("TAURI_TEST_UUID={uuid}\n"),
         );
+    }
+    // Kill delay for autorun countdown — passed to JS via HTML meta tag
+    if let Ok(delay) = std::env::var("TAURI_TEST_KILL_DELAY") {
+        eprintln!("[telemetry] TAURI_TEST_KILL_DELAY={delay}");
+        let _ = std::fs::write(
+            std::env::temp_dir().join("host-tauri-kill-delay.txt"),
+            format!("TAURI_TEST_KILL_DELAY={delay}\n"),
+        );
+    }
+    if let Ok(shots) = std::env::var("TAURI_TEST_SCREENSHOT_PATH") {
+        eprintln!("[telemetry] TAURI_TEST_SCREENSHOT_PATH={shots}");
     }
 
     let store = Arc::new(SettingsStore::new(default_settings_path()));
@@ -49,6 +59,7 @@ fn main() {
             commands::use_foundry_local,
             commands::use_cloud_model,
             commands::open_docs_playbook,
+            commands::get_test_harness_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ledgerr-tauri application");

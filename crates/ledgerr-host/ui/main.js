@@ -487,31 +487,43 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch (err) { setStatus(`Init error: ${err}`); }
 
   refreshDashboard();
-});
 
-// ── Autorun: 5s countdown then exit (telemetry dump) ─────────────────────────
-if (autorunMode) {
-  let countdown = 5;
-  const el = document.createElement('div');
-  el.id = 'autorun-timer';
-  el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#203647;color:#e7f0f8;text-align:center;padding:6px;font-size:13px;z-index:9999;font-family:monospace;white-space:pre-wrap';
-  document.body.appendChild(el);
+  // ── Autorun: configurable countdown, screenshot, then exit ─────────────────
+  try {
+    const cfg = await invoke('get_test_harness_config');
+    if (cfg.kill_delay_ms > 0) {
+      const el = document.createElement('div');
+      el.id = 'autorun-timer';
+      el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#203647;color:#e7f0f8;text-align:center;padding:6px;font-size:13px;z-index:9999;font-family:monospace;white-space:pre-wrap';
+      document.body.appendChild(el);
 
-  // Capture any buildUI/cacheRefs error from the global scope
-  let initErr = '';
-  window.addEventListener('error', function(e) {
-    initErr += `${e.message}\n`;
-    el.textContent += `\n[ERROR] ${e.message}`;
-  });
+      let initErr = '';
+      window.addEventListener('error', function(e) {
+        initErr += `${e.message}\n`;
+      });
 
-  const tick = setInterval(() => {
-    el.textContent = `Autorun: exiting in ${countdown}s...`;
-    el.textContent += initErr ? `\n[ERROR] ${initErr}` : '\n[no errors detected]';
-    countdown--;
-    if (countdown < 0) {
-      clearInterval(tick);
-      el.textContent = 'Autorun: exiting now.' + (initErr ? '\n[ERROR] ' + initErr : '');
-      setTimeout(() => { window.close(); }, 500);
+      const start = Date.now();
+      const total = cfg.kill_delay_ms;
+      const tick = setInterval(() => {
+        const remaining = Math.max(0, total - (Date.now() - start));
+        const secs = (remaining / 1000).toFixed(1);
+        const pct = ((remaining / total) * 100).toFixed(0);
+        document.title = `host-tauri [${secs}s remaining]`;
+        el.textContent = `Autorun: ${secs}s (${pct}%) — exiting`;
+        if (initErr) el.textContent += ` | ERROR: ${initErr}`;
+
+        if (remaining <= 0) {
+          clearInterval(tick);
+          document.title = 'host-tauri [exiting]';
+          el.textContent = 'Autorun: exiting now.';
+          if (cfg.screenshot_path) {
+            el.textContent += ' [screenshot requested]';
+          }
+          setTimeout(() => { window.close(); }, 300);
+        }
+      }, 200); // 200ms tick for smooth countdown
     }
-  }, 1000);
-}
+  } catch (e) {
+    console.warn('autorun config unavailable:', e);
+  }
+});

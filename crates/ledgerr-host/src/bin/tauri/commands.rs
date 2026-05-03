@@ -17,6 +17,27 @@ use ledgerr_host::settings::ChatSettings;
 
 use super::state::AppState;
 
+// ── Test harness config ───────────────────────────────────────────────────────
+
+#[derive(serde::Serialize, Clone)]
+pub struct TestHarnessConfig {
+    pub kill_delay_ms: u64,
+    pub screenshot_path: String,
+}
+
+#[tauri::command]
+pub fn get_test_harness_config() -> TestHarnessConfig {
+    TestHarnessConfig {
+        kill_delay_ms: std::env::var("TAURI_TEST_KILL_DELAY")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0),
+        screenshot_path: std::env::var("TAURI_TEST_SCREENSHOT_PATH")
+            .ok()
+            .unwrap_or_default(),
+    }
+}
+
 // ── Shared payload types ──────────────────────────────────────────────────────
 
 #[derive(serde::Serialize, Clone)]
