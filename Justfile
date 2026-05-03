@@ -98,6 +98,14 @@ test:
     cargo build -p ledgerr-mcp --bin mcp-outcome-test
     ./target/debug/mcp-outcome-test
 
+# ─── Tauri build (Windows host) ─────────────────────────────────────────────────
+
+# Pre-flight check: verify cargo-tauri is installed, then build ledgerr-tauri.
+# Outputs binary + datum TOML with version and SHA256 hash.
+# Run from WSL. Uses the Windows toolchain from the host.
+wsl2-pwsh-tauri-build:
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "D:\Projects\l3dg3rr\scripts\tauri-build.ps1"
+
 # ─── Local model assets ───────────────────────────────────────────────────────
 
 # Install Microsoft Foundry Local on Windows, then print version and service status.

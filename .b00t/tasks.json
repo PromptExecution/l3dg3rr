@@ -1,0 +1,15 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Refactor Tauri panels to generated from single source of truth",
+      "description": "Strip index.html to shell. Generate nav buttons + panel divs from PANELS array. Add Dashboard panel with evidence summary cards.",
+      "status": "done",
+      "priority": 2,
+      "tags": [],
+      "created_at": "2026-05-03T16:01:09Z",
+      "updated_at": "2026-05-03T16:01:24Z"
+    }
+  ],
+  "version": "1"
+}
