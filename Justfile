@@ -100,7 +100,7 @@ test:
 
 # ─── Tauri build (Windows host) ─────────────────────────────────────────────────
 
-# Pre-flight check: verify cargo-tauri is installed, then build ledgerr-tauri.
+# Pre-flight check: verify cargo-tauri is installed, then build ledgrrr.
 # Outputs binary + datum TOML with version and SHA256 hash.
 # Run from WSL. Uses the Windows toolchain from the host.
 wsl2-pwsh-tauri-build:

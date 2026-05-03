@@ -5126,20 +5126,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ledgerr-tauri"
-version = "1.8.0"
-dependencies = [
- "anyhow",
- "ledgerr-host",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-opener",
- "tokio",
-]
-
-[[package]]
 name = "ledgerr-xero"
 version = "1.8.0"
 dependencies = [
@@ -5156,6 +5142,20 @@ dependencies = [
  "thiserror 2.0.18",
  "tracing",
  "url",
+]
+
+[[package]]
+name = "ledgrrr"
+version = "1.8.0"
+dependencies = [
+ "anyhow",
+ "ledgerr-host",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-opener",
+ "tokio",
 ]
 
 [[package]]

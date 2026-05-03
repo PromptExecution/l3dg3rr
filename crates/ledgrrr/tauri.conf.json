@@ -1,6 +1,6 @@
 {
-  "productName": "l3dg3rr",
-  "identifier": "ventures.elastic.l3dg3rr",
+  "productName": "ledgrrr",
+  "identifier": "ventures.elastic.ledgrrr",
   "build": {
     "frontendDist": "ui"
   },
@@ -8,7 +8,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "l3dg3rr",
+        "title": "ledgrrr",
         "width": 1100,
         "height": 760,
         "center": true,
