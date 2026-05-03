@@ -1075,18 +1075,16 @@ fn apply_initial_window_geometry(window: &slint::Window) {
     const SPI_GETWORKAREA: u32 = 0x0030;
     let mut work = Rect::default();
     // SAFETY: Rect is repr(C) and sized exactly as RECT; pointer is valid for the call duration.
-    let ok = unsafe {
-        SystemParametersInfoW(
-            SPI_GETWORKAREA,
-            0,
-            &mut work as *mut _ as *mut _,
-            0,
-        )
-    };
+    let ok = unsafe { SystemParametersInfoW(SPI_GETWORKAREA, 0, &mut work as *mut _ as *mut _, 0) };
 
     // Fall back to a safe default if the API call fails.
     if ok == 0 {
-        work = Rect { left: 0, top: 0, right: 1920, bottom: 1040 };
+        work = Rect {
+            left: 0,
+            top: 0,
+            right: 1920,
+            bottom: 1040,
+        };
     }
 
     let scale = window.scale_factor();
@@ -1100,7 +1098,9 @@ fn apply_initial_window_geometry(window: &slint::Window) {
     let win_x = work_x + (work_w - win_w) / 2.0;
     let win_y = work_y + (work_h - win_h) / 2.0;
 
-    window.set_size(slint::WindowSize::Logical(slint::LogicalSize::new(win_w, win_h)));
+    window.set_size(slint::WindowSize::Logical(slint::LogicalSize::new(
+        win_w, win_h,
+    )));
     window.set_position(slint::WindowPosition::Logical(slint::LogicalPosition::new(
         win_x, win_y,
     )));

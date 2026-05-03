@@ -15,8 +15,8 @@ use std::path::PathBuf;
 use ledger_core::classify::{ClassificationEngine, SampleTransaction};
 
 fn rule_path(filename: &str) -> PathBuf {
-    let manifest = std::env::var("CARGO_MANIFEST_DIR")
-        .expect("CARGO_MANIFEST_DIR must be set by cargo test");
+    let manifest =
+        std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR must be set by cargo test");
     PathBuf::from(manifest)
         .parent() // crates/
         .expect("crates parent")
@@ -55,7 +55,10 @@ fn sc_01_income_keyword_classifies_self_employment() {
         "expected 0.88, got {}",
         outcome.confidence
     );
-    assert!(!outcome.needs_review, "amount 3000 is below $5000 review threshold");
+    assert!(
+        !outcome.needs_review,
+        "amount 3000 is below $5000 review threshold"
+    );
 }
 
 #[test]
@@ -96,7 +99,10 @@ fn sc_03_negative_expense_keyword_classifies_office_supplies() {
         "expected 0.75, got {}",
         outcome.confidence
     );
-    assert!(!outcome.needs_review, "expense $150 is below $2500 review trigger");
+    assert!(
+        !outcome.needs_review,
+        "expense $150 is below $2500 review trigger"
+    );
 }
 
 #[test]
@@ -156,7 +162,10 @@ fn sd_01_stock_sale_positive_classifies_capital_gain() {
         "expected 0.85, got {}",
         outcome.confidence
     );
-    assert!(!outcome.needs_review, "no short-term signal — no review required");
+    assert!(
+        !outcome.needs_review,
+        "no short-term signal — no review required"
+    );
 }
 
 #[test]
@@ -195,7 +204,10 @@ fn sd_03_short_term_signal_triggers_review() {
         .unwrap_or_else(|e| panic!("rule failed: {e}"));
 
     assert_eq!(outcome.category, "CapitalGain");
-    assert!(outcome.needs_review, "short-term indicator must trigger review");
+    assert!(
+        outcome.needs_review,
+        "short-term indicator must trigger review"
+    );
 }
 
 #[test]
@@ -237,7 +249,10 @@ fn se_01_rental_income_classifies_correctly() {
         "expected 0.87, got {}",
         outcome.confidence
     );
-    assert!(!outcome.needs_review, "amount 2200 below $10000 review threshold");
+    assert!(
+        !outcome.needs_review,
+        "amount 2200 below $10000 review threshold"
+    );
 }
 
 #[test]
@@ -277,7 +292,10 @@ fn se_03_negative_amount_with_rent_signal_lower_confidence() {
         "expected 0.80, got {}",
         outcome.confidence
     );
-    assert!(outcome.needs_review, "negative amount with rent signal must trigger review");
+    assert!(
+        outcome.needs_review,
+        "negative amount with rent signal must trigger review"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -304,7 +322,10 @@ fn fbar_01_hsbc_account_classifies_foreign_income() {
         "expected 0.82, got {}",
         outcome.confidence
     );
-    assert!(!outcome.needs_review, "amount 5000 below $9000 FBAR near-threshold trigger");
+    assert!(
+        !outcome.needs_review,
+        "amount 5000 below $9000 FBAR near-threshold trigger"
+    );
 }
 
 #[test]
@@ -322,7 +343,10 @@ fn fbar_02_near_threshold_triggers_review() {
         .unwrap_or_else(|e| panic!("rule failed: {e}"));
 
     assert_eq!(outcome.category, "ForeignIncome");
-    assert!(outcome.needs_review, "amount > $9000 must trigger FBAR review");
+    assert!(
+        outcome.needs_review,
+        "amount > $9000 must trigger FBAR review"
+    );
     assert!(
         outcome.reason.contains("31 USC §5314"),
         "reason must cite 31 USC §5314; got: {}",
@@ -383,7 +407,10 @@ fn fatca_01_high_value_foreign_financial_triggers_review() {
         .unwrap_or_else(|e| panic!("rule failed: {e}"));
 
     assert_eq!(outcome.category, "ForeignIncome");
-    assert!(outcome.needs_review, "amount > 25000 must trigger FATCA review");
+    assert!(
+        outcome.needs_review,
+        "amount > 25000 must trigger FATCA review"
+    );
     assert!(
         outcome.reason.contains("IRC §6038D"),
         "reason must cite IRC §6038D; got: {}",
@@ -411,7 +438,10 @@ fn fatca_02_low_value_no_review() {
         "expected 0.65 for low-value FATCA signal, got {}",
         outcome.confidence
     );
-    assert!(!outcome.needs_review, "amount 10000 below 25000 → no review required");
+    assert!(
+        !outcome.needs_review,
+        "amount 10000 below 25000 → no review required"
+    );
 }
 
 #[test]
@@ -454,7 +484,10 @@ fn ct_01_crypto_buy_classifies_transfer() {
         "expected 0.90, got {}",
         outcome.confidence
     );
-    assert!(!outcome.needs_review, "buy is not a taxable event — no review needed");
+    assert!(
+        !outcome.needs_review,
+        "buy is not a taxable event — no review needed"
+    );
 }
 
 #[test]
@@ -477,7 +510,10 @@ fn ct_02_crypto_sell_positive_classifies_crypto_gain() {
         "expected 0.85, got {}",
         outcome.confidence
     );
-    assert!(outcome.needs_review, "crypto sale is a capital event — must review");
+    assert!(
+        outcome.needs_review,
+        "crypto sale is a capital event — must review"
+    );
 }
 
 #[test]
@@ -495,7 +531,10 @@ fn ct_03_crypto_sell_negative_classifies_capital_loss() {
         .unwrap_or_else(|e| panic!("rule failed: {e}"));
 
     assert_eq!(outcome.category, "CapitalLoss");
-    assert!(outcome.needs_review, "crypto loss is a capital event — must review");
+    assert!(
+        outcome.needs_review,
+        "crypto loss is a capital event — must review"
+    );
 }
 
 #[test]
@@ -554,7 +593,10 @@ fn cs_01_staking_reward_classifies_crypto_income() {
         "expected 0.88, got {}",
         outcome.confidence
     );
-    assert!(outcome.needs_review, "staking reward always requires FMV review");
+    assert!(
+        outcome.needs_review,
+        "staking reward always requires FMV review"
+    );
     assert!(
         outcome.reason.contains("Rev. Rul. 2023-14"),
         "reason must cite Rev. Rul. 2023-14; got: {}",
@@ -665,7 +707,10 @@ fn ag_02_positive_au_income_classifies_foreign_income_with_review() {
         "expected 0.78, got {}",
         outcome.confidence
     );
-    assert!(outcome.needs_review, "AU income for US expat always requires review");
+    assert!(
+        outcome.needs_review,
+        "AU income for US expat always requires review"
+    );
 }
 
 #[test]
@@ -708,7 +753,10 @@ fn ac_01_au_property_sale_classifies_au_cgt() {
         "expected 0.87, got {}",
         outcome.confidence
     );
-    assert!(outcome.needs_review, "AU CGT always requires review for discount eligibility");
+    assert!(
+        outcome.needs_review,
+        "AU CGT always requires review for discount eligibility"
+    );
     assert!(
         outcome.reason.contains("ITAA 1997 s.115-A"),
         "reason must cite ITAA 1997 s.115-A; got: {}",

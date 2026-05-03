@@ -55,12 +55,22 @@ pub fn parse_datum(content: &str) -> Result<DatumAst, DatumError> {
     for line in content.lines() {
         if line.trim_start().starts_with("```") {
             in_code_block = !in_code_block;
-            append_body(&mut current_subsection, &mut current_section, &mut preamble, line);
+            append_body(
+                &mut current_subsection,
+                &mut current_section,
+                &mut preamble,
+                line,
+            );
             continue;
         }
 
         if in_code_block {
-            append_body(&mut current_subsection, &mut current_section, &mut preamble, line);
+            append_body(
+                &mut current_subsection,
+                &mut current_section,
+                &mut preamble,
+                line,
+            );
             continue;
         }
 
@@ -121,7 +131,12 @@ pub fn parse_datum(content: &str) -> Result<DatumAst, DatumError> {
             continue;
         }
 
-        append_body(&mut current_subsection, &mut current_section, &mut preamble, line);
+        append_body(
+            &mut current_subsection,
+            &mut current_section,
+            &mut preamble,
+            line,
+        );
     }
 
     if let Some(sub) = current_subsection.take() {
@@ -248,9 +263,7 @@ pub fn lint_ast(ast: &DatumAst, datum_name: &str) -> Vec<DatumLintFinding> {
         }
 
         // Check for toml sections with key=value content
-        if !sec.heading.contains(' ') && !sec.heading.contains('_')
-            && sec.body.contains('=')
-        {
+        if !sec.heading.contains(' ') && !sec.heading.contains('_') && sec.body.contains('=') {
             lint_toml_section(sec, datum_name, &mut findings);
         }
 
@@ -395,7 +408,14 @@ pub fn validate_datum_structure(ast: &DatumAst, datum_name: &str) -> Result<(), 
     let errors: Vec<String> = findings
         .into_iter()
         .filter(|f| f.severity == LintSeverity::Error)
-        .map(|f| format!("[{}] {}: {}", datum_name, f.message, f.section.unwrap_or_default()))
+        .map(|f| {
+            format!(
+                "[{}] {}: {}",
+                datum_name,
+                f.message,
+                f.section.unwrap_or_default()
+            )
+        })
         .collect();
 
     if errors.is_empty() {
@@ -456,7 +476,9 @@ mod tests {
         let content = "# Bare\n\nJust preamble, no sections\n";
         let ast = parse_datum(content).unwrap();
         let findings = lint_ast(&ast, "bare");
-        assert!(findings.iter().any(|f| f.message.contains("no H2 or TOML sections")));
+        assert!(findings
+            .iter()
+            .any(|f| f.message.contains("no H2 or TOML sections")));
     }
 
     #[test]
@@ -481,7 +503,9 @@ mod tests {
         let content = "# Test\n\n## Table\n\n| H1 | H2 |\n| A  | B  |\n| C  | D  |\n";
         let ast = parse_datum(content).unwrap();
         let findings = lint_ast(&ast, "test");
-        assert!(findings.iter().any(|f| f.message.contains("header separator")));
+        assert!(findings
+            .iter()
+            .any(|f| f.message.contains("header separator")));
     }
 
     #[test]
@@ -489,7 +513,9 @@ mod tests {
         let content = "# Test\n\n## Table\n\n| H1 | H2 |\n|----|----|\n| A  | B  |\n";
         let ast = parse_datum(content).unwrap();
         let findings = lint_ast(&ast, "test");
-        assert!(!findings.iter().any(|f| f.message.contains("header separator")));
+        assert!(!findings
+            .iter()
+            .any(|f| f.message.contains("header separator")));
     }
 
     #[test]
@@ -497,7 +523,9 @@ mod tests {
         let content = "# Test\n\n## Code\n\n```\nlet x = 1;\n```\n";
         let ast = parse_datum(content).unwrap();
         let findings = lint_ast(&ast, "test");
-        assert!(findings.iter().any(|f| f.message.contains("language specifier")));
+        assert!(findings
+            .iter()
+            .any(|f| f.message.contains("language specifier")));
     }
 
     #[test]
@@ -505,7 +533,9 @@ mod tests {
         let content = "# Test\n\n## Code\n\n```rust\nlet x = 1;\n```\n";
         let ast = parse_datum(content).unwrap();
         let findings = lint_ast(&ast, "test");
-        assert!(!findings.iter().any(|f| f.message.contains("language specifier")));
+        assert!(!findings
+            .iter()
+            .any(|f| f.message.contains("language specifier")));
     }
 
     #[test]
@@ -544,15 +574,15 @@ mod tests {
             // We try to include and catch compile errors — if it fails, the test is skipped.
             match name {
                 "opencode" => Some(include_str!("../../../../_b00t_/datums/opencode.datum")),
-                "opencode-codebase-memory-integration" => {
-                    Some(include_str!("../../../../_b00t_/datums/opencode-codebase-memory-integration.datum"))
-                }
-                "b00t-opencode-gaps" => {
-                    Some(include_str!("../../../../_b00t_/datums/b00t-opencode-gaps.datum"))
-                }
-                "openagents-control" => {
-                    Some(include_str!("../../../../_b00t_/datums/openagents-control.datum"))
-                }
+                "opencode-codebase-memory-integration" => Some(include_str!(
+                    "../../../../_b00t_/datums/opencode-codebase-memory-integration.datum"
+                )),
+                "b00t-opencode-gaps" => Some(include_str!(
+                    "../../../../_b00t_/datums/b00t-opencode-gaps.datum"
+                )),
+                "openagents-control" => Some(include_str!(
+                    "../../../../_b00t_/datums/openagents-control.datum"
+                )),
                 _ => None,
             }
         }
@@ -576,14 +606,24 @@ mod tests {
 
         #[test]
         fn lint_real_datums() {
-            for name in &["opencode", "opencode-codebase-memory-integration", "b00t-opencode-gaps", "openagents-control"] {
+            for name in &[
+                "opencode",
+                "opencode-codebase-memory-integration",
+                "b00t-opencode-gaps",
+                "openagents-control",
+            ] {
                 let content = datum_content(name).unwrap();
                 let ast = parse_datum(content).unwrap();
                 let findings = lint_ast(&ast, name);
-                let errors: Vec<_> = findings.iter().filter(|f| f.severity == LintSeverity::Error).collect();
-                assert!(errors.is_empty(), "datum {name} has lint errors: {errors:?}");
+                let errors: Vec<_> = findings
+                    .iter()
+                    .filter(|f| f.severity == LintSeverity::Error)
+                    .collect();
+                assert!(
+                    errors.is_empty(),
+                    "datum {name} has lint errors: {errors:?}"
+                );
             }
         }
     }
-
 }

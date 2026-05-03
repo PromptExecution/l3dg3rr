@@ -53,7 +53,11 @@ impl std::fmt::Display for PromiseOp {
 
 impl<T, E> LifecyclePromise<T, E> {
     pub fn new(op: PromiseOp, elapsed: Duration, value: PromiseValue<T, E>) -> Self {
-        Self { operation: op, elapsed, value }
+        Self {
+            operation: op,
+            elapsed,
+            value,
+        }
     }
 
     pub fn fulfilled(op: PromiseOp, elapsed: Duration, value: T) -> Self {
@@ -89,7 +93,8 @@ mod tests {
 
     #[test]
     fn promise_fulfilled() {
-        let p = LifecyclePromise::<u32, String>::fulfilled(PromiseOp::Init, Duration::from_secs(1), 42);
+        let p =
+            LifecyclePromise::<u32, String>::fulfilled(PromiseOp::Init, Duration::from_secs(1), 42);
         assert!(p.is_fulfilled());
         assert!(!p.is_rejected());
         assert_eq!(p.operation.to_string(), "init");
@@ -97,7 +102,11 @@ mod tests {
 
     #[test]
     fn promise_rejected() {
-        let p = LifecyclePromise::<u32, String>::rejected(PromiseOp::Operate, Duration::from_secs(2), "kaboom".into());
+        let p = LifecyclePromise::<u32, String>::rejected(
+            PromiseOp::Operate,
+            Duration::from_secs(2),
+            "kaboom".into(),
+        );
         assert!(p.is_rejected());
         assert!(!p.is_fulfilled());
     }

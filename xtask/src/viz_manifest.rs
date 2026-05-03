@@ -6,7 +6,9 @@
 use std::path::Path;
 
 use ledger_core::{
-    constraints::{ConstraintEvaluation, InvoiceConstraintSolver, InvoiceVerification, VendorConstraintSet},
+    constraints::{
+        ConstraintEvaluation, InvoiceConstraintSolver, InvoiceVerification, VendorConstraintSet,
+    },
     iso::{HasVisualization, VizManifest, VizManifestEntry},
     legal::{Jurisdiction, LegalRule, LegalSolver, TransactionFacts, Z3Result},
     pipeline::{
@@ -42,62 +44,23 @@ pub fn export_viz_manifest(output: &Path) -> Result<(), Box<dyn std::error::Erro
             "PipelineState<NeedsReview>",
             PipelineState::<NeedsReview>::viz_spec(),
         ),
-        VizManifestEntry::new(
-            "ConstraintEvaluation",
-            ConstraintEvaluation::viz_spec(),
-        ),
-        VizManifestEntry::new(
-            "VendorConstraintSet",
-            VendorConstraintSet::viz_spec(),
-        ),
+        VizManifestEntry::new("ConstraintEvaluation", ConstraintEvaluation::viz_spec()),
+        VizManifestEntry::new("VendorConstraintSet", VendorConstraintSet::viz_spec()),
         VizManifestEntry::new(
             "InvoiceConstraintSolver",
             InvoiceConstraintSolver::viz_spec(),
         ),
-        VizManifestEntry::new(
-            "InvoiceVerification",
-            InvoiceVerification::viz_spec(),
-        ),
-        VizManifestEntry::new(
-            "Z3Result",
-            Z3Result::viz_spec(),
-        ),
-        VizManifestEntry::new(
-            "LegalRule",
-            LegalRule::viz_spec(),
-        ),
-        VizManifestEntry::new(
-            "LegalSolver",
-            LegalSolver::viz_spec(),
-        ),
-        VizManifestEntry::new(
-            "Jurisdiction",
-            Jurisdiction::viz_spec(),
-        ),
-        VizManifestEntry::new(
-            "TransactionFacts",
-            TransactionFacts::viz_spec(),
-        ),
-        VizManifestEntry::new(
-            "CommitGate",
-            CommitGate::viz_spec(),
-        ),
-        VizManifestEntry::new(
-            "Issue",
-            Issue::viz_spec(),
-        ),
-        VizManifestEntry::new(
-            "MetaFlag",
-            MetaFlag::viz_spec(),
-        ),
-        VizManifestEntry::new(
-            "StageResult<()>",
-            StageResult::<()>::viz_spec(),
-        ),
-        VizManifestEntry::new(
-            "KasuariSolver",
-            KasuariSolver::viz_spec(),
-        ),
+        VizManifestEntry::new("InvoiceVerification", InvoiceVerification::viz_spec()),
+        VizManifestEntry::new("Z3Result", Z3Result::viz_spec()),
+        VizManifestEntry::new("LegalRule", LegalRule::viz_spec()),
+        VizManifestEntry::new("LegalSolver", LegalSolver::viz_spec()),
+        VizManifestEntry::new("Jurisdiction", Jurisdiction::viz_spec()),
+        VizManifestEntry::new("TransactionFacts", TransactionFacts::viz_spec()),
+        VizManifestEntry::new("CommitGate", CommitGate::viz_spec()),
+        VizManifestEntry::new("Issue", Issue::viz_spec()),
+        VizManifestEntry::new("MetaFlag", MetaFlag::viz_spec()),
+        VizManifestEntry::new("StageResult<()>", StageResult::<()>::viz_spec()),
+        VizManifestEntry::new("KasuariSolver", KasuariSolver::viz_spec()),
     ];
 
     let count = objects.len();

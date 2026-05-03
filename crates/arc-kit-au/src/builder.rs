@@ -3,7 +3,6 @@
 //! Provides a fluent API for building evidence chains from ingest,
 //! classify, approve, and export operations.
 
-
 use crate::edge::EdgeType;
 use crate::graph::EvidenceGraph;
 use crate::node::{
@@ -76,7 +75,8 @@ impl<'a> EvidenceBuilder<'a> {
     pub fn ensure_proposal(&mut self, proposal: ModelProposal) -> NodeId {
         let prop_id = proposal.node_id();
         let tx_id = NodeId::new(NodeType::Transaction, &proposal.tx_id);
-        self.graph.ensure_node(EvidenceNode::ModelProposal(proposal));
+        self.graph
+            .ensure_node(EvidenceNode::ModelProposal(proposal));
         self.graph
             .ensure_edge(tx_id, prop_id.clone(), EdgeType::ProposedBy);
         prop_id
@@ -98,7 +98,8 @@ impl<'a> EvidenceBuilder<'a> {
         let wb_id = wb_row.node_id();
         let tx_id = NodeId::new(NodeType::Transaction, &wb_row.tx_id);
         self.graph.ensure_node(EvidenceNode::WorkbookRow(wb_row));
-        self.graph.ensure_edge(tx_id, wb_id.clone(), EdgeType::ExportedTo);
+        self.graph
+            .ensure_edge(tx_id, wb_id.clone(), EdgeType::ExportedTo);
         wb_id
     }
 
@@ -106,8 +107,7 @@ impl<'a> EvidenceBuilder<'a> {
     pub fn ensure_validation_issue(&mut self, issue: ValidationIssue) -> NodeId {
         let vi_id = issue.node_id();
         let tx_id = NodeId::new(NodeType::Transaction, &issue.tx_id);
-        self.graph
-            .ensure_node(EvidenceNode::ValidationIssue(issue));
+        self.graph.ensure_node(EvidenceNode::ValidationIssue(issue));
         self.graph
             .ensure_edge(tx_id, vi_id.clone(), EdgeType::ValidatedAs);
         vi_id
@@ -133,8 +133,8 @@ impl<'a> EvidenceBuilder<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::node::Confidence;
     use super::*;
+    use crate::node::Confidence;
     use chrono::{TimeZone, Utc};
     use rust_decimal::Decimal;
 

@@ -65,9 +65,7 @@ impl From<&EvidenceChain> for ProvenanceBadge {
         let critical_missing: Vec<_> = missing
             .iter()
             .filter(|m| {
-                **m == "source_document"
-                    || **m == "classification"
-                    || **m == "extracted_rows"
+                **m == "source_document" || **m == "classification" || **m == "extracted_rows"
             })
             .map(|s| s.to_string())
             .collect();
@@ -86,8 +84,8 @@ impl From<&EvidenceChain> for ProvenanceBadge {
 
 #[cfg(test)]
 mod tests {
-    use crate::node::Confidence;
     use super::*;
+    use crate::node::Confidence;
     use crate::node::{EvidenceNode, NodeId, NodeType, SourceDoc};
     use chrono::TimeZone;
     use chrono::Utc;
@@ -146,18 +144,16 @@ mod tests {
                 source_document: NodeId::new(NodeType::SourceDoc, "abc"),
                 extraction_confidence: Confidence::from(0.95),
             })],
-            classifications: vec![EvidenceNode::Classification(
-                crate::node::Classification {
-                    tx_id: "tx_1".to_string(),
-                    category: "Meals".to_string(),
-                    sub_category: None,
-                    confidence: Confidence::from(0.92),
-                    rule_used: None,
-                    actor: "operator".to_string(),
-                    classified_at: Utc.with_ymd_and_hms(2024, 2, 1, 11, 0, 0).unwrap(),
-                    note: None,
-                },
-            )],
+            classifications: vec![EvidenceNode::Classification(crate::node::Classification {
+                tx_id: "tx_1".to_string(),
+                category: "Meals".to_string(),
+                sub_category: None,
+                confidence: Confidence::from(0.92),
+                rule_used: None,
+                actor: "operator".to_string(),
+                classified_at: Utc.with_ymd_and_hms(2024, 2, 1, 11, 0, 0).unwrap(),
+                note: None,
+            })],
             proposals: vec![],
             approvals: vec![EvidenceNode::OperatorApproval(
                 crate::node::OperatorApproval {
@@ -204,18 +200,16 @@ mod tests {
             tx_id: "tx_3".to_string(),
             source_documents: vec![],
             extracted_rows: vec![],
-            classifications: vec![EvidenceNode::Classification(
-                crate::node::Classification {
-                    tx_id: "tx_3".to_string(),
-                    category: "Meals".to_string(),
-                    sub_category: None,
-                    confidence: Confidence::from(0.92),
-                    rule_used: None,
-                    actor: "operator".to_string(),
-                    classified_at: Utc.with_ymd_and_hms(2024, 2, 1, 11, 0, 0).unwrap(),
-                    note: None,
-                },
-            )],
+            classifications: vec![EvidenceNode::Classification(crate::node::Classification {
+                tx_id: "tx_3".to_string(),
+                category: "Meals".to_string(),
+                sub_category: None,
+                confidence: Confidence::from(0.92),
+                rule_used: None,
+                actor: "operator".to_string(),
+                classified_at: Utc.with_ymd_and_hms(2024, 2, 1, 11, 0, 0).unwrap(),
+                note: None,
+            })],
             proposals: vec![],
             approvals: vec![EvidenceNode::OperatorApproval(
                 crate::node::OperatorApproval {

@@ -129,7 +129,10 @@ impl MetaCtx {
             confidence: stage_confidence,
             issue_count: issues.len(),
         });
-        for _issue in issues.iter().filter(|i| matches!(i.disposition, Disposition::Recoverable)) {
+        for _issue in issues
+            .iter()
+            .filter(|i| matches!(i.disposition, Disposition::Recoverable))
+        {
             next.flags.push(MetaFlag::LowUpstreamConf {
                 score: stage_confidence,
                 stage: stage.to_string(),
@@ -276,19 +279,27 @@ pub mod verbs {
     use super::*;
 
     pub fn detect() -> VerbDef {
-        VerbDef::new("detect").with_input("bytes").with_output("ShapeResult")
+        VerbDef::new("detect")
+            .with_input("bytes")
+            .with_output("ShapeResult")
     }
 
     pub fn validate() -> VerbDef {
-        VerbDef::new("validate").with_input("ShapeResult").with_output("Validated")
+        VerbDef::new("validate")
+            .with_input("ShapeResult")
+            .with_output("Validated")
     }
 
     pub fn classify() -> VerbDef {
-        VerbDef::new("classify").with_input("Validated").with_output("Classified")
+        VerbDef::new("classify")
+            .with_input("Validated")
+            .with_output("Classified")
     }
 
     pub fn reconcile() -> VerbDef {
-        VerbDef::new("reconcile").with_input("Classified").with_output("Posting")
+        VerbDef::new("reconcile")
+            .with_input("Classified")
+            .with_output("Posting")
     }
 
     pub fn commit() -> VerbDef {

@@ -130,17 +130,20 @@ impl StdioMcpProvider {
     pub fn new(command: &str, args: &[String]) -> ProviderResult<Self> {
         let transport = StdinTransport::spawn(command, args)?;
         Ok(Self {
-            name: format!("mcp-{}", PathBuf::from(command).file_stem().unwrap_or_default().to_string_lossy()),
+            name: format!(
+                "mcp-{}",
+                PathBuf::from(command)
+                    .file_stem()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+            ),
             transport,
             next_id: Arc::new(Mutex::new(1)),
         })
     }
 
     fn next_id(&self) -> u64 {
-        let mut id = self
-            .next_id
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
+        let mut id = self.next_id.lock().unwrap_or_else(|e| e.into_inner());
         let curr = *id;
         *id += 1;
         curr
@@ -263,7 +266,12 @@ impl McpProviderRegistry {
         descriptors
     }
 
-    pub fn call_tool(&self, provider_name: &str, tool_name: &str, arguments: Value) -> ProviderResult<Value> {
+    pub fn call_tool(
+        &self,
+        provider_name: &str,
+        tool_name: &str,
+        arguments: Value,
+    ) -> ProviderResult<Value> {
         for provider in &self.providers {
             if provider.name() == provider_name {
                 return provider.call_tool(tool_name, arguments);
@@ -362,7 +370,10 @@ pub(crate) mod mock {
 
         fn call_tool(&self, _name: &str, _arguments: Value) -> ProviderResult<Value> {
             self.call_count.fetch_add(1, Ordering::SeqCst);
-            self.call_result.as_ref().map_err(|e| e.clone()).and_then(|v| Ok(v.clone()))
+            self.call_result
+                .as_ref()
+                .map_err(|e| e.clone())
+                .and_then(|v| Ok(v.clone()))
         }
 
         fn shutdown(&self) {}
@@ -371,8 +382,8 @@ pub(crate) mod mock {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::mock::MockProvider;
+    use super::*;
 
     #[test]
     fn test_mock_provider_initialize_ok() {
@@ -395,7 +406,12 @@ mod tests {
         let provider = MockProvider::new("calc", "add");
         let result = provider.call_tool("add", json!({"a": 1, "b": 2}));
         assert!(result.is_ok());
-        assert_eq!(provider.call_count.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(
+            provider
+                .call_count
+                .load(std::sync::atomic::Ordering::SeqCst),
+            1
+        );
     }
 
     #[test]
@@ -415,7 +431,8 @@ mod tests {
 
         let results = registry.initialize_all();
         assert_eq!(results.len(), 2);
-        let ok_names: Vec<_> = results.iter()
+        let ok_names: Vec<_> = results
+            .iter()
             .filter(|(_, r)| r.is_ok())
             .map(|(n, _)| n.as_str())
             .collect();
@@ -452,7 +469,10 @@ mod tests {
 
         let result = registry.call_tool("", "nonexistent", json!({}));
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("no provider found"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("no provider found"));
     }
 
     #[test]
@@ -487,7 +507,11 @@ mod tests {
         registry.register(Arc::new(MockProvider::new("my-provider", "my-tool")));
 
         let result = registry.call_tool("", "my-tool", json!({}));
-        assert!(result.is_ok(), "should find tool by name across providers: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "should find tool by name across providers: {:?}",
+            result
+        );
     }
 
     #[test]

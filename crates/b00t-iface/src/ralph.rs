@@ -23,10 +23,11 @@
 //! - `cadence`: min delay between iterations
 
 use crate::core::{
-    AuditRecord, GovernancePolicy, MaintenanceAction, ProcessSurface, Requirement, SurfaceCapability,
+    AuditRecord, GovernancePolicy, MaintenanceAction, ProcessSurface, Requirement,
+    SurfaceCapability,
 };
-use crate::AgentRole;
 use crate::gated::autoresearch::{Experiment, ExperimentLog, ExperimentVerdict, Researcher};
+use crate::AgentRole;
 use std::time::{Duration, Instant};
 
 /// Properties that define a ralph loop's behavior.
@@ -101,13 +102,19 @@ impl<R: Researcher> RalphLoopSurface<R> {
         }
 
         let iter_start = Instant::now();
-        let experiment = self.researcher.propose(&self.history.iter().map(|h| ExperimentLog {
-            number: h.number,
-            hypothesis: h.hypothesis.clone(),
-            verdict: h.verdict.clone(),
-            eval_time: h.elapsed,
-            target_file: String::new(),
-        }).collect::<Vec<_>>());
+        let experiment = self.researcher.propose(
+            &self
+                .history
+                .iter()
+                .map(|h| ExperimentLog {
+                    number: h.number,
+                    hypothesis: h.hypothesis.clone(),
+                    verdict: h.verdict.clone(),
+                    eval_time: h.elapsed,
+                    target_file: String::new(),
+                })
+                .collect::<Vec<_>>(),
+        );
 
         let hypothesis = experiment.hypothesis().to_owned();
         let number = self.history.len() as u32 + 1;
@@ -276,9 +283,12 @@ mod tests {
             },
         );
         let verdict = loop_surface.iterate().unwrap();
-        assert_eq!(verdict, ExperimentVerdict::Fail {
-            reason: "no tests ran".into()
-        });
+        assert_eq!(
+            verdict,
+            ExperimentVerdict::Fail {
+                reason: "no tests ran".into()
+            }
+        );
         assert_eq!(loop_surface.history.len(), 1);
     }
 
@@ -349,7 +359,7 @@ mod tests {
             RalphLoopProperties::default(),
         );
         let handle = Vec::new();
-        let audit = <RalphLoopSurface::<CargoTestResearcher>>::terminate(handle).unwrap();
+        let audit = <RalphLoopSurface<CargoTestResearcher>>::terminate(handle).unwrap();
         assert_eq!(audit.surface_name, "ralph-loop");
     }
 

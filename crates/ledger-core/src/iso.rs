@@ -270,9 +270,8 @@ impl From<RhaiDsl> for RhaiDslOwned {
 }
 
 const RHAI_KEYWORDS: &[&str] = &[
-    "let", "const", "if", "else", "match", "fn", "for", "while", "loop",
-    "return", "break", "continue", "true", "false", "import", "export",
-    "throw", "try", "catch", "in", "is",
+    "let", "const", "if", "else", "match", "fn", "for", "while", "loop", "return", "break",
+    "continue", "true", "false", "import", "export", "throw", "try", "catch", "in", "is",
 ];
 
 /// Extract identifiers from Rhai source with line/col spans and kind classification.
@@ -296,18 +295,27 @@ fn extract_dsl_symbols(source: &str) -> Vec<DslSymbol> {
         }
         // Skip line comments
         if c == '/' && i + 1 < chars.len() && chars[i + 1] == '/' {
-            while i < chars.len() && chars[i] != '\n' { i += 1; }
+            while i < chars.len() && chars[i] != '\n' {
+                i += 1;
+            }
             continue;
         }
         // Skip string literals (avoid picking up identifiers inside strings)
         if c == '"' || c == '\'' {
             let quote = c;
-            i += 1; col += 1;
+            i += 1;
+            col += 1;
             while i < chars.len() && chars[i] != quote {
-                if chars[i] == '\n' { line += 1; col = 1; } else { col += 1; }
+                if chars[i] == '\n' {
+                    line += 1;
+                    col = 1;
+                } else {
+                    col += 1;
+                }
                 i += 1;
             }
-            i += 1; col += 1;
+            i += 1;
+            col += 1;
             continue;
         }
         if c.is_alphabetic() || c == '_' {
@@ -320,7 +328,9 @@ fn extract_dsl_symbols(source: &str) -> Vec<DslSymbol> {
             let name: String = chars[start..i].iter().collect();
             // Peek past whitespace to detect function call
             let mut j = i;
-            while j < chars.len() && chars[j] == ' ' { j += 1; }
+            while j < chars.len() && chars[j] == ' ' {
+                j += 1;
+            }
             let kind = if RHAI_KEYWORDS.contains(&name.as_str()) {
                 DslSymbolKind::Keyword
             } else if j < chars.len() && chars[j] == '(' {
@@ -328,7 +338,11 @@ fn extract_dsl_symbols(source: &str) -> Vec<DslSymbol> {
             } else {
                 DslSymbolKind::Variable
             };
-            symbols.push(DslSymbol { kind, name, span: Some(span) });
+            symbols.push(DslSymbol {
+                kind,
+                name,
+                span: Some(span),
+            });
             continue;
         }
         col += 1;
@@ -466,10 +480,7 @@ impl IsoAnimationPath {
     /// cumulative `run_time` derived from `duration_ms`.
     pub fn to_manim_script(&self, label: &str) -> String {
         let mut out = String::new();
-        out.push_str(&format!(
-            "# Manim animation stub for '{}'\n",
-            label
-        ));
+        out.push_str(&format!("# Manim animation stub for '{}'\n", label));
         out.push_str("from manim import *\n\n");
         out.push_str(&format!(
             "class {}Scene(Scene):\n    def construct(self):\n",
@@ -721,7 +732,10 @@ mod tests {
 
     #[test]
     fn smil_svg_empty_transforms_returns_empty_string() {
-        let path = IsoAnimationPath { label: "empty".into(), transforms: vec![] };
+        let path = IsoAnimationPath {
+            label: "empty".into(),
+            transforms: vec![],
+        };
         assert!(path.to_smil_svg(1.0, 0.0, 0.0).is_empty());
     }
 
@@ -742,14 +756,21 @@ mod tests {
 
     #[test]
     fn xml_attr_escape_handles_special_chars() {
-        assert_eq!(xml_attr_escape(r#"a & "b" <c>"#), "a &amp; &quot;b&quot; &lt;c&gt;");
+        assert_eq!(
+            xml_attr_escape(r#"a & "b" <c>"#),
+            "a &amp; &quot;b&quot; &lt;c&gt;"
+        );
     }
 
     #[test]
     fn zlayer_display_nonempty() {
         let all = [
-            ZLayer::Document, ZLayer::Pipeline, ZLayer::Constraint,
-            ZLayer::Legal, ZLayer::FormalProof, ZLayer::Attestation,
+            ZLayer::Document,
+            ZLayer::Pipeline,
+            ZLayer::Constraint,
+            ZLayer::Legal,
+            ZLayer::FormalProof,
+            ZLayer::Attestation,
         ];
         for layer in all {
             assert!(!layer.to_string().is_empty());
@@ -759,10 +780,18 @@ mod tests {
     #[test]
     fn semantic_type_display_nonempty() {
         let all = [
-            SemanticType::Document, SemanticType::Pipeline, SemanticType::Constraint,
-            SemanticType::Gate, SemanticType::Legal, SemanticType::Solver,
-            SemanticType::Result, SemanticType::Flag, SemanticType::Issue,
-            SemanticType::Proof, SemanticType::Attestation, SemanticType::Unknown,
+            SemanticType::Document,
+            SemanticType::Pipeline,
+            SemanticType::Constraint,
+            SemanticType::Gate,
+            SemanticType::Legal,
+            SemanticType::Solver,
+            SemanticType::Result,
+            SemanticType::Flag,
+            SemanticType::Issue,
+            SemanticType::Proof,
+            SemanticType::Attestation,
+            SemanticType::Unknown,
         ];
         for st in all {
             assert!(!st.to_string().is_empty());

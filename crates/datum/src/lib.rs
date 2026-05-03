@@ -10,7 +10,10 @@ use std::path::Path;
 #[derive(Debug, thiserror::Error)]
 pub enum DatumError {
     #[error("I/O error reading datum file '{path}': {source}")]
-    Io { path: String, source: std::io::Error },
+    Io {
+        path: String,
+        source: std::io::Error,
+    },
     #[error("datum file '{path}' is empty")]
     Empty { path: String },
     #[error("datum file '{path}' has no H1 header (line must start with '# ')")]
@@ -107,11 +110,19 @@ mod tests {
     #[cfg(feature = "real_datums")]
     fn load_all_expected_datums() {
         let base = datum_base();
-        for name in &["opencode-codebase-memory-integration", "opencode", "b00t-opencode-gaps", "openagents-control"] {
-            let datum = load_datum(&base, name)
-                .unwrap_or_else(|e| panic!("datum {name}: {e}"));
+        for name in &[
+            "opencode-codebase-memory-integration",
+            "opencode",
+            "b00t-opencode-gaps",
+            "openagents-control",
+        ] {
+            let datum = load_datum(&base, name).unwrap_or_else(|e| panic!("datum {name}: {e}"));
             assert!(!datum.h1.is_empty(), "datum {name} has empty H1");
-            assert!(datum.line_count > 3, "datum {name} too short ({})", datum.line_count);
+            assert!(
+                datum.line_count > 3,
+                "datum {name} too short ({})",
+                datum.line_count
+            );
         }
     }
 

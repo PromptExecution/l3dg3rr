@@ -15,8 +15,16 @@ use ledger_core::validation::{CommitGate, Issue, MetaFlag, StageResult};
 macro_rules! lint_spec {
     ($ty:ty) => {{
         let spec = <$ty>::viz_spec();
-        assert!(!spec.description.is_empty(), "description is empty for {}", stringify!($ty));
-        assert!(!spec.rhai_dsl.is_empty(), "rhai_dsl is empty for {}", stringify!($ty));
+        assert!(
+            !spec.description.is_empty(),
+            "description is empty for {}",
+            stringify!($ty)
+        );
+        assert!(
+            !spec.rhai_dsl.is_empty(),
+            "rhai_dsl is empty for {}",
+            stringify!($ty)
+        );
         assert!(
             spec.z_layer.index() <= 5,
             "z_layer.index() > 5 for {}",
