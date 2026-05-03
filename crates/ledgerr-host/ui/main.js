@@ -454,6 +454,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   showLogPanel(0);
 
   listen('chat-update', event => {
+    window.___tauri_ready = true;
     const d = event.payload;
     transcript.textContent = d.transcript_text  ?? '';
     reviewLog.textContent  = d.review_log_text  ?? '';
@@ -465,8 +466,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     scrollToBottom(reviewLog);
     scrollToBottom(rigLog);
     setBusy(d.busy === true);
-  }).catch(err => console.error('listen error:', err));
+  }).catch(err => { console.error('listen error:', err); window.___tauri_error = err.message; });
 
+  window.___tauri_ready = !!window.__TAURI__;
   try {
     const state = await invoke('get_initial_state');
     versionText.textContent    = state.version_text ?? '';
@@ -486,3 +488,30 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   refreshDashboard();
 });
+
+// ── Autorun: 5s countdown then exit (telemetry dump) ─────────────────────────
+if (autorunMode) {
+  let countdown = 5;
+  const el = document.createElement('div');
+  el.id = 'autorun-timer';
+  el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#203647;color:#e7f0f8;text-align:center;padding:6px;font-size:13px;z-index:9999;font-family:monospace;white-space:pre-wrap';
+  document.body.appendChild(el);
+
+  // Capture any buildUI/cacheRefs error from the global scope
+  let initErr = '';
+  window.addEventListener('error', function(e) {
+    initErr += `${e.message}\n`;
+    el.textContent += `\n[ERROR] ${e.message}`;
+  });
+
+  const tick = setInterval(() => {
+    el.textContent = `Autorun: exiting in ${countdown}s...`;
+    el.textContent += initErr ? `\n[ERROR] ${initErr}` : '\n[no errors detected]';
+    countdown--;
+    if (countdown < 0) {
+      clearInterval(tick);
+      el.textContent = 'Autorun: exiting now.' + (initErr ? '\n[ERROR] ' + initErr : '');
+      setTimeout(() => { window.close(); }, 500);
+    }
+  }, 1000);
+}
