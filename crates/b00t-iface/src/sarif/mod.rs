@@ -415,15 +415,14 @@ pub fn check_l3dg3rr_standards(doc_files: &[(&str, &str)]) -> SarifLog {
 
             if rule.id.contains("unwired-legal-verification") {
                 // Check that PipelineBuilder::build() references LegalSolver
-                if content.contains("PipelineBuilder") && content.contains("fn build(") {
-                    if !content.contains("LegalSolver") && !content.contains("legal_solver") {
+                if content.contains("PipelineBuilder") && content.contains("fn build(")
+                    && !content.contains("LegalSolver") && !content.contains("legal_solver") {
                         run.add_result(rule.to_result(
                             file,
                             first_line_containing(content, "fn build("),
                             "PipelineBuilder::build() does not instantiate LegalSolver — enable_legal_verification flag is dead code",
                         ));
                     }
-                }
             }
 
             if rule.id.contains("mcp-provider-unwired") {
@@ -431,8 +430,7 @@ pub fn check_l3dg3rr_standards(doc_files: &[(&str, &str)]) -> SarifLog {
                 if (content.contains("mcp_adapter") || content.contains("ledgerr-mcp-server"))
                     && content.contains("tool_name")
                     && content.contains("match")
-                {
-                    if !content.contains("McpProviderRegistry")
+                    && !content.contains("McpProviderRegistry")
                         && !content.contains("handle_external_tool")
                     {
                         run.add_result(rule.to_result(
@@ -441,13 +439,12 @@ pub fn check_l3dg3rr_standards(doc_files: &[(&str, &str)]) -> SarifLog {
                             "Tool dispatch in ledgerr-mcp-server does not reference McpProviderRegistry — external providers are unreachable",
                         ));
                     }
-                }
             }
 
             if rule.id.contains("z3-kasuari-coherence") {
                 // Check that both Z3 and Kasuari concepts are used together
-                if content.contains("verify_legal") || content.contains("LegalSolver::verify") {
-                    if !content.contains("constraints") && !content.contains("VendorConstraintSet")
+                if (content.contains("verify_legal") || content.contains("LegalSolver::verify"))
+                    && !content.contains("constraints") && !content.contains("VendorConstraintSet")
                     {
                         run.add_result(rule.to_result(
                             file,
@@ -455,7 +452,6 @@ pub fn check_l3dg3rr_standards(doc_files: &[(&str, &str)]) -> SarifLog {
                             "Legal verification runs without constraint checking — Z3 result should feed into Kasuari-style constraint evaluation",
                         ));
                     }
-                }
             }
         }
     }

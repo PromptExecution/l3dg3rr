@@ -835,6 +835,7 @@ macro_rules! abstract_cap_test {
 pub use abstract_cap_test;
 
 /// Runtime test helper: builds flux capacitor from gate kinds and checks stability.
+#[cfg(test)]
 fn run_stable_test(kinds: &[GateKind]) {
     let mut cap = FluxCapacitor::new();
     let ids: Vec<usize> = kinds.iter().map(|k| cap.add_gate(*k)).collect();

@@ -125,6 +125,13 @@ Future agents should follow this working loop unless the user directs otherwise:
 - memoize stable next steps, constraints, and unresolved risks back into this file when they matter for later sessions;
 - repeat until the user is satisfied.
 
+Code discovery rule (mandatory, not optional):
+- NEVER use grep/bash -r for structural code queries (function defs, callers, types, routes, imports, dependencies, architecture).
+- ALWAYS use `codebase-memory-mcp` tools (`search_graph`, `trace_path`, `get_code_snippet`, `get_architecture`, `query_graph`) for structural queries.
+- ALWAYS use `b00t-mcp` tools (`b00t_grok_ask`, `b00t_grok_learn`) for RAG-augmented knowledge retrieval.
+- Fall back to grep/glob ONLY for string literals, error messages, config values, and non-code files (Dockerfiles, shell scripts, YAML).
+- Rationale: grep -r burns CPU budget (10-30s per call), misses cross-crate relationships, and pulls irrelevant context. codebase-memory-mcp resolves in 1-3s with structural labels and relationship edges.
+
 Practical interpretation:
 - prefer one agent/sub-agent for implementation and another for targeted verification when the user explicitly wants delegation or parallel work;
 - do not treat green tests as the only completion signal if the UX, notification path, tray behavior, or host integration still lacks a real validation path;
@@ -423,6 +430,12 @@ Treat this as a standing operational gate, not a one-time migration task.
   - Describe `l3dg3rr` as a strongly typed, ontologically linked graph of scriptable visual-first workflows for supervised AI/LLM ETL into CPA-auditable bookkeeping artifacts.
   - Keep README structure MECE: bookkeeping truth, typed domain model, ontology graph, scriptable policy, workflow control, visualization, MCP/agent boundary, and operator host.
   - Clarify Rhai surfaces separately: transaction rules use `fn classify(tx)`, workflow compiler output may emit Rhai `switch`, and docs visualization uses the narrow `match expr => Arm -> target` DSL.
+- 2026-05-03: Clippy zero-warnings baseline established, agent tooling efficiency mandate.
+  - **Code discovery rule (mandatory)**: Added explicit rule to Execution Loop section: NEVER grep -r for structural queries. ALWAYS use codebase-memory-mcp (search_graph/trace_path) or b00t-mcp (b00t_grok_ask). grep/glob only for string literals, config values, non-code files. Rationale: grep burns 10-30s CPU budget per call, misses cross-crate relationships, pulls irrelevant context; graph tools resolve in 1-3s with structural labels.
+  - **`handle_external_tool`**: Removed vestigial `_registry` parameter — function always uses `GLOBAL_PROVIDER_REGISTRY` static internally. Call site no longer creates dummy `McpProviderRegistry::new()`.
+  - **Unmapped surfaces survey**: Confirmed `ConstraintSolver`/`Verb` traits are test+visualization-only but not truly dead (exercised by xtask + iso_lint). `LedgerOperation`/`SemanticRuleSelector`/`MultiModelVerifier` are future-feature stubs, not gaps. `HasVisualization` all 20 impls exercised. 13 ledger-core modules not consumed by MCP/host is architectural intent (iso/layout/render are visualization-only).
+  - **Zero clippy warnings** across workspace (excluding pre-existing ledgerr-tauri WSL issue). Fixed: unused constants behind cfg gates, dead_code on struct fields used only in tests, large Err variant allow.
+  - **Sub-agent pattern**: Used explore sub-agents with codebase-memory-mcp for survey (returned structured report in ~30s). Compare: previous grep-based survey attempt in PR #69 took 10+ minutes of CPU with truncated output. This validated the new tooling approach.
 
 
 <!-- GSD:profile-start -->

@@ -212,11 +212,10 @@ impl<'a> Classifier<'a> {
         }
 
         // Crypto hints → account type
-        if fl.contains("coinbase") || fl.contains("kraken") {
-            if self.account_type.is_empty() {
+        if (fl.contains("coinbase") || fl.contains("kraken"))
+            && self.account_type.is_empty() {
                 self.account_type = "crypto".to_string();
             }
-        }
     }
 
     // -----------------------------------------------------------------------
@@ -470,7 +469,7 @@ fn has_date_pattern(content: &str, pattern: DatePattern) -> bool {
                     let day_tens = w[0];
                     let day_units = w[1];
                     let year_ok = w[6..10].iter().all(|c| c.is_ascii_digit());
-                    let is_valid_day_tens = day_tens >= b'0' && day_tens <= b'3';
+                    let is_valid_day_tens = (b'0'..=b'3').contains(&day_tens);
                     let unit_digit = day_units.is_ascii_digit();
                     // AU style if day tens > 1 (i.e. 20-31) or tens == 1 and units > 2 (13-19)
                     let looks_au = (day_tens == b'1' && day_units > b'2')

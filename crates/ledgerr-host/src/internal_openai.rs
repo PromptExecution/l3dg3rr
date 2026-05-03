@@ -717,7 +717,7 @@ fn default_internal_backend() -> Arc<dyn InternalChatBackend> {
         }
     }
 
-    Arc::new(Phi4LocalFallbackBackend::default())
+    Arc::new(Phi4LocalFallbackBackend)
 }
 
 #[cfg(feature = "mistralrs-llm")]

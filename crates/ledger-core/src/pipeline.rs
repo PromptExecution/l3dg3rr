@@ -100,6 +100,7 @@ impl PipelineState<Ingested> {
 impl PipelineState<Validated> {
     /// Verify transaction against legal rules.
     /// Returns Ok(Classified) if no Unrecoverable violations, Err(NeedsReview) otherwise.
+    #[allow(clippy::result_large_err)]
     pub fn verify_legal(
         self,
         solver: &crate::legal::LegalSolver,
@@ -280,7 +281,9 @@ impl LedgerPipeline {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Default)]
 pub enum State {
+    #[default]
     Ingested,
     Validating,
     Classifying,
@@ -289,11 +292,6 @@ pub enum State {
     NeedsReview,
 }
 
-impl Default for State {
-    fn default() -> Self {
-        State::Ingested
-    }
-}
 
 pub fn init() -> State {
     State::Ingested

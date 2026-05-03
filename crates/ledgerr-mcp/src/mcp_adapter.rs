@@ -124,11 +124,7 @@ pub fn tool_names() -> Vec<String> {
 
 /// Hook for external MCP providers.  Dispatches via the global provider registry.
 #[cfg(feature = "b00t")]
-pub fn handle_external_tool(
-    _registry: &ledgerr_mcp_core::McpProviderRegistry,
-    tool_name: &str,
-    arguments: &Value,
-) -> Value {
+pub fn handle_external_tool(tool_name: &str, arguments: &Value) -> Value {
     let Some(reg) = GLOBAL_PROVIDER_REGISTRY.get() else {
         return unknown_tool_result(tool_name);
     };
@@ -142,7 +138,7 @@ pub fn handle_external_tool(
 }
 
 #[cfg(not(feature = "b00t"))]
-pub fn handle_external_tool(_registry: (), tool_name: &str, _arguments: &Value) -> Value {
+pub fn handle_external_tool(tool_name: &str, _arguments: &Value) -> Value {
     unknown_tool_result(tool_name)
 }
 

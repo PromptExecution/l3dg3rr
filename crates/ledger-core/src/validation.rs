@@ -184,13 +184,13 @@ where
     let issues = next.issues.clone();
     let _issue_count = issues.len();
     let meta = next.meta.advance(stage, next.confidence, &issues);
-    let result = StageResult {
+    
+    StageResult {
         data: next.data,
         confidence: next.confidence,
         issues,
         meta,
-    };
-    result
+    }
 }
 
 /// Reversibility defines whether a verb can be undone and under what conditions.

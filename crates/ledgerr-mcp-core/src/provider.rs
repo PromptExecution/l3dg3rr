@@ -371,8 +371,7 @@ pub mod mock {
             self.call_count.fetch_add(1, Ordering::SeqCst);
             self.call_result
                 .as_ref()
-                .map_err(|e| e.clone())
-                .map(|v| v.clone())
+                .map_err(|e| e.clone()).cloned()
         }
 
         fn shutdown(&self) {}
