@@ -49,10 +49,5 @@ pub fn create_pipeline_nodes() -> Vec<NodeData> {
 }
 
 pub fn create_pipeline_edges() -> Vec<(usize, usize)> {
-    vec![
-        (0, 1),
-        (1, 2),
-        (2, 3),
-        (3, 4),
-    ]
+    vec![(0, 1), (1, 2), (2, 3), (3, 4)]
 }

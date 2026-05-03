@@ -16,7 +16,7 @@ use serde::Serialize;
 
 /// 2:1 dimetric isometric projection constants.
 pub const ISO_SCALE_X: f32 = 0.8660254; // cos(30°)
-pub const ISO_SCALE_Y: f32 = 0.5;       // sin(30°)
+pub const ISO_SCALE_Y: f32 = 0.5; // sin(30°)
 
 /// A 2D point in screen space.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
@@ -156,7 +156,10 @@ impl SceneGraph {
             max_y = max_y.max(p.y);
         }
 
-        (Point2D { x: min_x, y: min_y }, Point2D { x: max_x, y: max_y })
+        (
+            Point2D { x: min_x, y: min_y },
+            Point2D { x: max_x, y: max_y },
+        )
     }
 }
 
@@ -219,7 +222,10 @@ pub fn scene_to_svg(scene: &SceneGraph, theme: &SceneTheme) -> String {
             let d = if edge.is_bezier {
                 let cpx = (fp.x + tp.x) / 2.0;
                 let cpy = (fp.y + tp.y) / 2.0 - 30.0;
-                format!("M {:.1} {:.1} Q {:.1} {:.1} {:.1} {:.1}", fp.x, fp.y, cpx, cpy, tp.x, tp.y)
+                format!(
+                    "M {:.1} {:.1} Q {:.1} {:.1} {:.1} {:.1}",
+                    fp.x, fp.y, cpx, cpy, tp.x, tp.y
+                )
             } else {
                 format!("M {:.1} {:.1} L {:.1} {:.1}", fp.x, fp.y, tp.x, tp.y)
             };
@@ -251,7 +257,9 @@ pub fn scene_to_svg(scene: &SceneGraph, theme: &SceneTheme) -> String {
         let role_label = node.role.to_string();
         let hw = w / 2.0;
         svg.push_str(&format!(
-            r#"<g transform="translate({tx:.1},{ty:.1})">"#, tx = p.x - hw, ty = p.y - h / 2.0
+            r#"<g transform="translate({tx:.1},{ty:.1})">"#,
+            tx = p.x - hw,
+            ty = p.y - h / 2.0
         ));
         // Right depth face
         svg.push_str(&format!(
@@ -304,14 +312,22 @@ mod tests {
         // JS: isoProject({x:1,y:0,z:0}, 1, {x:400,y:300})
         //   x = 400 + (1-0) * 1 * 0.8660254 = 400.866
         //   y = 300 + (1+0) * 1 * 0.5 - 0 * 1 = 300.5
-        let p = iso_project(Point3D::new(1.0, 0.0, 0.0), 1.0, Point2D { x: 400.0, y: 300.0 });
+        let p = iso_project(
+            Point3D::new(1.0, 0.0, 0.0),
+            1.0,
+            Point2D { x: 400.0, y: 300.0 },
+        );
         assert!((p.x - 400.866).abs() < 0.001);
         assert!((p.y - 300.5).abs() < 0.001);
     }
 
     #[test]
     fn iso_project_origin_at_origin() {
-        let p = iso_project(Point3D::new(0.0, 0.0, 0.0), 32.0, Point2D { x: 0.0, y: 0.0 });
+        let p = iso_project(
+            Point3D::new(0.0, 0.0, 0.0),
+            32.0,
+            Point2D { x: 0.0, y: 0.0 },
+        );
         assert!((p.x - 0.0).abs() < 0.001);
         assert!((p.y - 0.0).abs() < 0.001);
     }

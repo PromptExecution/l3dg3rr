@@ -35,9 +35,9 @@
 //!                         Terminated
 //! ```
 
-use super::surface::{AuditRecord, MaintenanceAction};
-use std::time::Duration;
+use super::surface::MaintenanceAction;
 use std::fmt;
+use std::time::Duration;
 
 /// The finite set of states a surface machine can be in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -114,7 +114,11 @@ impl SurfaceMachine {
     }
 
     /// Attempt a transition. Returns the trigger label if valid.
-    pub fn transition(&mut self, to: MachineState, elapsed: Duration) -> Result<&'static str, String> {
+    pub fn transition(
+        &mut self,
+        to: MachineState,
+        elapsed: Duration,
+    ) -> Result<&'static str, String> {
         let trigger = valid_transition(self.state, to)
             .ok_or_else(|| format!("invalid transition: {} → {}", self.state, to))?;
 
@@ -130,7 +134,11 @@ impl SurfaceMachine {
     }
 
     /// Process a maintenance action and transition accordingly.
-    pub fn apply_maintenance(&mut self, action: &MaintenanceAction, elapsed: Duration) -> Result<(), String> {
+    pub fn apply_maintenance(
+        &mut self,
+        action: &MaintenanceAction,
+        elapsed: Duration,
+    ) -> Result<(), String> {
         match action {
             MaintenanceAction::NoOp => {
                 self.transition(MachineState::Healthy, elapsed)?;
@@ -163,10 +171,14 @@ mod tests {
     #[test]
     fn valid_lifecycle() {
         let mut m = SurfaceMachine::new("test");
-        m.transition(MachineState::Ready, Duration::from_millis(10)).unwrap();
-        m.transition(MachineState::Running, Duration::from_millis(50)).unwrap();
-        m.apply_maintenance(&MaintenanceAction::NoOp, Duration::from_millis(5)).unwrap();
-        m.transition(MachineState::Terminated, Duration::from_millis(20)).unwrap();
+        m.transition(MachineState::Ready, Duration::from_millis(10))
+            .unwrap();
+        m.transition(MachineState::Running, Duration::from_millis(50))
+            .unwrap();
+        m.apply_maintenance(&MaintenanceAction::NoOp, Duration::from_millis(5))
+            .unwrap();
+        m.transition(MachineState::Terminated, Duration::from_millis(20))
+            .unwrap();
         assert!(m.is_terminal());
         assert_eq!(m.transitions.len(), 4);
     }
@@ -174,7 +186,9 @@ mod tests {
     #[test]
     fn invalid_transition_fails() {
         let mut m = SurfaceMachine::new("test");
-        let err = m.transition(MachineState::Running, Duration::ZERO).unwrap_err();
+        let err = m
+            .transition(MachineState::Running, Duration::ZERO)
+            .unwrap_err();
         assert!(err.contains("invalid transition"));
     }
 
@@ -203,7 +217,8 @@ mod tests {
         let mut m = SurfaceMachine::new("test");
         m.transition(MachineState::Ready, Duration::ZERO).unwrap();
         m.transition(MachineState::Running, Duration::ZERO).unwrap();
-        m.apply_maintenance(&MaintenanceAction::Restart, Duration::ZERO).unwrap();
+        m.apply_maintenance(&MaintenanceAction::Restart, Duration::ZERO)
+            .unwrap();
         assert_eq!(m.crash_count, 1);
         assert_eq!(m.state, MachineState::Ready);
     }

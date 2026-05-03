@@ -125,8 +125,7 @@ pub enum DatumWatcherError {
 impl DatumWatcher {
     pub fn new() -> Self {
         let base = if cfg!(test) {
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../_b00t_")
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../_b00t_")
         } else {
             Path::new("_b00t_").to_path_buf()
         };
@@ -142,14 +141,12 @@ impl DatumWatcher {
         if !dir.exists() {
             return Err(DatumWatcherError::DirNotFound(dir.display().to_string()));
         }
-        let entries = std::fs::read_dir(dir).map_err(|e| {
-            DatumWatcherError::DirNotFound(format!("{}: {e}", dir.display()))
-        })?;
+        let entries = std::fs::read_dir(dir)
+            .map_err(|e| DatumWatcherError::DirNotFound(format!("{}: {e}", dir.display())))?;
         let mut files = Vec::new();
         for entry in entries {
-            let entry = entry.map_err(|e| {
-                DatumWatcherError::DirNotFound(format!("{}: {e}", dir.display()))
-            })?;
+            let entry = entry
+                .map_err(|e| DatumWatcherError::DirNotFound(format!("{}: {e}", dir.display())))?;
             let name = entry.file_name().to_string_lossy().to_string();
             if name.ends_with(".datum") {
                 files.push(name.trim_end_matches(".datum").to_owned());
@@ -168,7 +165,9 @@ impl ProcessSurface for DatumWatcher {
     fn capability(&self) -> SurfaceCapability {
         SurfaceCapability {
             name: "datum-watcher",
-            requirements: vec![Requirement::PathExists(self.datum_dir.display().to_string())],
+            requirements: vec![Requirement::PathExists(
+                self.datum_dir.display().to_string(),
+            )],
             governance: GovernancePolicy {
                 allowed_starters: vec![AgentRole::Executive, AgentRole::Operator],
                 max_ttl: Duration::from_secs(86400),

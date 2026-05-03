@@ -37,7 +37,11 @@ impl ConstraintEvaluation {
             return (0.0, Disposition::Unrecoverable);
         }
         let score = self.strong_ratio * 0.60 + self.medium_ratio * 0.30 + self.weak_ratio * 0.10;
-        let disposition = if score >= 0.85 { Disposition::Advisory } else { Disposition::Recoverable };
+        let disposition = if score >= 0.85 {
+            Disposition::Advisory
+        } else {
+            Disposition::Recoverable
+        };
         (score, disposition)
     }
 
@@ -55,15 +59,25 @@ impl ConstraintEvaluation {
         if self.strong_ratio < 1.0 {
             issues.push(Issue::recoverable(
                 "constraint_strong_fail",
-                format!("vendor {vendor_id}: strong constraint ratio {:.0}%", self.strong_ratio * 100.0),
-                IssueSource::Constraint { strength: self.strong_ratio },
+                format!(
+                    "vendor {vendor_id}: strong constraint ratio {:.0}%",
+                    self.strong_ratio * 100.0
+                ),
+                IssueSource::Constraint {
+                    strength: self.strong_ratio,
+                },
             ));
         }
         if self.medium_ratio < 0.5 {
             issues.push(Issue::recoverable(
                 "constraint_medium_fail",
-                format!("vendor {vendor_id}: medium constraint ratio {:.0}%", self.medium_ratio * 100.0),
-                IssueSource::Constraint { strength: self.medium_ratio },
+                format!(
+                    "vendor {vendor_id}: medium constraint ratio {:.0}%",
+                    self.medium_ratio * 100.0
+                ),
+                IssueSource::Constraint {
+                    strength: self.medium_ratio,
+                },
             ));
         }
         issues
@@ -74,7 +88,9 @@ impl ConstraintEvaluation {
         use super::validation::MetaFlag;
         let (score, _) = self.to_confidence();
         if score < 0.85 {
-            Some(MetaFlag::ConstraintWeak { constraint: constraint_name.to_string() })
+            Some(MetaFlag::ConstraintWeak {
+                constraint: constraint_name.to_string(),
+            })
         } else {
             None
         }
@@ -102,7 +118,13 @@ pub struct VendorConstraintSet {
 }
 
 impl VendorConstraintSet {
-    pub fn evaluate(&self, amount: f64, day: u32, tax_code: &str, account: &str) -> ConstraintEvaluation {
+    pub fn evaluate(
+        &self,
+        amount: f64,
+        day: u32,
+        tax_code: &str,
+        account: &str,
+    ) -> ConstraintEvaluation {
         let in_range = amount >= self.amount_p05 && amount <= self.amount_p95;
         let tax_matches = tax_code == self.usual_tax_code;
         let account_matches = account == self.usual_account;
@@ -112,10 +134,18 @@ impl VendorConstraintSet {
         let strong_ratio = strong_pass / strong_count;
         let day_matches = self.usual_day_of_month.map(|d| day == d).unwrap_or(true);
         let medium_count = 2.0;
-        let medium_pass = [day_matches, account_matches].iter().filter(|&&b| b).count() as f32;
+        let medium_pass = [day_matches, account_matches]
+            .iter()
+            .filter(|&&b| b)
+            .count() as f32;
         let medium_ratio = medium_pass / medium_count;
         let weak_ratio = 1.0;
-        ConstraintEvaluation { required_pass, strong_ratio, medium_ratio, weak_ratio }
+        ConstraintEvaluation {
+            required_pass,
+            strong_ratio,
+            medium_ratio,
+            weak_ratio,
+        }
     }
 }
 
@@ -128,7 +158,9 @@ pub struct InvoiceConstraintSolver {
 
 impl InvoiceConstraintSolver {
     pub fn new() -> Self {
-        Self { constraint_count: 0 }
+        Self {
+            constraint_count: 0,
+        }
     }
 
     /// Verify invoice arithmetic and return structured audit result.
@@ -141,9 +173,17 @@ impl InvoiceConstraintSolver {
         } else if !arithmetic_ok {
             format!("invoice arithmetic error: {total:.2} != {subtotal:.2} + {gst:.2}")
         } else {
-            format!("GST rate anomaly: expected {:.2}, got {gst:.2}", subtotal * 0.1)
+            format!(
+                "GST rate anomaly: expected {:.2}, got {gst:.2}",
+                subtotal * 0.1
+            )
         };
-        InvoiceVerification { evaluation, arithmetic_ok, gst_rate_ok, audit_note }
+        InvoiceVerification {
+            evaluation,
+            arithmetic_ok,
+            gst_rate_ok,
+            audit_note,
+        }
     }
 
     pub fn validate(&self, total: f64, subtotal: f64, gst: f64) -> ConstraintEvaluation {
@@ -223,7 +263,10 @@ mod tests {
         };
         let issues = eval.to_issues("TESTVENDOR");
         assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].disposition, super::super::validation::Disposition::Unrecoverable);
+        assert_eq!(
+            issues[0].disposition,
+            super::super::validation::Disposition::Unrecoverable
+        );
     }
 
     #[test]

@@ -17,7 +17,10 @@
 //! The handshake IS the integration — it's a b00t surface that, on operate(),
 //! performs the full exchange.
 
-use crate::core::{AuditRecord, GovernancePolicy, MaintenanceAction, ProcessSurface, Requirement, SurfaceCapability};
+use crate::core::{
+    AuditRecord, GovernancePolicy, MaintenanceAction, ProcessSurface, Requirement,
+    SurfaceCapability,
+};
 use crate::AgentRole;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -155,10 +158,9 @@ impl HandshakeSurface {
             version: "1.0.0".into(),
         };
 
-        let json = serde_json::to_string_pretty(&doc)
-            .map_err(|e| HandshakeError::Write(e.to_string()))?;
-        std::fs::write(self.doc_path(), json)
-            .map_err(|e| HandshakeError::Write(e.to_string()))?;
+        let json =
+            serde_json::to_string_pretty(&doc).map_err(|e| HandshakeError::Write(e.to_string()))?;
+        std::fs::write(self.doc_path(), json).map_err(|e| HandshakeError::Write(e.to_string()))?;
         Ok(())
     }
 
@@ -166,18 +168,18 @@ impl HandshakeSurface {
     fn read_peer(&self) -> Result<Option<HandshakeDocument>, HandshakeError> {
         // b00t writes to ~/.b00t/mesh/l3dg3rr.handshake;
         // we check if it exists and parse it.
-        let b00t_path = dirs::home_dir()
-            .map(|h| h.join(".b00t").join("mesh").join("l3dg3rr.handshake"));
+        let b00t_path =
+            dirs::home_dir().map(|h| h.join(".b00t").join("mesh").join("l3dg3rr.handshake"));
 
         let path = match b00t_path {
             Some(p) if p.exists() => p,
             _ => return Ok(None),
         };
 
-        let content = std::fs::read_to_string(&path)
-            .map_err(|e| HandshakeError::Read(e.to_string()))?;
-        let doc: HandshakeDocument = serde_json::from_str(&content)
-            .map_err(|e| HandshakeError::Parse(e.to_string()))?;
+        let content =
+            std::fs::read_to_string(&path).map_err(|e| HandshakeError::Read(e.to_string()))?;
+        let doc: HandshakeDocument =
+            serde_json::from_str(&content).map_err(|e| HandshakeError::Parse(e.to_string()))?;
         Ok(Some(doc))
     }
 
@@ -214,7 +216,9 @@ impl ProcessSurface for HandshakeSurface {
     fn capability(&self) -> SurfaceCapability {
         SurfaceCapability {
             name: "handshake",
-            requirements: vec![Requirement::PathExists(self.handshake_dir.display().to_string())],
+            requirements: vec![Requirement::PathExists(
+                self.handshake_dir.display().to_string(),
+            )],
             governance: GovernancePolicy {
                 allowed_starters: vec![AgentRole::Executive],
                 max_ttl: Duration::from_secs(3600),
@@ -232,7 +236,11 @@ impl ProcessSurface for HandshakeSurface {
         self.heartbeat_interval = Duration::from_secs(config.heartbeat_secs);
         std::fs::create_dir_all(&self.handshake_dir)
             .map_err(|e| HandshakeError::Dir(e.to_string()))?;
-        tracing::info!("HandshakeSurface initialized: {}@{}", self.identity, self.host);
+        tracing::info!(
+            "HandshakeSurface initialized: {}@{}",
+            self.identity,
+            self.host
+        );
         Ok(())
     }
 
@@ -262,8 +270,14 @@ impl ProcessSurface for HandshakeSurface {
         let peer_doc = surface_clone.peer_doc;
         Ok(HandshakeHandle {
             result,
-            peer_surfaces: peer_doc.as_ref().map(|d| d.surfaces.clone()).unwrap_or_default(),
-            peer_models: peer_doc.as_ref().map(|d| d.models.clone()).unwrap_or_default(),
+            peer_surfaces: peer_doc
+                .as_ref()
+                .map(|d| d.surfaces.clone())
+                .unwrap_or_default(),
+            peer_models: peer_doc
+                .as_ref()
+                .map(|d| d.models.clone())
+                .unwrap_or_default(),
         })
     }
 

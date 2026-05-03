@@ -33,7 +33,12 @@ pub fn emit_mermaid(graph: &Graph) -> String {
             None => None,
         };
         let line = match lbl {
-            Some(l) => format!("    {} -->|\"{}\"|{}\n", edge.from, escape_label(&l), edge.to),
+            Some(l) => format!(
+                "    {} -->|\"{}\"|{}\n",
+                edge.from,
+                escape_label(&l),
+                edge.to
+            ),
             None => format!("    {} --> {}\n", edge.from, edge.to),
         };
         out.push_str(&line);
@@ -78,7 +83,10 @@ mod tests {
         let src = "if confidence > 0.5 -> reconcile\nif confidence > 0.8 -> commit\n";
         let graph = parse(src);
         let out = emit_mermaid(&graph);
-        assert!(out.contains("|\"false\"|"), "expected false chain edge in output");
+        assert!(
+            out.contains("|\"false\"|"),
+            "expected false chain edge in output"
+        );
         assert!(out.contains("|\"true\"|"), "expected true edge in output");
     }
 

@@ -71,7 +71,11 @@ impl GovernancePolicy {
     /// Solver-friendly encoding as a serializable constraint set.
     pub fn to_constraints(&self) -> GovernanceConstraints {
         GovernanceConstraints {
-            allowed_starters: self.allowed_starters.iter().map(|r| r.to_string()).collect(),
+            allowed_starters: self
+                .allowed_starters
+                .iter()
+                .map(|r| r.to_string())
+                .collect(),
             max_ttl_secs: self.max_ttl.as_secs(),
             auto_restart: self.auto_restart,
             crash_budget: self.crash_budget,

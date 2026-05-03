@@ -19,8 +19,8 @@ use ledger_core::classify::{ClassificationEngine, SampleTransaction};
 fn rule_path(filename: &str) -> PathBuf {
     // CARGO_MANIFEST_DIR = .../crates/ledger-core
     // two parents up = workspace root
-    let manifest = std::env::var("CARGO_MANIFEST_DIR")
-        .expect("CARGO_MANIFEST_DIR must be set by cargo test");
+    let manifest =
+        std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR must be set by cargo test");
     PathBuf::from(manifest)
         .parent() // crates/
         .expect("crates parent")
@@ -88,7 +88,10 @@ fn rhai_02_foreign_income_zero_amount_no_review() {
         .unwrap_or_else(|e| panic!("rule execution failed: {e}"));
 
     assert_eq!(outcome.category, "ForeignIncome");
-    assert!(!outcome.needs_review, "zero amount must not trigger review flag");
+    assert!(
+        !outcome.needs_review,
+        "zero amount must not trigger review flag"
+    );
 }
 
 #[test]
@@ -189,7 +192,10 @@ fn rhai_06_self_employment_strong_keyword() {
         (outcome.confidence - 0.85).abs() < f64::EPSILON,
         "strong keyword should yield confidence 0.85"
     );
-    assert!(!outcome.needs_review, "strong match should not require review");
+    assert!(
+        !outcome.needs_review,
+        "strong match should not require review"
+    );
 }
 
 #[test]
@@ -285,7 +291,10 @@ fn rhai_10_fallback_zero_amount_still_review() {
         .unwrap_or_else(|e| panic!("rule execution failed: {e}"));
 
     assert_eq!(outcome.category, "Unclassified");
-    assert!(outcome.needs_review, "zero-amount fallback must require review");
+    assert!(
+        outcome.needs_review,
+        "zero-amount fallback must require review"
+    );
 }
 
 #[test]

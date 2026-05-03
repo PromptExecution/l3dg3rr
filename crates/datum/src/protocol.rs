@@ -217,9 +217,7 @@ pub fn has_unrecoverable_violations(constraints: &[ProtocolConstraint]) -> bool 
 }
 
 /// Return constraint violations grouped by severity.
-pub fn classify_violations(
-    constraints: &[ProtocolConstraint],
-) -> Vec<(LintSeverity, String)> {
+pub fn classify_violations(constraints: &[ProtocolConstraint]) -> Vec<(LintSeverity, String)> {
     constraints
         .iter()
         .filter(|c| !c.passed)
@@ -275,7 +273,10 @@ mod tests {
         let (_, constraints) = evaluate_protocol(&features);
         let violations = classify_violations(&constraints);
         let has_error = violations.iter().any(|(s, _)| *s == LintSeverity::Error);
-        assert!(has_error, "no-protocol should produce Error-level violation");
+        assert!(
+            has_error,
+            "no-protocol should produce Error-level violation"
+        );
     }
 
     #[test]
@@ -362,7 +363,13 @@ mod tests {
         };
         let (optimal, constraints) = evaluate_protocol(&features);
         assert!(optimal, "binary-only satisfies XOR: P=0,B=1 → O=1");
-        let warnings: Vec<_> = constraints.iter().filter(|c| !c.passed && c.strength == ConstraintStrength::Medium).collect();
-        assert!(!warnings.is_empty(), "should warn about missing content hash");
+        let warnings: Vec<_> = constraints
+            .iter()
+            .filter(|c| !c.passed && c.strength == ConstraintStrength::Medium)
+            .collect();
+        assert!(
+            !warnings.is_empty(),
+            "should warn about missing content hash"
+        );
     }
 }
