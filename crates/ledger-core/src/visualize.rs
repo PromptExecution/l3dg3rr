@@ -196,6 +196,138 @@ impl PipelineGraph {
         diagram
     }
 
+    /// Generate animated inline SVG with optional SMIL reflow.
+    /// When `previous` is `Some`, diffs node positions and adds
+    /// `<animateTransform>` for nodes whose position changed.
+    pub fn to_animated_svg(&self, previous: Option<&PipelineGraph>) -> String {
+        let solver = layout::LayoutSolver::new();
+        let layout = solver.generate_layout(self);
+
+        let node_height = 50.0_f32;
+        let svg_height = 200.0_f32;
+        let padding = 40.0_f32;
+
+        let svg_width = layout
+            .values()
+            .map(|(x, w)| x + w)
+            .fold(0.0_f32, f32::max)
+            + padding;
+
+        let prev_layout = previous.map(|p| solver.generate_layout(p));
+        let dur = 300u32;
+
+        let mut svg = format!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {:.0} {:.0}" width="100%" height="auto">
+  <defs>
+    {}  </defs>
+"#,
+            svg_width.ceil(),
+            svg_height,
+            self.svg_marker_defs(),
+        );
+
+        // edges first (below nodes)
+        for edge in &self.edges {
+            let from_pos = layout.get(&edge.from);
+            let to_pos = layout.get(&edge.to);
+            if let (Some(&(fx, fw)), Some(&(tx, _tw))) = (from_pos, to_pos) {
+                let x1 = fx + fw;
+                let y1 = svg_height / 2.0;
+                let x2 = tx;
+                let y2 = svg_height / 2.0;
+                let label_x = (x1 + x2) / 2.0;
+                let stroke_color = "#666";
+                svg.push_str(&format!(
+                    r#"  <line x1="{:.1}" y1="{:.1}" x2="{:.1}" y2="{:.1}" stroke="{s}" stroke-width="2" marker-end="url(#arrowhead)" />
+  <text x="{:.1}" y="{:.1}" text-anchor="middle" fill="{s}" font-size="10">{}</text>
+"#,
+                    x1, y1, x2, y2,
+                    label_x, y1 - 6.0,
+                    crate::iso::xml_attr_escape(&edge.label),
+                    s = stroke_color,
+                ));
+            }
+        }
+
+        // nodes
+        let node_names: Vec<String> = {
+            let mut names: Vec<&String> = self.nodes.keys().collect();
+            names.sort();
+            names.into_iter().cloned().collect()
+        };
+        for name in &node_names {
+            let visual = &self.nodes[name];
+            let pos = layout.get(name);
+            if let Some(&(x, w)) = pos {
+                let fill = visual.fill();
+                let anim_class = visual.animation_class();
+                let y = (svg_height - node_height) / 2.0;
+                let rx = 6.0_f32;
+
+                let mut group = String::new();
+                // animation only on nodes present in both layouts with different x
+                if let Some(ref pl) = prev_layout {
+                    if let Some(&(px, _pw)) = pl.get(name) {
+                        if (px - x).abs() > 0.5 {
+                            let text_fill = "#fff";
+                            let font_family = "sans-serif";
+                            group.push_str(&format!(
+                                r#"  <g>
+    <rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{nh:.1}" rx="{rx:.1}" fill="{fill}" class="{cls}">
+      <animateTransform attributeName="transform" type="translate"
+        from="{dx:.1} 0" to="0 0" dur="{dur}ms" fill="freeze" />
+    </rect>
+    <text x="{tx:.1}" y="{ty:.1}" text-anchor="middle" fill="{tf}" font-size="12" font-family="{ff}">
+      <animateTransform attributeName="transform" type="translate"
+        from="{dx:.1} 0" to="0 0" dur="{dur}ms" fill="freeze" /><tspan>{label}</tspan>
+    </text>
+  </g>
+"#,
+                                x = x, y = y, w = w, nh = node_height, rx = rx,
+                                fill = fill, cls = anim_class,
+                                dx = px - x, dur = dur,
+                                tx = x + w / 2.0, ty = y + node_height / 2.0 + 4.0,
+                                tf = text_fill, ff = font_family,
+                                label = crate::iso::xml_attr_escape(name),
+                            ));
+                            svg.push_str(&group);
+                            continue;
+                        }
+                    }
+                }
+
+                // static node (no animation)
+                let text_fill = "#fff";
+                let font_family = "sans-serif";
+                group.push_str(&format!(
+                    r#"  <rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{nh:.1}" rx="{rx:.1}" fill="{fill}" class="{cls}" />
+  <text x="{tx:.1}" y="{ty:.1}" text-anchor="middle" fill="{tf}" font-size="12" font-family="{ff}">{label}</text>
+"#,
+                    x = x, y = y, w = w, nh = node_height, rx = rx,
+                    fill = fill, cls = anim_class,
+                    tx = x + w / 2.0, ty = y + node_height / 2.0 + 4.0,
+                    tf = text_fill, ff = font_family,
+                    label = crate::iso::xml_attr_escape(name),
+                ));
+                svg.push_str(&group);
+            }
+        }
+
+        svg.push_str("</svg>\n");
+        svg
+    }
+
+    fn svg_marker_defs(&self) -> String {
+        let fill = "#666";
+        format!(
+            r#"    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="{fill}" />
+    </marker>
+"#,
+            fill = fill,
+        )
+    }
+
     /// Generate CSS animation styles.
     pub fn animation_styles(&self) -> String {
         r#"
@@ -246,34 +378,110 @@ fn state_from_name(name: &str) -> PipelineStateEnum {
 /// Generate layout constraints using Kasuari.
 pub mod layout {
     use super::*;
+    use kasuari::WeightedRelation::*;
+    use kasuari::{Solver, Strength, Variable};
 
     /// Kasuari-backed layout constraint solver.
-    pub struct LayoutSolver;
+    pub struct LayoutSolver {
+        gap: f64,
+        default_width: f64,
+        current_width: f64,
+        start_x: f64,
+    }
 
     impl Default for LayoutSolver {
         fn default() -> Self {
-            Self
+            Self {
+                gap: 150.0,
+                default_width: 100.0,
+                current_width: 120.0,
+                start_x: 100.0,
+            }
         }
     }
 
     impl LayoutSolver {
         pub fn new() -> Self {
-            Self
+            Self::default()
         }
 
         /// Generate layout constraints for a pipeline graph.
         /// Returns (x, width) for each state.
         pub fn generate_layout(&self, graph: &PipelineGraph) -> HashMap<String, (f32, f32)> {
-            let mut result = HashMap::new();
-            let mut x = 100.0;
+            let layer_order = [
+                "Ingested",
+                "Validating",
+                "Classifying",
+                "Reconciling",
+                "Committed",
+                "NeedsReview",
+            ];
 
-            let layer_order = ["Ingested", "Validating", "Classifying", "Reconciling", "Committed", "NeedsReview"];
-            for state in layer_order {
-                if graph.nodes.contains_key(state) {
-                    let width = if state == &graph.current_state { 120.0 } else { 100.0 };
-                    result.insert(state.to_string(), (x, width));
-                    x += 150.0;
-                }
+            let nodes: Vec<&str> = layer_order
+                .iter()
+                .filter(|s| graph.nodes.contains_key(**s))
+                .copied()
+                .collect();
+
+            if nodes.is_empty() {
+                return HashMap::new();
+            }
+
+            let mut solver = Solver::new();
+            let mut x_vars: HashMap<&str, Variable> = HashMap::new();
+            let mut w_vars: HashMap<&str, Variable> = HashMap::new();
+
+            for &name in &nodes {
+                let x = Variable::new();
+                let w = Variable::new();
+                x_vars.insert(name, x);
+                w_vars.insert(name, w);
+            }
+
+            for &name in &nodes {
+                let x = x_vars[name];
+                let w = w_vars[name];
+                let is_current = name == graph.current_state;
+                let pref_width = if is_current { self.current_width } else { self.default_width };
+
+                // positive width
+                solver
+                    .add_constraint(w |GE(Strength::REQUIRED)| 0.0)
+                    .ok();
+                // positive x
+                solver
+                    .add_constraint(x |GE(Strength::REQUIRED)| 0.0)
+                    .ok();
+                // preferred width (STAY: weak so ordering wins if conflict)
+                solver
+                    .add_constraint(w |EQ(Strength::WEAK)| pref_width)
+                    .ok();
+            }
+
+            // sequential ordering: x_i + w_i + gap <= x_{i+1}
+            for pair in nodes.windows(2) {
+                let left_x = x_vars[pair[0]];
+                let left_w = w_vars[pair[0]];
+                let right_x = x_vars[pair[1]];
+
+                let left_edge = left_x + left_w;
+                solver
+                    .add_constraint(left_edge + self.gap |LE(Strength::REQUIRED)| right_x)
+                    .ok();
+            }
+
+            // first node starting position (STAY: weak preference)
+            if let Some(&first) = nodes.first() {
+                solver
+                    .add_constraint(x_vars[first] |EQ(Strength::WEAK)| self.start_x)
+                    .ok();
+            }
+
+            let mut result = HashMap::new();
+            for &name in &nodes {
+                let x = solver.get_value(x_vars[name]) as f32;
+                let w = solver.get_value(w_vars[name]) as f32;
+                result.insert(name.to_string(), (x, w));
             }
 
             result
@@ -383,11 +591,99 @@ mod tests {
     fn test_layout_constraints() {
         let solver = layout::LayoutSolver::new();
         let mut graph = PipelineGraph::new();
+        graph.nodes.insert("Ingested".to_string(), NodeVisualState::Success);
         graph.nodes.insert("Validating".to_string(), NodeVisualState::Active);
+        graph.nodes.insert("Classifying".to_string(), NodeVisualState::Idle);
+        graph.nodes.insert("Committed".to_string(), NodeVisualState::Idle);
         graph.current_state = "Validating".to_string();
         graph.accumulated_confidence = 0.8;
 
         let layout = solver.generate_layout(&graph);
         assert!(!layout.is_empty());
+
+        // verify ordering: Ingested < Validating < Classifying < Committed
+        let ingested = layout.get("Ingested").unwrap();
+        let validating = layout.get("Validating").unwrap();
+        let classifying = layout.get("Classifying").unwrap();
+        let committed = layout.get("Committed").unwrap();
+
+        let gap = 150.0;
+
+        // x positions must be strictly increasing
+        assert!(ingested.0 < validating.0, "Ingested.x < Validating.x");
+        assert!(validating.0 < classifying.0, "Validating.x < Classifying.x");
+        assert!(classifying.0 < committed.0, "Classifying.x < Committed.x");
+
+        // no overlap: left_edge + gap <= right_x
+        assert!(
+            ingested.0 + ingested.1 + gap <= validating.0 + 0.01,
+            "no overlap Ingested -> Validating"
+        );
+        assert!(
+            validating.0 + validating.1 + gap <= classifying.0 + 0.01,
+            "no overlap Validating -> Classifying"
+        );
+        assert!(
+            classifying.0 + classifying.1 + gap <= committed.0 + 0.01,
+            "no overlap Classifying -> Committed"
+        );
+
+        // current node (Validating) gets width ~120.0, others ~100.0
+        assert!((validating.1 - 120.0).abs() < 1.0, "Validating width ~120");
+        assert!((ingested.1 - 100.0).abs() < 1.0, "Ingested width ~100");
+        assert!((committed.1 - 100.0).abs() < 1.0, "Committed width ~100");
+    }
+
+    #[test]
+    fn test_animated_svg_static() {
+        let mut graph = PipelineGraph::new();
+        graph.nodes.insert("Ingested".to_string(), NodeVisualState::Success);
+        graph.nodes.insert("Validating".to_string(), NodeVisualState::Active);
+        graph.nodes.insert("Classifying".to_string(), NodeVisualState::Idle);
+        graph.current_state = "Validating".to_string();
+        graph.accumulated_confidence = 0.85;
+        graph.edges.push(EdgeVisual::new("Ingested", "Validating", "start"));
+
+        let svg = graph.to_animated_svg(None);
+        assert!(svg.starts_with("<svg"), "SVG should start with svg tag");
+        assert!(svg.contains("</svg>"), "SVG should have closing tag");
+        assert!(svg.contains("Ingested"), "SVG should contain node name");
+        assert!(svg.contains("Validating"), "SVG should contain node name");
+        assert!(svg.contains("Classifying"), "SVG should contain node name");
+        assert!(svg.contains("#4caf50"), "SVG should contain Success fill");
+        assert!(svg.contains("#4a90d9"), "SVG should contain Active fill");
+        assert!(svg.contains("line"), "SVG should contain edge lines");
+        assert!(svg.contains("rect"), "SVG should contain node rects");
+        assert!(!svg.contains("animateTransform"), "Static SVG should have no animation");
+    }
+
+    #[test]
+    fn test_animated_svg_reflow() {
+        // graph1: narrow layout; current_state = Ingested (width ~120)
+        let mut graph1 = PipelineGraph::new();
+        graph1.nodes.insert("Ingested".to_string(), NodeVisualState::Active);
+        graph1.nodes.insert("Validating".to_string(), NodeVisualState::Idle);
+        graph1.nodes.insert("Classifying".to_string(), NodeVisualState::Idle);
+        graph1.current_state = "Ingested".to_string();
+        graph1.accumulated_confidence = 0.9;
+
+        // graph2: different current_state => Ingested shrinks, Classifying expands => positions shift
+        let mut graph2 = PipelineGraph::new();
+        graph2.nodes.insert("Ingested".to_string(), NodeVisualState::Success);
+        graph2.nodes.insert("Validating".to_string(), NodeVisualState::Success);
+        graph2.nodes.insert("Classifying".to_string(), NodeVisualState::Active);
+        graph2.current_state = "Classifying".to_string();
+        graph2.accumulated_confidence = 0.9;
+
+        let svg = graph2.to_animated_svg(Some(&graph1));
+        assert!(svg.starts_with("<svg"), "SVG should start with svg tag");
+        assert!(svg.contains("</svg>"), "SVG should have closing tag");
+        assert!(svg.contains("animateTransform"), "Reflow SVG should have animateTransform");
+        assert!(svg.contains("from=\""), "animateTransform should have from attribute");
+        assert!(svg.contains("fill=\"freeze\""), "animateTransform should freeze");
+
+        // static same-graph call should have no animation
+        let static_svg = graph2.to_animated_svg(None);
+        assert!(!static_svg.contains("animateTransform"), "Static SVG should have no animation");
     }
 }

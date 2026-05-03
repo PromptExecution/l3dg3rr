@@ -8,12 +8,22 @@
 # - Each stage does fresh `cargo build` in sandbox — no shared target dir
 # - Expected runtime for full 9-stage run: 20-60+ minutes
 # - ${{ }} expressions, `needs.<id>.result`, `toJSON(needs)` NOT supported in wrkflw
+#
+# PERFORMANCE NOTE:
+# Stages S1-S10 currently test correctness only. No performance/large-dataset benchmarks
+# exist. A future stage could use `hyperfine` or `cargo bench` to benchmark visualization
+# rendering with datasets of 1000+ ontology nodes, or to profile fresh cargo build times.
 name: wrkflw-local-docgen
 
 on:
   workflow_dispatch:
 
 env:
+  # sccache on PATH shares its cache daemon across all emulation-mode stages
+  # (wrkflw secure-emulation runs as host processes — no sandboxing of the daemon).
+  # If sccache is not installed, RUSTC_WRAPPER is silently ignored by cargo.
+  RUSTC_WRAPPER: sccache
+  SCCACHE_DIR: ${{ runner.temp || '/tmp' }}/sccache
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: "1"
 
@@ -136,3 +146,14 @@ jobs:
       - name: Run MCP tests
         run: |
           cargo test -p ledgerr-mcp 2>&1 | tee -a xero-mcp-output.txt
+
+  # Stage 10: McpProvider compile-and-construct smoke test
+  stage-10-mcp-provider-smoke:
+    name: "S10 McpProvider Smoke"
+    needs: [stage-1-rhai-parser-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run McpProvider smoke tests
+        run: |
+          cargo test -p ledgerr-mcp --test mcp_provider_smoke 2>&1 | tee mcp-provider-output.txt

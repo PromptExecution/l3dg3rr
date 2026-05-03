@@ -5516,6 +5516,7 @@ dependencies = [
  "crossbeam",
  "ledger-core",
  "ledgerr-llm",
+ "ledgerr-mcp",
  "ledgerr-mcp-core",
  "ledgerr-xero",
  "reqwest 0.12.28",

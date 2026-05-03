@@ -291,6 +291,11 @@ Treat this as a standing operational gate, not a one-time migration task.
   - Legacy `l3dg3rr_*` and proxy tool names remain compatibility aliases only and should not be reintroduced into the advertised catalog.
 - 2026-04-21: Xero is now part of the advertised MCP catalog as `ledgerr_xero`, making the default published surface 8 top-level `ledgerr_*` tools.
   - Keep generated docs and AGENTS guidance aligned to `crates/ledgerr-mcp/src/contract.rs`; older references to a 7-tool surface are stale.
+- 2026-05-03: Negative/error-path testing added for the docgen pipeline.
+  - `crates/mdbook-rhai-mermaid/src/parser.rs` has 7 malformed-input tests in `#[cfg(test) mod tests]` that verify the parser never panics and gracefully degrades on misspelled keywords, missing arrows, empty targets, double arrows, and very long labels.
+  - `just docgen-check-negative` creates a temp `book/src/broken.md` with invalid cross-references, builds the book, verifies the broken links are present in the HTML output (confirming mdBook does not fail on broken links at build time), and cleans up.
+  - `just docgen-check` now also asserts that `book/book/iso-pipeline-objects.html` has at least 5 mermaid blocks.
+  - Run parser negative tests with: `cargo test -p mdbook-rhai-mermaid -- malformed`
   - Documentation hierarchy should lead with operator capabilities first, then application structure, then visualization internals.
   - Use Z3 for hard satisfiability/proof obligations and Kasuari for soft plausibility/layout constraints.
   - `ledger-core` keeps native Z3 behind the `legal-z3` feature because default local builds may not have `libz3` installed.
@@ -406,7 +411,14 @@ Treat this as a standing operational gate, not a one-time migration task.
     - **Z-layer stack consistency**: The 6-layer Z stack (Document→Pipeline→Constraint→Legal→FormalProof→Attestation) and the 21+ `HasVisualization` impls can be validated across all layers without needing a real ledger dataset — S2+S7 cover the full impl surface via `--test iso_lint` and `--test-threads=1`.
     - **Cross-stage composition coverage**: The `ConstraintSolver` trait (KasuariSolver in pipeline.rs), `LayoutSolver` (visualize.rs), and `LegalSolver` (legal.rs, Z3-gated) are independent solver engines that share `Issue`, `MetaCtx`, and `CommitGate` types — wrkflw stages independently validate each while the summary signals overall contract consistency.
     - **Docgen as integration test**: S5 (mdBook build) indirectly tests the `mdbook-rhai-mermaid` preprocessor, which uses the same `parser::Graph` types exported as a library (lib.rs) — proving the parser works both as an mdBook plugin and as a standalone library for b00t synergy_viz.
-    - **What's NOT tested**: McpProviderRegistry initialization, Xero live API calls, crash recovery/idempotency, concurrency groups, service containers, negative testing with malformed inputs, and cross-stage artifact sharing.
+    - **What's NOT tested**: McpProviderRegistry initialization, Xero live API calls, crash recovery/idempotency, concurrency groups, service containers, and cross-stage artifact sharing.
+- 2026-05-03: Crash recovery audit (Gap 6).
+  - **Crash recovery exists.** `TurboLedgerService` persists restart-visible state as a JSON sidecar (`{workbook}.l3dg3rr.state.json`) next to the manifest workbook path. The sidecar bundles: ingest idempotency state, transaction row cache, audit log, lifecycle event history, and HSM checkpoint.
+  - **Atomic write pattern**: `persist_state_to_path` writes to a temp file then `rename()`s to the final path — a crash during write leaves the previous valid sidecar intact.
+  - **Fail-closed on corruption**: `load_persisted_state` rejects unparseable or version-mismatched sidecars (fails closed instead of silently resetting).
+  - **Test coverage**: `crates/ledgerr-mcp/tests/restart_persistence.rs` has 3 tests covering ingest+classify+flags+audit sidecar survival, event history+replay after reload, and HSM checkpoint persistence across `from_manifest_str` boundaries.
+  - **Not covered**: Crash during classification/tool execution (sidecar write is post-hoc, not transactionally atomic with the mutation). No crash-in-the-middle fuzzing. No concurrent-writer protection (single-user assumption). No WAL/journal replay for the sidecar itself.
+  - **Idempotency layer**: Blake3 content-hash IDs make `ingest_statement_rows` idempotent at the core level regardless of sidecar state — re-ingesting the same rows after a lost sidecar produces the same tx_ids with `inserted_count: 0`.
 - 2026-04-24: README/product framing is bookkeeping-first with visual workflow graph as the organizing model.
   - Describe `l3dg3rr` as a strongly typed, ontologically linked graph of scriptable visual-first workflows for supervised AI/LLM ETL into CPA-auditable bookkeeping artifacts.
   - Keep README structure MECE: bookkeeping truth, typed domain model, ontology graph, scriptable policy, workflow control, visualization, MCP/agent boundary, and operator host.

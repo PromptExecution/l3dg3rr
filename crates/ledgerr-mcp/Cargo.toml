@@ -60,5 +60,11 @@ legacy = ["core"]
 tempfile = "3"
 calamine = "0.34"
 
+# Enable the b00t feature for tests that exercise McpProvider infrastructure
+# and register_default_providers graceful-degradation coverage.
+[dev-dependencies.ledgerr-mcp]
+path = "."
+features = ["b00t"]
+
 [lints]
 workspace = true
