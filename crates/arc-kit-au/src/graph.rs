@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::edge::{EdgeType, EvidenceEdge};
-use crate::missing::{ProvenanceScanner, ProvenanceGap};
+use crate::missing::ProvenanceScanner;
 use crate::node::{EvidenceNode, NodeId, NodeType};
 
 /// Summary of the evidence graph's work queue state.

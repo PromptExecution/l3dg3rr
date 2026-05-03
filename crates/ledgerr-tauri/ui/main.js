@@ -11,7 +11,7 @@ let busy = false;
 const sidebar        = document.getElementById('sidebar');
 const collapseBtn    = document.getElementById('collapse-btn');
 const navItems       = document.querySelectorAll('.nav-item[data-panel]');
-const panels         = [0,1,2,3].map(i => document.getElementById(`panel-${i}`));
+const panels         = [0,1,2,3,4].map(i => document.getElementById(`panel-${i}`));
 
 const versionText    = document.getElementById('version-text');
 const statusBar      = document.getElementById('status-bar');
@@ -49,6 +49,15 @@ const btnSave        = document.getElementById('btn-save-settings');
 const docsStatusText = document.getElementById('docs-status-text');
 const btnOpenDocs    = document.getElementById('btn-open-docs');
 const btnLoadRhai    = document.getElementById('btn-load-rhai-mutation');
+
+const btnRefreshDash = document.getElementById('btn-refresh-dashboard');
+const blockedValue   = document.getElementById('blocked-value');
+const readyValue     = document.getElementById('ready-value');
+const exportedValue  = document.getElementById('exported-value');
+const issuesValue    = document.getElementById('issues-value');
+const evLastAction   = document.getElementById('ev-last-action');
+const evNextActions  = document.getElementById('ev-next-actions');
+const evProviderStat = document.getElementById('ev-provider-status');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -323,6 +332,38 @@ btnLoadRhai.addEventListener('click', async () => {
   }
 });
 
+// ── Dashboard: Refresh ────────────────────────────────────────────────────────
+
+async function refreshDashboard() {
+  try {
+    const payload = await invoke('get_evidence_dashboard');
+    const q = payload.today_queue;
+    blockedValue.textContent  = q.blocked ?? '-';
+    readyValue.textContent    = q.ready_to_review ?? '-';
+    exportedValue.textContent = q.exported ?? '-';
+    issuesValue.textContent   = q.with_validation_issues ?? '-';
+    evLastAction.textContent  = q.last_action_summary ?? '';
+    evNextActions.innerHTML   = (q.next_actions || []).map(a => `<li>${a}</li>`).join('');
+    evProviderStat.innerHTML  = (q.providers || []).map(p => {
+      const r = p.readiness || {};
+      const status = r.status || r.kind || 'unknown';
+      const icon = status === 'ready' ? '✓' : (status === 'diagnostic' ? '⚠' : '?');
+      return `<div class="ev-provider-line">${icon} ${p.label}: ${status}</div>`;
+    }).join('') || '<div class="ev-provider-line">No providers configured</div>';
+  } catch (err) {
+    evLastAction.textContent = `Error: ${err}`;
+  }
+}
+
+// Refresh dashboard when its panel becomes visible
+const origShowPanel = showPanel;
+showPanel = function(index) {
+  origShowPanel(index);
+  if (index === 2) refreshDashboard();
+};
+
+btnRefreshDash.addEventListener('click', refreshDashboard);
+
 // ── Initialise on load ────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -367,4 +408,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch (err) {
     setStatus(`Init error: ${err}`);
   }
+
+  // Pre-load dashboard data
+  refreshDashboard();
 });

@@ -9,6 +9,7 @@ mod state;
 use std::sync::{Arc, Mutex};
 
 use ledgerr_host::chat::{ChatTurn, ReviewLog};
+use ledgerr_host::evidence::EvidenceState;
 use ledgerr_host::internal_openai::InternalOpenAiHandle;
 use ledgerr_host::settings::{default_settings_path, SettingsStore};
 
@@ -19,12 +20,14 @@ fn main() {
     let history: Arc<Mutex<Vec<ChatTurn>>> = Arc::new(Mutex::new(Vec::new()));
     let review_log: Arc<Mutex<ReviewLog>> = Arc::new(Mutex::new(ReviewLog::default()));
     let internal_endpoint: Arc<Mutex<Option<InternalOpenAiHandle>>> = Arc::new(Mutex::new(None));
+    let evidence: Arc<Mutex<EvidenceState>> = Arc::new(Mutex::new(EvidenceState::new()));
 
     let app_state = AppState {
         store,
         history,
         review_log,
         internal_endpoint,
+        evidence,
     };
 
     tauri::Builder::default()
@@ -39,6 +42,8 @@ fn main() {
             commands::use_foundry_local,
             commands::use_cloud_model,
             commands::open_docs_playbook,
+            commands::get_evidence_dashboard,
+            commands::get_tx_provenance,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ledgerr-tauri application");

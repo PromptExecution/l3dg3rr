@@ -26,11 +26,16 @@
       </button>
 
       <button class="nav-item" data-panel="2">
+        <span class="mark">DB</span>
+        <span class="label">Dashboard</span>
+      </button>
+
+      <button class="nav-item" data-panel="3">
         <span class="mark">ST</span>
         <span class="label">Settings</span>
       </button>
 
-      <button class="nav-item" data-panel="3">
+      <button class="nav-item" data-panel="4">
         <span class="mark">DK</span>
         <span class="label">Docs Playbook</span>
       </button>
@@ -108,8 +113,46 @@
         </div>
       </div>
 
-      <!-- Panel 2: Settings -->
-      <div id="panel-2" class="panel card hidden settings-bg">
+      <!-- Panel 2: Dashboard -->
+      <div id="panel-2" class="panel card hidden">
+        <span class="panel-title">Dashboard</span>
+        <div id="evidence-summary" class="evidence-summary">
+          <div id="blocked-card" class="ev-card ev-card-blocked">
+            <div class="ev-card-value" id="blocked-value">-</div>
+            <div class="ev-card-label">Blocked</div>
+          </div>
+          <div id="ready-card" class="ev-card ev-card-ready">
+            <div class="ev-card-value" id="ready-value">-</div>
+            <div class="ev-card-label">Ready to Review</div>
+          </div>
+          <div id="exported-card" class="ev-card ev-card-exported">
+            <div class="ev-card-value" id="exported-value">-</div>
+            <div class="ev-card-label">Exported</div>
+          </div>
+          <div id="issues-card" class="ev-card ev-card-issues">
+            <div class="ev-card-value" id="issues-value">-</div>
+            <div class="ev-card-label">Validation Issues</div>
+          </div>
+        </div>
+        <div class="ev-section">
+          <div class="ev-section-title">Last Action</div>
+          <div id="ev-last-action" class="ev-last-action">Loading...</div>
+        </div>
+        <div class="ev-section">
+          <div class="ev-section-title">Next Actions</div>
+          <ul id="ev-next-actions" class="ev-next-actions"></ul>
+        </div>
+        <div class="ev-section">
+          <div class="ev-section-title">Provider Status</div>
+          <div id="ev-provider-status" class="ev-provider-status">Loading...</div>
+        </div>
+        <div class="ev-refresh-row">
+          <button id="btn-refresh-dashboard" class="ev-refresh-btn">Refresh Dashboard</button>
+        </div>
+      </div>
+
+      <!-- Panel 3: Settings -->
+      <div id="panel-3" class="panel card hidden settings-bg">
         <span class="panel-title">Settings</span>
 
         <label class="field-label" for="input-endpoint">Endpoint URL</label>
@@ -132,8 +175,8 @@
         </div>
       </div>
 
-      <!-- Panel 3: Docs Playbook -->
-      <div id="panel-3" class="panel card hidden">
+      <!-- Panel 4: Docs Playbook -->
+      <div id="panel-4" class="panel card hidden">
         <span class="panel-title">Docs Playbook</span>
         <p id="docs-status-text" class="docs-status"></p>
         <div class="docs-actions">
