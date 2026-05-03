@@ -35,8 +35,8 @@ use std::collections::{HashMap, HashSet};
 
 /// Known datum types for entanglement validation.
 pub const KNOWN_DATUM_TYPES: &[&str] = &[
-    "mcp", "cli", "install", "config", "skill", "workflow",
-    "ontology", "agent", "datum", "bridge", "provider", "surface",
+    "mcp", "cli", "install", "config", "skill", "workflow", "ontology", "agent", "datum", "bridge",
+    "provider", "surface",
 ];
 
 /// The top-level .tomllmd structure.
@@ -216,13 +216,11 @@ pub fn render_tomllmd(tomllmd: &Tomllmd, tier: &str) -> String {
 
 /// Compile a .tomllmd string: parse, validate entanglement, render at tier.
 pub fn compile_tomllmd(content: &str, tier: &str) -> Result<String, Vec<String>> {
-    let tomllmd =
-        parse_tomllmd(content).map_err(|e| vec![format!("parse: {e}")])?;
+    let tomllmd = parse_tomllmd(content).map_err(|e| vec![format!("parse: {e}")])?;
 
     // Validate entanglement refs if present
     if let Some(ent) = &tomllmd.entanglement {
-        let all_refs: Vec<String> =
-            ent.values().flat_map(|v| v.iter().cloned()).collect();
+        let all_refs: Vec<String> = ent.values().flat_map(|v| v.iter().cloned()).collect();
         if !all_refs.is_empty() {
             validate_entanglement_refs(&all_refs, KNOWN_DATUM_TYPES)?;
         }
@@ -263,7 +261,10 @@ epigram = "One-liner."
 "#;
         let parsed = parse_tomllmd(content).unwrap();
         let sec = parsed.sections.get("overview").unwrap();
-        assert_eq!(sec.verbatim, "Full technical detail with code examples and edge cases.");
+        assert_eq!(
+            sec.verbatim,
+            "Full technical detail with code examples and edge cases."
+        );
         assert_eq!(sec.executive, "Compressed summary of the feature.");
         assert_eq!(sec.epigram, "One-liner.");
     }

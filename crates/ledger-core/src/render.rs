@@ -18,10 +18,6 @@ impl GraphRenderer {
     }
 
     pub fn screen_position(&self, x: f32, y: f32, z: f32) -> Vec2 {
-        crate::layout::iso_project(
-            glam::Vec3::new(x, y, z),
-            self.scale,
-            self.origin,
-        )
+        crate::layout::iso_project(glam::Vec3::new(x, y, z), self.scale, self.origin)
     }
 }

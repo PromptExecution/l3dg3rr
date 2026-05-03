@@ -189,7 +189,9 @@ impl TryFrom<&otlp_json::LogRecord> for OTelLogRecord {
     type Error = ObservabilityError;
 
     fn try_from(record: &otlp_json::LogRecord) -> Result<Self, Self::Error> {
-        let time_unix_nano = record.time_unix_nano.parse()
+        let time_unix_nano = record
+            .time_unix_nano
+            .parse()
             .map_err(|e| ObservabilityError::InvalidRule(format!("parse time_unix_nano: {e}")))?;
         let severity = OTelSeverityNumber::try_from(record.severity_number)?;
         let body = record.body.string_value.clone().unwrap_or_default();
@@ -336,19 +338,17 @@ impl LogShapeClassifier {
 
     /// Built-in rules that ship with l3dg3rr for common operational signals.
     pub fn with_builtin_rules() -> Result<Self, ObservabilityError> {
-        Self::new(vec![
-            LogShapeRule {
-                rule_id: "gpu-driver-device-disappeared".to_string(),
-                abstract_regex_type: "hardware.gpu.driver.device_handle_unknown".to_string(),
-                pattern: "Unable to determine the device handle for GPU[0-9]+.*Unknown Error"
-                    .to_string(),
-                metric_name: "l3dg3rr.hardware.gpu.driver_faults".to_string(),
-                metric_delta: 1,
-                min_severity: OTelSeverityNumber::Error,
-                rationale: "GPU was expected but nvidia-smi returned an unknown device-handle error"
-                    .to_string(),
-            },
-        ])
+        Self::new(vec![LogShapeRule {
+            rule_id: "gpu-driver-device-disappeared".to_string(),
+            abstract_regex_type: "hardware.gpu.driver.device_handle_unknown".to_string(),
+            pattern: "Unable to determine the device handle for GPU[0-9]+.*Unknown Error"
+                .to_string(),
+            metric_name: "l3dg3rr.hardware.gpu.driver_faults".to_string(),
+            metric_delta: 1,
+            min_severity: OTelSeverityNumber::Error,
+            rationale: "GPU was expected but nvidia-smi returned an unknown device-handle error"
+                .to_string(),
+        }])
     }
 
     pub fn classify_log(&self, log: &OTelLogRecord) -> Vec<ClassifiedJournalArtifact> {
@@ -657,14 +657,38 @@ mod tests {
 
     #[test]
     fn otlp_severity_try_from_u8_maps_ranges_correctly() {
-        assert_eq!(OTelSeverityNumber::try_from(1).unwrap(), OTelSeverityNumber::Trace);
-        assert_eq!(OTelSeverityNumber::try_from(4).unwrap(), OTelSeverityNumber::Trace);
-        assert_eq!(OTelSeverityNumber::try_from(5).unwrap(), OTelSeverityNumber::Debug);
-        assert_eq!(OTelSeverityNumber::try_from(9).unwrap(), OTelSeverityNumber::Info);
-        assert_eq!(OTelSeverityNumber::try_from(13).unwrap(), OTelSeverityNumber::Warn);
-        assert_eq!(OTelSeverityNumber::try_from(17).unwrap(), OTelSeverityNumber::Error);
-        assert_eq!(OTelSeverityNumber::try_from(21).unwrap(), OTelSeverityNumber::Fatal);
-        assert_eq!(OTelSeverityNumber::try_from(24).unwrap(), OTelSeverityNumber::Fatal);
+        assert_eq!(
+            OTelSeverityNumber::try_from(1).unwrap(),
+            OTelSeverityNumber::Trace
+        );
+        assert_eq!(
+            OTelSeverityNumber::try_from(4).unwrap(),
+            OTelSeverityNumber::Trace
+        );
+        assert_eq!(
+            OTelSeverityNumber::try_from(5).unwrap(),
+            OTelSeverityNumber::Debug
+        );
+        assert_eq!(
+            OTelSeverityNumber::try_from(9).unwrap(),
+            OTelSeverityNumber::Info
+        );
+        assert_eq!(
+            OTelSeverityNumber::try_from(13).unwrap(),
+            OTelSeverityNumber::Warn
+        );
+        assert_eq!(
+            OTelSeverityNumber::try_from(17).unwrap(),
+            OTelSeverityNumber::Error
+        );
+        assert_eq!(
+            OTelSeverityNumber::try_from(21).unwrap(),
+            OTelSeverityNumber::Fatal
+        );
+        assert_eq!(
+            OTelSeverityNumber::try_from(24).unwrap(),
+            OTelSeverityNumber::Fatal
+        );
     }
 
     #[test]

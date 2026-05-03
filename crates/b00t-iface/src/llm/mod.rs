@@ -12,7 +12,10 @@
 //! (when `autoresearch` feature is active), enabling self-play: the machine
 //! calls itself to evaluate prompt variants and keeps the best.
 
-use crate::core::{AuditRecord, GovernancePolicy, MaintenanceAction, ProcessSurface, Requirement, SurfaceCapability};
+use crate::core::{
+    AuditRecord, GovernancePolicy, MaintenanceAction, ProcessSurface, Requirement,
+    SurfaceCapability,
+};
 use crate::AgentRole;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -201,11 +204,13 @@ impl ProcessSurface for LlmMachine {
     fn capability(&self) -> SurfaceCapability {
         SurfaceCapability {
             name: "llm-machine",
-            requirements: vec![
-                Requirement::PortAvailable(15115),
-            ],
+            requirements: vec![Requirement::PortAvailable(15115)],
             governance: GovernancePolicy {
-                allowed_starters: vec![AgentRole::Executive, AgentRole::Operator, AgentRole::Specialist],
+                allowed_starters: vec![
+                    AgentRole::Executive,
+                    AgentRole::Operator,
+                    AgentRole::Specialist,
+                ],
                 max_ttl: Duration::from_secs(86400),
                 auto_restart: true,
                 crash_budget: 10,
@@ -217,7 +222,11 @@ impl ProcessSurface for LlmMachine {
         self.config = config;
         self.total_completions = 0;
         self.total_tokens = 0;
-        tracing::info!("LlmMachine initialized: {} @ {}", self.config.model, self.config.endpoint);
+        tracing::info!(
+            "LlmMachine initialized: {} @ {}",
+            self.config.model,
+            self.config.endpoint
+        );
         Ok(())
     }
 
@@ -234,7 +243,10 @@ impl ProcessSurface for LlmMachine {
         Ok(AuditRecord {
             surface_name: "llm-machine".into(),
             uptime: Duration::from_secs(0),
-            exit_reason: format!("{} completions, {} tokens", handle.completions, handle.tokens),
+            exit_reason: format!(
+                "{} completions, {} tokens",
+                handle.completions, handle.tokens
+            ),
             crash_count: 0,
             bytes_logged: handle.tokens * 4,
         })
@@ -260,7 +272,10 @@ mod tests {
         let cap = m.capability();
         assert_eq!(cap.name, "llm-machine");
         assert_eq!(cap.governance.crash_budget, 10);
-        assert!(cap.requirements.iter().any(|r| matches!(r, Requirement::PortAvailable(15115))));
+        assert!(cap
+            .requirements
+            .iter()
+            .any(|r| matches!(r, Requirement::PortAvailable(15115))));
     }
 
     #[test]

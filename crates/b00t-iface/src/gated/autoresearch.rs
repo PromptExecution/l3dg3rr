@@ -7,7 +7,8 @@
 //! remote eval dispatch. The base trait is available under `b00t` feature alone.
 
 use crate::core::{
-    AuditRecord, GovernancePolicy, MaintenanceAction, ProcessSurface, Requirement, SurfaceCapability,
+    AuditRecord, GovernancePolicy, MaintenanceAction, ProcessSurface, Requirement,
+    SurfaceCapability,
 };
 use crate::AgentRole;
 use std::fmt::Debug;
@@ -172,7 +173,10 @@ impl<R: Researcher> AutoresearchSurface<R> {
         }
     }
 
-    pub fn run_experiment(&mut self, experiment: R::Experiment) -> Result<ExperimentVerdict, AutoresearchError> {
+    pub fn run_experiment(
+        &mut self,
+        experiment: R::Experiment,
+    ) -> Result<ExperimentVerdict, AutoresearchError> {
         if self.experiment_count >= self.max_experiments {
             return Err(AutoresearchError::MaxExperiments(self.max_experiments));
         }
@@ -235,7 +239,10 @@ where
             surface_name: "autoresearch".into(),
             uptime: Duration::from_secs(0),
             exit_reason: format!("{} experiments completed", handle.len()),
-            crash_count: handle.iter().filter(|l| matches!(l.verdict, ExperimentVerdict::Fail { .. })).count() as u32,
+            crash_count: handle
+                .iter()
+                .filter(|l| matches!(l.verdict, ExperimentVerdict::Fail { .. }))
+                .count() as u32,
             bytes_logged: 0,
         })
     }
@@ -270,21 +277,31 @@ mod tests {
     fn cargo_test_researcher_judge_regression() {
         let r = CargoTestResearcher::new("test-crate");
         let verdict = r.judge(Some(&TestMetric(5, 5)), &TestMetric(3, 5));
-        assert!(matches!(verdict, ExperimentVerdict::Fail { reason } if reason.contains("regression")));
+        assert!(
+            matches!(verdict, ExperimentVerdict::Fail { reason } if reason.contains("regression"))
+        );
     }
 
     #[test]
     fn autoresearch_surface_experiment_limits() {
         let researcher = CargoTestResearcher::new("test");
         let mut surface = AutoresearchSurface::new(researcher, 2);
-        assert!(surface.run_experiment(TestExperiment::new("", "exp 1")).is_ok());
-        assert!(surface.run_experiment(TestExperiment::new("", "exp 2")).is_ok());
-        assert!(surface.run_experiment(TestExperiment::new("", "exp 3")).is_err());
+        assert!(surface
+            .run_experiment(TestExperiment::new("", "exp 1"))
+            .is_ok());
+        assert!(surface
+            .run_experiment(TestExperiment::new("", "exp 2"))
+            .is_ok());
+        assert!(surface
+            .run_experiment(TestExperiment::new("", "exp 3"))
+            .is_err());
     }
 
     #[test]
     fn experiment_verdict_display() {
-        let e = ExperimentVerdict::Fail { reason: "timeout".into() };
+        let e = ExperimentVerdict::Fail {
+            reason: "timeout".into(),
+        };
         assert!(matches!(e, ExperimentVerdict::Fail { .. }));
     }
 }

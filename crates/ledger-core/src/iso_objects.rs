@@ -3,7 +3,9 @@
 
 use crate::iso::{HasVisualization, RhaiDsl, SemanticType, VisualizationSpec, ZLayer};
 
-use crate::constraints::{ConstraintEvaluation, InvoiceConstraintSolver, InvoiceVerification, VendorConstraintSet};
+use crate::constraints::{
+    ConstraintEvaluation, InvoiceConstraintSolver, InvoiceVerification, VendorConstraintSet,
+};
 use crate::legal::{Jurisdiction, LegalRule, LegalSolver, TransactionFacts, Z3Result};
 use crate::pipeline::{
     Classified, Committed, Ingested, KasuariSolver, NeedsReview, PipelineState, Reconciled,
@@ -20,8 +22,10 @@ impl HasVisualization for PipelineState<Ingested> {
         VisualizationSpec {
             semantic_type: SemanticType::Pipeline,
             z_layer: ZLayer::Pipeline,
-            rhai_dsl: RhaiDsl::new(r#"let tx = ingest(pdf_path);
-check_constraints(tx, constraint_set);"#),
+            rhai_dsl: RhaiDsl::new(
+                r#"let tx = ingest(pdf_path);
+check_constraints(tx, constraint_set);"#,
+            ),
             description: "Raw ingested transaction — structure validated, awaiting constraint pass",
         }
     }
@@ -58,10 +62,13 @@ impl HasVisualization for PipelineState<Reconciled> {
         VisualizationSpec {
             semantic_type: SemanticType::Pipeline,
             z_layer: ZLayer::Pipeline,
-            rhai_dsl: RhaiDsl::new(r#"let reconciled = match_workbook(classified_tx, workbook);
+            rhai_dsl: RhaiDsl::new(
+                r#"let reconciled = match_workbook(classified_tx, workbook);
 if reconciled.matched { open_commit_gate(reconciled) }
-else { flag("unmatched_entry") }"#),
-            description: "Transaction matched against workbook entries — commit gate evaluation pending",
+else { flag("unmatched_entry") }"#,
+            ),
+            description:
+                "Transaction matched against workbook entries — commit gate evaluation pending",
         }
     }
 }
@@ -71,9 +78,11 @@ impl HasVisualization for PipelineState<Committed> {
         VisualizationSpec {
             semantic_type: SemanticType::Pipeline,
             z_layer: ZLayer::Pipeline,
-            rhai_dsl: RhaiDsl::new(r#"let committed = commit_gate.approve(reconciled_tx);
+            rhai_dsl: RhaiDsl::new(
+                r#"let committed = commit_gate.approve(reconciled_tx);
 write_xlsx(committed);
-emit_audit_trail(committed.id);"#),
+emit_audit_trail(committed.id);"#,
+            ),
             description: "Committed to workbook — final immutable state, audit trail emitted",
         }
     }
@@ -84,10 +93,13 @@ impl HasVisualization for PipelineState<NeedsReview> {
         VisualizationSpec {
             semantic_type: SemanticType::Pipeline,
             z_layer: ZLayer::Pipeline,
-            rhai_dsl: RhaiDsl::new(r#"let review = legal_fail(tx, z3_result);
+            rhai_dsl: RhaiDsl::new(
+                r#"let review = legal_fail(tx, z3_result);
 flag_operator("legal_violation", review.rule_id);
-route_to_review_queue(review);"#),
-            description: "Legal verification failed — operator flag set, transaction held for manual review",
+route_to_review_queue(review);"#,
+            ),
+            description:
+                "Legal verification failed — operator flag set, transaction held for manual review",
         }
     }
 }
@@ -101,8 +113,10 @@ impl HasVisualization for ConstraintEvaluation {
         VisualizationSpec {
             semantic_type: SemanticType::Result,
             z_layer: ZLayer::Constraint,
-            rhai_dsl: RhaiDsl::new(r#"let eval = constraint_set.evaluate(amount, day, code, acct);
-if eval.required_pass { classify_ok() } else { flag("constraint_fail") }"#),
+            rhai_dsl: RhaiDsl::new(
+                r#"let eval = constraint_set.evaluate(amount, day, code, acct);
+if eval.required_pass { classify_ok() } else { flag("constraint_fail") }"#,
+            ),
             description: "Numerical constraint evaluation result with pass/fail per-field scores",
         }
     }
@@ -139,10 +153,13 @@ impl HasVisualization for InvoiceVerification {
         VisualizationSpec {
             semantic_type: SemanticType::Result,
             z_layer: ZLayer::Constraint,
-            rhai_dsl: RhaiDsl::new(r#"let v = invoice_solver.verify(gross, gst);
+            rhai_dsl: RhaiDsl::new(
+                r#"let v = invoice_solver.verify(gross, gst);
 if !v.arithmetic_ok { flag("arithmetic_mismatch", v.audit_note) }
-if !v.gst_rate_ok   { flag("gst_rate_mismatch", v.audit_note) }"#),
-            description: "Invoice verification result — arithmetic_ok and gst_rate_ok flags with audit note",
+if !v.gst_rate_ok   { flag("gst_rate_mismatch", v.audit_note) }"#,
+            ),
+            description:
+                "Invoice verification result — arithmetic_ok and gst_rate_ok flags with audit note",
         }
     }
 }
@@ -172,11 +189,14 @@ impl HasVisualization for LegalRule {
         VisualizationSpec {
             semantic_type: SemanticType::Legal,
             z_layer: ZLayer::Legal,
-            rhai_dsl: RhaiDsl::new(r#"let rule = LegalRule::new(jurisdiction, "au-gst-38-190")
+            rhai_dsl: RhaiDsl::new(
+                r#"let rule = LegalRule::new(jurisdiction, "au-gst-38-190")
     .with_formula("supply_type == 'GST_FREE' && vendor_jurisdiction == 'AU'")
     .with_category("GST");
-legal_solver.verify(rule, facts);"#),
-            description: "Single jurisdiction-bound legal rule: threshold, exclusion, or benefit predicate",
+legal_solver.verify(rule, facts);"#,
+            ),
+            description:
+                "Single jurisdiction-bound legal rule: threshold, exclusion, or benefit predicate",
         }
     }
 }

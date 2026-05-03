@@ -31,17 +31,24 @@ pub enum NodeVisualState {
 }
 
 impl NodeVisualState {
-    pub fn from_pipeline(state: PipelineStateEnum, confidence: f32, issues: &[crate::validation::Issue]) -> Self {
-        if issues.iter().any(|i| i.disposition == Disposition::Unrecoverable) {
+    pub fn from_pipeline(
+        state: PipelineStateEnum,
+        confidence: f32,
+        issues: &[crate::validation::Issue],
+    ) -> Self {
+        if issues
+            .iter()
+            .any(|i| i.disposition == Disposition::Unrecoverable)
+        {
             return NodeVisualState::Error;
         }
         match state {
             PipelineStateEnum::Committed => NodeVisualState::Success,
             PipelineStateEnum::NeedsReview => NodeVisualState::Review,
-            PipelineStateEnum::Ingested |
-            PipelineStateEnum::Validating |
-            PipelineStateEnum::Classifying |
-            PipelineStateEnum::Reconciling => {
+            PipelineStateEnum::Ingested
+            | PipelineStateEnum::Validating
+            | PipelineStateEnum::Classifying
+            | PipelineStateEnum::Reconciling => {
                 if confidence < 0.5 {
                     NodeVisualState::Warning
                 } else {
@@ -149,11 +156,8 @@ impl PipelineGraph {
 
         // Update all nodes' visual state based on current position
         for (node_name, visual_state) in self.nodes.iter_mut() {
-            *visual_state = NodeVisualState::from_pipeline(
-                state_from_name(node_name),
-                confidence,
-                issues,
-            );
+            *visual_state =
+                NodeVisualState::from_pipeline(state_from_name(node_name), confidence, issues);
         }
 
         // Mark current node as active (overrides above)
@@ -177,7 +181,10 @@ impl PipelineGraph {
                     name, name, fill, anim_class
                 ));
             } else {
-                diagram.push_str(&format!("    state {} {{\n      {}: {}\n    }}\n", name, name, fill));
+                diagram.push_str(&format!(
+                    "    state {} {{\n      {}: {}\n    }}\n",
+                    name, name, fill
+                ));
             }
         }
 
@@ -226,7 +233,8 @@ impl PipelineGraph {
 .shake { animation: shake 0.3s infinite; }
 .blink { animation: blink 0.5s infinite; }
 .bounce { animation: bounce 0.5s infinite; }
-"#.to_string()
+"#
+        .to_string()
     }
 }
 
@@ -267,10 +275,21 @@ pub mod layout {
             let mut result = HashMap::new();
             let mut x = 100.0;
 
-            let layer_order = ["Ingested", "Validating", "Classifying", "Reconciling", "Committed", "NeedsReview"];
+            let layer_order = [
+                "Ingested",
+                "Validating",
+                "Classifying",
+                "Reconciling",
+                "Committed",
+                "NeedsReview",
+            ];
             for state in layer_order {
                 if graph.nodes.contains_key(state) {
-                    let width = if state == &graph.current_state { 120.0 } else { 100.0 };
+                    let width = if state == &graph.current_state {
+                        120.0
+                    } else {
+                        100.0
+                    };
                     result.insert(state.to_string(), (x, width));
                     x += 150.0;
                 }
@@ -317,7 +336,13 @@ pub fn to_html(graph: &PipelineGraph) -> String {
 </body>
 </html>"#,
         current,
-        if confidence > 0.7 { "#4caf50" } else if confidence > 0.4 { "#ff9800" } else { "#f44336" },
+        if confidence > 0.7 {
+            "#4caf50"
+        } else if confidence > 0.4 {
+            "#ff9800"
+        } else {
+            "#f44336"
+        },
         styles,
         current,
         confidence,
@@ -332,28 +357,26 @@ mod tests {
     #[test]
     fn test_node_visual_state() {
         // Test Active state
-        let state = NodeVisualState::from_pipeline(
-            PipelineStateEnum::Validating,
-            0.9,
-            &[]
-        );
+        let state = NodeVisualState::from_pipeline(PipelineStateEnum::Validating, 0.9, &[]);
         assert_eq!(state, NodeVisualState::Active);
 
         // Test Warning (low confidence)
-        let state = NodeVisualState::from_pipeline(
-            PipelineStateEnum::Classifying,
-            0.3,
-            &[]
-        );
+        let state = NodeVisualState::from_pipeline(PipelineStateEnum::Classifying, 0.3, &[]);
         assert_eq!(state, NodeVisualState::Warning);
     }
 
     #[test]
     fn test_mermaid_generation() {
         let mut graph = PipelineGraph::new();
-        graph.nodes.insert("Ingested".to_string(), NodeVisualState::Success);
-        graph.nodes.insert("Validating".to_string(), NodeVisualState::Active);
-        graph.nodes.insert("Classifying".to_string(), NodeVisualState::Idle);
+        graph
+            .nodes
+            .insert("Ingested".to_string(), NodeVisualState::Success);
+        graph
+            .nodes
+            .insert("Validating".to_string(), NodeVisualState::Active);
+        graph
+            .nodes
+            .insert("Classifying".to_string(), NodeVisualState::Idle);
         graph.current_state = "Validating".to_string();
         graph.accumulated_confidence = 0.85;
 
@@ -383,7 +406,9 @@ mod tests {
     fn test_layout_constraints() {
         let solver = layout::LayoutSolver::new();
         let mut graph = PipelineGraph::new();
-        graph.nodes.insert("Validating".to_string(), NodeVisualState::Active);
+        graph
+            .nodes
+            .insert("Validating".to_string(), NodeVisualState::Active);
         graph.current_state = "Validating".to_string();
         graph.accumulated_confidence = 0.8;
 

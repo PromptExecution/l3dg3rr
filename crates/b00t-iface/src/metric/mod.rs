@@ -133,7 +133,11 @@ impl MetricRegistry {
         // Find or create stream
         let target_key = key.to_owned();
         let target_surface = surface.to_owned();
-        if let Some(stream) = self.streams.iter_mut().find(|s| s.surface == target_surface && s.key == target_key) {
+        if let Some(stream) = self
+            .streams
+            .iter_mut()
+            .find(|s| s.surface == target_surface && s.key == target_key)
+        {
             let prev = stream.latest().map(|o| o.value.clone());
             stream.observations.push(obs);
             if let Some(from) = prev {
@@ -154,10 +158,20 @@ impl MetricRegistry {
     }
 
     /// Record a set of standard lifecycle metrics from a state machine.
-    pub fn record_lifecycle(&mut self, surface: &str, state: &str, crash_count: u32, uptime: Duration) {
+    pub fn record_lifecycle(
+        &mut self,
+        surface: &str,
+        state: &str,
+        crash_count: u32,
+        uptime: Duration,
+    ) {
         self.record(surface, "state", MetricValue::State(state.to_owned()));
         self.record(surface, "crashes", MetricValue::Counter(crash_count as u64));
-        self.record(surface, "uptime_ms", MetricValue::DurationMs(uptime.as_millis() as u64));
+        self.record(
+            surface,
+            "uptime_ms",
+            MetricValue::DurationMs(uptime.as_millis() as u64),
+        );
     }
 
     /// Update all animations by the given delta.
@@ -200,8 +214,14 @@ mod tests {
         reg.record_lifecycle("autoresearch", "idle", 0, Duration::from_secs(60));
 
         let flat = reg.flat_display();
-        assert_eq!(flat.get("watcher").unwrap().get("state").unwrap(), "running");
-        assert_eq!(flat.get("autoresearch").unwrap().get("uptime_ms").unwrap(), "60000ms");
+        assert_eq!(
+            flat.get("watcher").unwrap().get("state").unwrap(),
+            "running"
+        );
+        assert_eq!(
+            flat.get("autoresearch").unwrap().get("uptime_ms").unwrap(),
+            "60000ms"
+        );
         // 2 from watcher (state, crashes) + 3 from autoresearch (state, crashes, uptime_ms) = 5 streams
         assert_eq!(reg.streams.len(), 5);
     }
@@ -274,6 +294,8 @@ mod tests {
         assert_eq!(MetricValue::Counter(42).to_string(), "42");
         assert_eq!(MetricValue::State("running".into()).to_string(), "running");
         assert_eq!(MetricValue::DurationMs(5000).to_string(), "5000ms");
-        assert!(!MetricValue::Gauge(std::f64::consts::PI).to_string().is_empty());
+        assert!(!MetricValue::Gauge(std::f64::consts::PI)
+            .to_string()
+            .is_empty());
     }
 }
