@@ -7,17 +7,14 @@ use z3::{ast::Bool, Config, Context, SatResult, Solver};
 
 /// Jurisdiction for tax rule evaluation (US, AU, UK, etc.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum Jurisdiction {
+    #[default]
     US,
     AU,
     UK,
 }
 
-impl Default for Jurisdiction {
-    fn default() -> Self {
-        Self::US
-    }
-}
 
 impl Jurisdiction {
     pub fn code(&self) -> &'static str {

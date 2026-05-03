@@ -259,8 +259,7 @@ fn handle_request(request: Value) -> Option<Value> {
                         // Registry is accessed internally by handle_external_tool
                         // via mcp_adapter's GLOBAL_PROVIDER_REGISTRY.
                         let ext_args = params.get("arguments").cloned().unwrap_or(Value::Null);
-                        let dummy = ledgerr_mcp_core::McpProviderRegistry::new();
-                        mcp_adapter::handle_external_tool(&dummy, tool_name, &ext_args)
+                        mcp_adapter::handle_external_tool(tool_name, &ext_args)
                     }
                     #[cfg(not(feature = "b00t"))]
                     {
@@ -302,5 +301,5 @@ fn global_raw_service() -> &'static ledgerr_mcp::TurboLedgerService {
         &'static ledgerr_mcp::TurboLedgerService,
         ledgerr_mcp::actor::ServiceHandle,
     )> = OnceLock::new();
-    PAIR.get_or_init(|| build_service()).0
+    PAIR.get_or_init(build_service).0
 }

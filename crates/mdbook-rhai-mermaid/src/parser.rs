@@ -96,6 +96,7 @@ impl SemanticRole {
         SemanticRole::Step
     }
 
+    #[allow(dead_code)]
     pub fn key(&self) -> &'static str {
         match self {
             SemanticRole::Ingest => "ingest",
@@ -116,14 +117,18 @@ pub struct Node {
     /// Stable identity key — survives cosmetic label changes.
     /// Defaults to the same as `id` but can be set explicitly for
     /// identity-stable reflow across source edits.
+    #[allow(dead_code)]
     pub identity_key: String,
     pub label: String,
     pub kind: NodeKind,
     /// Semantic role inferred from label keywords.
+    #[allow(dead_code)]
     pub role: SemanticRole,
     /// For match arms: declaration order index within the match group.
+    #[allow(dead_code)]
     pub arm_index: Option<usize>,
     /// Whether this node is a default/fallback arm (`_` or `else`).
+    #[allow(dead_code)]
     pub is_default: bool,
 }
 
@@ -133,9 +138,11 @@ pub struct Edge {
     pub to: String,
     pub label: Option<String>,
     /// For match arms: declaration order index.
+    #[allow(dead_code)]
     pub arm_index: Option<usize>,
     /// Whether this edge represents a default/fallback path.
     pub is_default: bool,
+
 }
 
 #[derive(Debug, Default)]

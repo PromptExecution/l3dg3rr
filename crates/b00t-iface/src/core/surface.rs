@@ -122,6 +122,12 @@ pub enum DatumWatcherError {
     Validation(String),
 }
 
+impl Default for DatumWatcher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DatumWatcher {
     pub fn new() -> Self {
         let base = if cfg!(test) {
