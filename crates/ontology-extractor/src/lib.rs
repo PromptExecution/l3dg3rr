@@ -84,7 +84,7 @@ impl RustAstExtractor {
             // Sort and dedup by (file, name, classification) so items that share a
             // name in different Rust namespaces (e.g. `struct Foo` and `fn Foo()`)
             // are preserved as distinct entries.
-            terms.sort_by(|left, right| {
+            terms.sort_unstable_by(|left, right| {
                 (left.file.as_str(), left.name.as_str(), left.classification.kind())
                     .cmp(&(right.file.as_str(), right.name.as_str(), right.classification.kind()))
             });
