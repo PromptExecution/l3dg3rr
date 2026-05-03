@@ -28,7 +28,7 @@ for ($i=0; $i -lt $LoopCount; $i++) {
     } else {
       Write-Host "  WARNING: build #$buildNum not in DOM"
     }
-    Copy-Item $domFile "D:\Projects\l3dg3rr\.b00t\datums\dom-dump-b$buildNum.txt" -Force
+    Copy-Item $domFile "D:\Projects\l3dg3rr\.b00t\scratch\dom-dump-b$buildNum.txt" -Force
   } else {
     Write-Host "  WARNING: no DOM dump"
   }

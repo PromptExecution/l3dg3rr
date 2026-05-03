@@ -1,26 +1,22 @@
-# Rust build outputs
-target/
-
-# Local codex/runtime metadata
-.codex/
-.claude/worktrees/
 
 # Editor/backup artifacts
-*~
-
-# Local planning input docs
-prd.md
-
-# Windows Mark-of-the-Web metadata files
-*:Zone.Identifier
-
+# Generated local state sidecars (should not be committed)
+# Local codex/runtime metadata
 # Local environment secrets
+# Local planning input docs
+# Rust build outputs
+# Windows Mark-of-the-Web metadata files
+# mdbook output
+*.ledgerr-state.json
+*:Zone.Identifier
+*~
+.b00t/datums/*.txt
+.b00t/scratch/
+.claude/scheduled_tasks.lock
+.claude/worktrees/
+.codex/
 .env
 .env.*
-
-# Generated local state sidecars (should not be committed)
-*.ledgerr-state.json
-
-# mdbook output
 book/book/
-.claude/scheduled_tasks.lock
+prd.md
+target/
