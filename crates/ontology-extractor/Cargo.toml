@@ -1,9 +1,9 @@
 [package]
 name = "ontology-extractor"
-version = "1.8.1"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 description = "Rust AST extraction for ontological knowledge graph construction"
-license = "MIT"
+license.workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
@@ -23,3 +23,6 @@ path = "src/lib.rs"
 [[bin]]
 name = "ontology-extractor"
 path = "src/main.rs"
+
+[lints]
+workspace = true

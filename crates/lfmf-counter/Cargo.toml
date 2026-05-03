@@ -1,9 +1,9 @@
 [package]
 name = "lfmf-counter"
-version = "1.8.1"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 description = "LFMF lesson counter with $🦨++ and $🐛++ support"
-license = "MIT"
+license.workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
@@ -22,3 +22,6 @@ path = "src/lib.rs"
 [[bin]]
 name = "lfmf-stats"
 path = "src/main.rs"
+
+[lints]
+workspace = true

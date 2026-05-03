@@ -27,7 +27,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     if cli.verbose {
-        println!("🔍 Extracting Rust idioms from: {}", cli.crate_path);
+        eprintln!("🔍 Extracting Rust idioms from: {}", cli.crate_path);
     }
 
     let extractor = RustAstExtractor::new();

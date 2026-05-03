@@ -130,7 +130,9 @@ impl LfmfCounter {
 
     /// Get default storage path
     fn default_storage_path() -> PathBuf {
-        std::env::current_dir().unwrap().join(COUNTER_FILE)
+        std::env::current_dir()
+            .expect("cannot determine current directory for counter storage")
+            .join(COUNTER_FILE)
     }
 
     /// Increment skunk counter for a tool

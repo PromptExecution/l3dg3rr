@@ -47,42 +47,57 @@ impl RustAstExtractor {
     }
 
     pub async fn extract_rust_idioms(&self, crate_path: &Path) -> Result<Vec<RustTerm>> {
-        let mut terms = Vec::new();
+        let crate_path = crate_path.to_path_buf();
+        tokio::task::spawn_blocking(move || {
+            let mut terms = Vec::new();
 
-        for entry in WalkDir::new(crate_path)
-            .into_iter()
-            .filter_entry(|entry| entry.file_name() != "target")
-        {
-            let entry = entry.context("failed to walk crate path")?;
-            if !entry.file_type().is_file()
-                || entry.path().extension().and_then(|ext| ext.to_str()) != Some("rs")
+            for entry in WalkDir::new(&crate_path)
+                .into_iter()
+                .filter_entry(|entry| entry.file_name() != "target")
             {
-                continue;
+                let entry = entry.context("failed to walk crate path")?;
+                if !entry.file_type().is_file()
+                    || entry.path().extension().and_then(|ext| ext.to_str()) != Some("rs")
+                {
+                    continue;
+                }
+
+                let source = fs::read_to_string(entry.path())
+                    .with_context(|| format!("failed to read {}", entry.path().display()))?;
+                let syntax = syn::parse_file(&source)
+                    .with_context(|| format!("failed to parse {}", entry.path().display()))?;
+
+                let file = entry
+                    .path()
+                    .strip_prefix(&crate_path)
+                    .unwrap_or(entry.path())
+                    .display()
+                    .to_string();
+                let mut visitor = TermCollector {
+                    file: file.clone(),
+                    terms: Vec::new(),
+                };
+                visitor.visit_file(&syntax);
+                terms.extend(visitor.terms);
             }
 
-            let source = fs::read_to_string(entry.path())
-                .with_context(|| format!("failed to read {}", entry.path().display()))?;
-            let syntax = syn::parse_file(&source)
-                .with_context(|| format!("failed to parse {}", entry.path().display()))?;
+            // Sort and dedup by (file, name, classification) so items that share a
+            // name in different Rust namespaces (e.g. `struct Foo` and `fn Foo()`)
+            // are preserved as distinct entries.
+            terms.sort_by(|left, right| {
+                (left.file.as_str(), left.name.as_str(), left.classification.kind())
+                    .cmp(&(right.file.as_str(), right.name.as_str(), right.classification.kind()))
+            });
+            terms.dedup_by(|left, right| {
+                left.file == right.file
+                    && left.name == right.name
+                    && left.classification == right.classification
+            });
 
-            let file = entry
-                .path()
-                .strip_prefix(crate_path)
-                .unwrap_or(entry.path())
-                .display()
-                .to_string();
-            let mut visitor = TermCollector {
-                file: file.clone(),
-                terms: Vec::new(),
-            };
-            visitor.visit_file(&syntax);
-            terms.extend(visitor.terms);
-        }
-
-        terms.sort_by(|left, right| (&left.file, &left.name).cmp(&(&right.file, &right.name)));
-        terms.dedup_by(|left, right| left.file == right.file && left.name == right.name);
-
-        Ok(terms)
+            Ok(terms)
+        })
+        .await
+        .context("blocking extraction task panicked")?
     }
 
     pub fn build_ontology_graph(&self, terms: &[RustTerm]) -> OntologyGraph {

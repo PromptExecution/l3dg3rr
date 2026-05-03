@@ -37,15 +37,15 @@ struct SummaryArgs {
 
 #[derive(Parser, Debug)]
 struct ListArgs {
-    //  Sort by activity (default) or tool name
+    /// Sort by activity (most lessons first); default is sort by tool name
     #[arg(short, long)]
     sort_by_activity: bool,
 
-    // Show suggestions for tools
+    /// Show improvement suggestions for each tool
     #[arg(short, long)]
     show_suggestions: bool,
 
-    // Limit number of tools to show
+    /// Limit number of tools to show
     #[arg(short, long, default_value = "10")]
     limit: usize,
 }
