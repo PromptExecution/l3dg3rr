@@ -1,13 +1,14 @@
+//! Graph-based AST for the rhai pseudo-DSL.
+//!
+//! Two statement forms are supported:
+//!   - Pipeline step:    `fn name() -> target`
+//!   - Conditional:      `if expr -> target`   where expr is e.g. `confidence > 0.8`
+//!   - Match arm:        `match expr => Arm -> target`
+//!
+//! The syntax is stable — richer identity and placement semantics are encoded
+//! in the parser output, not in a second incompatible syntax.
+
 use indexmap::IndexMap;
-/// Graph-based AST for the rhai pseudo-DSL.
-///
-/// Two statement forms are supported:
-///   - Pipeline step:    `fn name() -> target`
-///   - Conditional:      `if expr -> target`   where expr is e.g. `confidence > 0.8`
-///   - Match arm:        `match expr => Arm -> target`
-///
-/// The syntax is stable — richer identity and placement semantics are encoded
-/// in the parser output, not in a second incompatible syntax.
 use std::collections::HashMap;
 
 // ---------------------------------------------------------------------------
