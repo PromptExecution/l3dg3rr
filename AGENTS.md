@@ -130,6 +130,13 @@ Practical interpretation:
 - do not treat green tests as the only completion signal if the UX, notification path, tray behavior, or host integration still lacks a real validation path;
 - when desktop/host features are being designed, verify the smallest executable slice first (for example, a real toast test before larger UI work).
 
+Force-push guard (mandatory, enforced by .git/hooks/pre-push):
+- NEVER force-push main or master. The pre-push hook blocks it at the transport level.
+- Use feature branches for all changes. If force-push is necessary on a feature branch
+  (e.g., after rebasing a solo branch), it must be a non-main branch and there must
+  be no collaborators working on the same branch.
+- The local git config has `receive.denyNonFastForwards = true` as additional safety.
+
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
 
