@@ -15,6 +15,16 @@ use ledgerr_host::settings::{default_settings_path, SettingsStore};
 use state::AppState;
 
 fn main() {
+    // Telemetry UUID signal path — read from env, echo back so test harness can verify
+    if let Ok(uuid) = std::env::var("TAURI_TEST_UUID") {
+        eprintln!("[telemetry] TAURI_TEST_UUID={uuid}");
+        // Also write to a temp file for the harness to find
+        let _ = std::fs::write(
+            std::env::temp_dir().join("host-tauri-telemetry-signal.txt"),
+            format!("TAURI_TEST_UUID={uuid}\n"),
+        );
+    }
+
     let store = Arc::new(SettingsStore::new(default_settings_path()));
     let history: Arc<Mutex<Vec<ChatTurn>>> = Arc::new(Mutex::new(Vec::new()));
     let review_log: Arc<Mutex<ReviewLog>> = Arc::new(Mutex::new(ReviewLog::default()));
