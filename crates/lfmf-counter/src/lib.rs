@@ -180,7 +180,7 @@ impl LfmfCounter {
     /// Get tools sorted by total lessons (most to least)
     pub fn get_tools_by_activity(&self) -> Vec<&ToolCounter> {
         let mut tools: Vec<_> = self.counters.values().collect();
-        tools.sort_by(|a, b| b.total_lessons.cmp(&a.total_lessons));
+        tools.sort_by_key(|b| std::cmp::Reverse(b.total_lessons));
         tools
     }
 
