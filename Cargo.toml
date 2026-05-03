@@ -6,7 +6,7 @@ members = [
   "crates/ledgerr-xero",
   "crates/ledgerr-llm",
   "crates/mdbook-rhai-mermaid",
-  "crates/ledgrrr",
+
   "crates/arc-kit-au",
   "xtask",
 ]

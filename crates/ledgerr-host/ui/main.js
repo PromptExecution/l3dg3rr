@@ -1,6 +1,40 @@
-// Tauri v2 IPC
-function invoke(cmd, args) { return window.__TAURI__.core.invoke(cmd, args); }
-function listen(event, handler) { return window.__TAURI__.event.listen(event, handler); }
+// Tauri v2 IPC — accessed lazily inside handlers, never at module scope
+function tauriApi() { return window.__TAURI__; }
+function invoke(cmd, args) {
+  const api = tauriApi();
+  if (!api) return Promise.reject(new Error('Tauri IPC not ready'));
+  return api.core.invoke(cmd, args);
+}
+function listen(event, handler) {
+  const api = tauriApi();
+  if (!api) return Promise.reject(new Error('Tauri IPC not ready'));
+  return api.event.listen(event, handler);
+}
+
+// ── Autorun: idle countdown (10s) + stay-active ──────────────────────────────
+const IDLE_TIMEOUT_MS = 10000;
+let idleTimer = null;
+let autorunMode = false;
+
+function resetIdleTimer() {
+  if (idleTimer) clearTimeout(idleTimer);
+  if (!autorunMode) return;
+  idleTimer = setTimeout(() => {
+    document.title = document.title.replace(/ \[idle.*?\]/, '') + ' [idle: 0s]';
+    let count = 0;
+    const tick = setInterval(() => {
+      count += 1;
+      document.title = document.title.replace(/ \[idle: \d+s\]/, '') + ` [idle: ${count}s]`;
+      if (count >= 10) {
+        clearInterval(tick);
+        document.title = document.title.replace(/ \[idle: \d+s\]/, ' [stay-active]');
+      }
+    }, 1000);
+  }, IDLE_TIMEOUT_MS);
+}
+
+document.addEventListener('click', resetIdleTimer);
+document.addEventListener('keydown', resetIdleTimer);
 
 // ── Panel definitions (single source of truth) ────────────────────────────────
 const PANELS = [
@@ -147,6 +181,7 @@ function buildUI() {
 let activePanel = 0;
 let activeLogPanel = 0;
 let busy = false;
+autorunMode = true; // enable autorun countdown on startup
 
 // ── DOM references (populated after buildUI) ──────────────────────────────────
 let sidebar, collapseBtn, navItems, panels;
@@ -402,8 +437,19 @@ btnRefreshDash.addEventListener('click', refreshDashboard);
 // ── Initialise on load ────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
-  buildUI();
-  cacheRefs();
+  try {
+    buildUI();
+  } catch (e) {
+    console.error('buildUI failed:', e);
+    document.getElementById('panel-container').innerHTML = `<div class="panel card" style="padding:20px"><h2>UI Load Error</h2><pre>${e.message}\n${e.stack}</pre></div>`;
+    return;
+  }
+  try {
+    cacheRefs();
+  } catch (e) {
+    console.error('cacheRefs failed:', e);
+    return;
+  }
   showPanel(0);
   showLogPanel(0);
 

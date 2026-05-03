@@ -5077,6 +5077,9 @@ dependencies = [
  "serde",
  "serde_json",
  "slint",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-opener",
  "tempfile",
  "thiserror 2.0.18",
  "tokenizers 0.22.2",
@@ -5142,20 +5145,6 @@ dependencies = [
  "thiserror 2.0.18",
  "tracing",
  "url",
-]
-
-[[package]]
-name = "ledgrrr"
-version = "1.8.0"
-dependencies = [
- "anyhow",
- "ledgerr-host",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-opener",
- "tokio",
 ]
 
 [[package]]

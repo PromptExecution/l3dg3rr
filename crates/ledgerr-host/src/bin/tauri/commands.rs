@@ -15,7 +15,7 @@ use ledgerr_host::internal_openai::{
 };
 use ledgerr_host::settings::ChatSettings;
 
-use crate::state::AppState;
+use super::state::AppState;
 
 // ── Shared payload types ──────────────────────────────────────────────────────
 
