@@ -15,9 +15,7 @@ impl B00tProvider {
         let home = b00t_home.unwrap_or_else(|| {
             let p = PathBuf::from(
                 std::env::var("B00T_HOME")
-                    .or_else(|_| {
-                        std::env::var("HOME").map(|h| format!("{h}/.b00t"))
-                    })
+                    .or_else(|_| std::env::var("HOME").map(|h| format!("{h}/.b00t")))
                     .unwrap_or_else(|_| "~/.b00t".to_string()),
             );
             if p.starts_with("~") {
@@ -196,8 +194,7 @@ mod tests {
             Ok(p) => assert_eq!(p.name(), "just"),
             Err(e) => {
                 assert!(
-                    e.to_string().contains("spawn failed")
-                        || e.to_string().contains("not found"),
+                    e.to_string().contains("spawn failed") || e.to_string().contains("not found"),
                     "unexpected error: {e}"
                 );
             }
@@ -248,10 +245,7 @@ mod tests {
             if let Err(e) = result {
                 // Expected: any error indicating graceful degradation
                 let msg = e.to_string();
-                assert!(
-                    !msg.is_empty(),
-                    "unexpected empty error for {name}: {e}"
-                );
+                assert!(!msg.is_empty(), "unexpected empty error for {name}: {e}");
             }
         }
     }

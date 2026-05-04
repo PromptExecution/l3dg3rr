@@ -1,9 +1,8 @@
-use arc_kit_au::{
-    EvidenceGraph, EvidenceTracer, ProvenanceBadge, ProvenanceScanner,
-    node::NodeType,
-};
-use crate::internal_openai::{ProviderReadiness, provider_status};
+use crate::internal_openai::{provider_status, ProviderReadiness};
 use crate::settings::AppSettings;
+use arc_kit_au::{
+    node::NodeType, EvidenceGraph, EvidenceTracer, ProvenanceBadge, ProvenanceScanner,
+};
 
 #[derive(Debug, Default)]
 pub struct EvidenceState {
@@ -83,10 +82,16 @@ impl TodayQueue {
 
         let mut next_actions = vec![];
         if blocked > 0 {
-            next_actions.push(format!("Review {} transactions with critical gaps.", blocked));
+            next_actions.push(format!(
+                "Review {} transactions with critical gaps.",
+                blocked
+            ));
         }
         if ready > 0 {
-            next_actions.push(format!("Review {} transactions with partial evidence.", ready));
+            next_actions.push(format!(
+                "Review {} transactions with partial evidence.",
+                ready
+            ));
         }
         if next_actions.is_empty() && evidence.checked {
             next_actions.push("No review items — ready to export workbook.".to_string());
@@ -120,8 +125,8 @@ impl TodayQueue {
 
 #[cfg(test)]
 mod tests {
-    use crate::internal_openai::ModelProviderLabel;
     use super::*;
+    use crate::internal_openai::ModelProviderLabel;
 
     fn test_settings() -> AppSettings {
         AppSettings::default()

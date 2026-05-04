@@ -4,13 +4,18 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use b00t_iface::metric::MetricRegistry;
+use b00t_iface::sarif::check_otel_logic_slo_as_sarif;
 use ledger_core::observability::{
-    ClassifiedJournalArtifact, LogShapeClassifier, LogShapeRule, OTelLogRecord,
+    otlp_json, ClassifiedJournalArtifact, LogShapeClassifier, OTelLogRecord,
     OTelSeverityNumber, TelemetryArrowBatch,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
 use tokio::sync::{broadcast, RwLock};
 use tracing::{error, info, instrument};
 
@@ -90,43 +95,81 @@ impl From<&ClassifiedJournalArtifact> for ClassifiedArtifactView {
     }
 }
 
+/// Self-telemetry counters for the rotel-visual surface.
+#[derive(Debug, Default)]
+struct SurfaceMetrics {
+    logs_ingested_total: AtomicU64,
+    logs_classified_total: AtomicU64,
+    metrics_ingested_total: AtomicU64,
+    traces_ingested_total: AtomicU64,
+    ws_connections_total: AtomicU64,
+    ws_connections_active: AtomicU64,
+}
+
+impl SurfaceMetrics {
+    fn inc_logs_ingested(&self, n: u64) {
+        self.logs_ingested_total.fetch_add(n, Ordering::Relaxed);
+    }
+    fn inc_logs_classified(&self, n: u64) {
+        self.logs_classified_total.fetch_add(n, Ordering::Relaxed);
+    }
+    fn inc_metrics_ingested(&self, n: u64) {
+        self.metrics_ingested_total.fetch_add(n, Ordering::Relaxed);
+    }
+    fn inc_traces_ingested(&self, n: u64) {
+        self.traces_ingested_total.fetch_add(n, Ordering::Relaxed);
+    }
+    fn inc_ws_connection(&self) {
+        self.ws_connections_total.fetch_add(1, Ordering::Relaxed);
+        self.ws_connections_active.fetch_add(1, Ordering::Relaxed);
+    }
+    fn dec_ws_connection(&self) {
+        self.ws_connections_active.fetch_sub(1, Ordering::Relaxed);
+    }
+
+    fn snapshot(&self) -> SurfaceMetricsSnapshot {
+        SurfaceMetricsSnapshot {
+            logs_ingested_total: self.logs_ingested_total.load(Ordering::Relaxed),
+            logs_classified_total: self.logs_classified_total.load(Ordering::Relaxed),
+            metrics_ingested_total: self.metrics_ingested_total.load(Ordering::Relaxed),
+            traces_ingested_total: self.traces_ingested_total.load(Ordering::Relaxed),
+            ws_connections_total: self.ws_connections_total.load(Ordering::Relaxed),
+            ws_connections_active: self.ws_connections_active.load(Ordering::Relaxed),
+        }
+    }
+}
+
+#[derive(Serialize, Debug)]
+struct SurfaceMetricsSnapshot {
+    logs_ingested_total: u64,
+    logs_classified_total: u64,
+    metrics_ingested_total: u64,
+    traces_ingested_total: u64,
+    ws_connections_total: u64,
+    ws_connections_active: u64,
+}
+
 #[derive(Debug)]
 struct AppState {
     telemetry_tx: broadcast::Sender<TelemetryData>,
     classifier: LogShapeClassifier,
     ring_buffer: RwLock<VecDeque<TelemetryData>>,
+    metrics: SurfaceMetrics,
 }
 
 impl AppState {
     fn new() -> Result<Self, anyhow::Error> {
         let (tx, _rx) = broadcast::channel(100);
-        let classifier = Self::build_classifier()?;
+        let classifier = LogShapeClassifier::with_builtin_rules()?;
         Ok(Self {
             telemetry_tx: tx,
             classifier,
             ring_buffer: RwLock::new(VecDeque::with_capacity(100)),
+            metrics: SurfaceMetrics::default(),
         })
     }
 
-    fn build_classifier() -> Result<LogShapeClassifier, anyhow::Error> {
-        let rules = vec![
-            LogShapeRule {
-                rule_id: "gpu-driver-device-disappeared".to_string(),
-                abstract_regex_type: "hardware.gpu.driver.device_handle_unknown".to_string(),
-                pattern: "Unable to determine the device handle for GPU[0-9]+.*Unknown Error"
-                    .to_string(),
-                metric_name: "l3dg3rr.hardware.gpu.driver_faults".to_string(),
-                metric_delta: 1,
-                min_severity: OTelSeverityNumber::Error,
-                rationale: "GPU was expected but nvidia-smi returned an unknown device-handle error"
-                    .to_string(),
-            },
-        ];
-        Ok(LogShapeClassifier::new(rules)?)
-    }
-
     async fn broadcast(&self, data: TelemetryData) {
-        // Push to ring buffer
         {
             let mut buf = self.ring_buffer.write().await;
             if buf.len() >= 100 {
@@ -134,7 +177,6 @@ impl AppState {
             }
             buf.push_back(data.clone());
         }
-        // Broadcast to subscribers
         let _ = self.telemetry_tx.send(data);
     }
 
@@ -150,6 +192,11 @@ async fn health_handler() -> Json<HealthResponse> {
         status: "healthy".to_string(),
         message: "Rotel Visual OTel Surface is running".to_string(),
     })
+}
+
+#[instrument]
+async fn metrics_handler(State(state): State<Arc<AppState>>) -> Json<SurfaceMetricsSnapshot> {
+    Json(state.metrics.snapshot())
 }
 
 #[instrument]
@@ -213,7 +260,6 @@ async fn dashboard_handler() -> impl IntoResponse {
             ws.onmessage = function(event) {
                 const data = JSON.parse(event.data);
                 if (Array.isArray(data)) {
-                    // Replay buffer
                     data.forEach(batch => updateBatch(batch));
                 } else {
                     updateBatch(data);
@@ -298,7 +344,8 @@ async fn websocket_handler(
 }
 
 async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
-    // Replay ring buffer first
+    state.metrics.inc_ws_connection();
+
     let replay = state.replay_buffer().await;
     for batch in replay {
         let json = match serde_json::to_string(&batch) {
@@ -311,83 +358,45 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
         let msg = axum::extract::ws::Message::Text(json);
         if let Err(err) = socket.send(msg).await {
             error!("Error sending replay data: {}", err);
+            state.metrics.dec_ws_connection();
             return;
         }
     }
 
-    // Subscribe to live updates
     let mut rx = state.telemetry_tx.subscribe();
 
     loop {
-        match rx.recv().await {
-            Ok(telemetry) => {
-                let json = match serde_json::to_string(&telemetry) {
-                    Ok(s) => s,
-                    Err(err) => {
-                        error!("Failed to serialize telemetry: {}", err);
-                        continue;
+        tokio::select! {
+            ws_msg = socket.recv() => {
+                match ws_msg {
+                    Some(Ok(axum::extract::ws::Message::Close(_))) => break,
+                    Some(Ok(_)) => continue,
+                    Some(Err(err)) => {
+                        error!("Error receiving websocket message: {}", err);
+                        break;
                     }
-                };
-                let msg = axum::extract::ws::Message::Text(json);
-                if let Err(err) = socket.send(msg).await {
-                    error!("Error sending telemetry data: {}", err);
-                    break;
+                    None => break,
                 }
             }
-            Err(broadcast::error::RecvError::Lagged(_)) => continue,
-            Err(broadcast::error::RecvError::Closed) => break,
+            recv = rx.recv() => {
+                match recv {
+                    Ok(telemetry) => {
+                        let msg = axum::extract::ws::Message::Text(
+                            serde_json::to_string(&telemetry).unwrap().into()
+                        );
+                        if let Err(err) = socket.send(msg).await {
+                            error!("Error sending telemetry data: {}", err);
+                            break;
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Closed) => break,
+                }
+            }
         }
     }
-}
 
-// OTLP JSON ingestion handlers
-
-#[derive(Serialize, Deserialize, Debug)]
-struct OtlpLogsRequest {
-    #[serde(rename = "resourceLogs")]
-    resource_logs: Vec<ResourceLogs>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct ResourceLogs {
-    resource: Option<OtlpResource>,
-    #[serde(rename = "scopeLogs")]
-    scope_logs: Vec<ScopeLogs>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct OtlpResource {
-    attributes: Vec<OtlpAttribute>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct ScopeLogs {
-    #[serde(rename = "logRecords")]
-    log_records: Vec<OtlpLogRecord>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct OtlpLogRecord {
-    #[serde(rename = "timeUnixNano")]
-    time_unix_nano: String,
-    #[serde(rename = "severityNumber")]
-    severity_number: u8,
-    #[serde(rename = "severityText")]
-    severity_text: String,
-    body: OtlpAnyValue,
-    attributes: Vec<OtlpAttribute>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct OtlpAnyValue {
-    #[serde(rename = "stringValue")]
-    string_value: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct OtlpAttribute {
-    key: String,
-    value: OtlpAnyValue,
+    state.metrics.dec_ws_connection();
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -401,43 +410,51 @@ struct OtlpIngestResponse {
 #[instrument]
 async fn otlp_logs_handler(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<OtlpLogsRequest>,
+    Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
     let mut logs = Vec::new();
     let mut classified = Vec::new();
+    let mut log_count = 0u64;
 
-    for resource_log in &req.resource_logs {
+    let request: otlp_json::LogsRequest = match serde_json::from_value(payload) {
+        Ok(r) => r,
+        Err(e) => {
+            error!("Invalid OTLP log structure: {e}");
+            let response = Json(serde_json::json!({
+                "error": format!("invalid OTLP log structure: {e}")
+            }));
+            return (axum::http::StatusCode::BAD_REQUEST, response).into_response();
+        }
+    };
+
+    for resource_log in &request.resource_logs {
         for scope_log in &resource_log.scope_logs {
             for record in &scope_log.log_records {
+                log_count += 1;
                 let body = record.body.string_value.clone().unwrap_or_default();
-                let severity = otlp_severity_to_enum(record.severity_number);
-                let timestamp = match record.time_unix_nano.parse() {
-                    Ok(timestamp) => timestamp,
-                    Err(error) => {
-                        error!(
-                            "Invalid OTLP log record timeUnixNano '{}': {}",
-                            record.time_unix_nano, error
-                        );
-                        let response = Json(serde_json::json!({
-                            "error": format!(
-                                "invalid OTLP log record timeUnixNano '{}': {}",
-                                record.time_unix_nano, error
-                            )
-                        }));
-                        return (axum::http::StatusCode::BAD_REQUEST, response)
-                            .into_response();
+                let severity = match OTelSeverityNumber::try_from(record.severity_number) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        error!("Invalid severity number: {}", e);
+                        continue;
+                    }
+                };
+                let time_unix_nano: u64 = match record.time_unix_nano.parse() {
+                    Ok(t) => t,
+                    Err(e) => {
+                        error!("Invalid time_unix_nano '{}': {}", record.time_unix_nano, e);
+                        continue;
                     }
                 };
 
-                let mut log = OTelLogRecord::new(timestamp, severity, body.clone());
+                let mut log = OTelLogRecord::new(time_unix_nano, severity, body);
 
-                // Extract log-record-level attributes
                 for attr in &record.attributes {
                     if let Some(val) = &attr.value.string_value {
                         log.attributes.insert(attr.key.clone(), val.clone());
                     }
                 }
-                // Extract resource-level attributes (log record wins on collision)
+
                 if let Some(resource) = &resource_log.resource {
                     for attr in &resource.attributes {
                         if let Some(val) = &attr.value.string_value {
@@ -448,25 +465,23 @@ async fn otlp_logs_handler(
                     }
                 }
 
-                // Classify the log
                 let artifacts = state.classifier.classify_log(&log);
                 for artifact in &artifacts {
                     classified.push(ClassifiedArtifactView::from(artifact));
                 }
 
                 logs.push(LogRecord {
-                    timestamp: record.time_unix_nano.clone(),
-                    level: record.severity_text.clone(),
-                    message: body,
-                    shape: if artifacts.is_empty() {
-                        "unclassified".to_string()
-                    } else {
-                        artifacts[0].abstract_regex_type.clone()
-                    },
+                    timestamp: time_unix_nano.to_string(),
+                    level: format!("{:?}", severity),
+                    message: log.body.clone(),
+                    shape: "otlp_log".to_string(),
                 });
             }
         }
     }
+
+    state.metrics.inc_logs_ingested(log_count);
+    state.metrics.inc_logs_classified(classified.len() as u64);
 
     let telemetry = TelemetryData {
         logs,
@@ -480,7 +495,7 @@ async fn otlp_logs_handler(
     let response = Json(OtlpIngestResponse {
         accepted: true,
         signal: "log".to_string(),
-        resource_count: req.resource_logs.len(),
+        resource_count: request.resource_logs.len(),
         classification_columns: TelemetryArrowBatch::classification_columns()
             .iter()
             .map(|s| s.to_string())
@@ -489,26 +504,70 @@ async fn otlp_logs_handler(
     (axum::http::StatusCode::ACCEPTED, response).into_response()
 }
 
-fn otlp_severity_to_enum(severity_number: u8) -> OTelSeverityNumber {
-    match severity_number {
-        1..=4 => OTelSeverityNumber::Trace,
-        5..=8 => OTelSeverityNumber::Debug,
-        9..=12 => OTelSeverityNumber::Info,
-        13..=16 => OTelSeverityNumber::Warn,
-        17..=20 => OTelSeverityNumber::Error,
-        _ => OTelSeverityNumber::Fatal,
-    }
+#[derive(Debug, serde::Deserialize)]
+struct OtlpMetricsRequest {
+    #[serde(rename = "resourceMetrics")]
+    resource_metrics: Vec<OtlpResourceMetrics>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct OtlpResourceMetrics {
+    #[serde(rename = "scopeMetrics", default)]
+    scope_metrics: Vec<OtlpScopeMetrics>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct OtlpScopeMetrics {
+    #[serde(default)]
+    metrics: Vec<OtlpMetric>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct OtlpMetric {
+    name: String,
 }
 
 #[instrument]
 async fn otlp_metrics_handler(
+    State(state): State<Arc<AppState>>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
-    let resource_count = payload
-        .get("resourceMetrics")
-        .and_then(|v| v.as_array())
-        .map(|a| a.len())
-        .unwrap_or(0);
+    let request = match serde_json::from_value::<OtlpMetricsRequest>(payload) {
+        Ok(request) if !request.resource_metrics.is_empty() => request,
+        Ok(_) => {
+            return (
+                axum::http::StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "accepted": false,
+                    "signal": "metric",
+                    "error": "invalid OTLP metric payload: resourceMetrics must be a non-empty array"
+                })),
+            )
+                .into_response();
+        }
+        Err(error) => {
+            return (
+                axum::http::StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "accepted": false,
+                    "signal": "metric",
+                    "error": format!("invalid OTLP metric payload: {error}")
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    let resource_count = request.resource_metrics.len();
+    let metric_count = request
+        .resource_metrics
+        .iter()
+        .flat_map(|resource| resource.scope_metrics.iter())
+        .flat_map(|scope| scope.metrics.iter())
+        .filter(|metric| !metric.name.is_empty())
+        .count();
+
+    state.metrics.inc_metrics_ingested(metric_count as u64);
 
     let response = Json(OtlpIngestResponse {
         accepted: true,
@@ -522,15 +581,59 @@ async fn otlp_metrics_handler(
     (axum::http::StatusCode::ACCEPTED, response).into_response()
 }
 
+#[derive(Deserialize, Debug)]
+struct OtlpTraceExportRequest {
+    #[serde(rename = "resourceSpans")]
+    resource_spans: Vec<OtlpResourceSpans>,
+}
+
+#[derive(Deserialize, Debug)]
+struct OtlpResourceSpans {
+    #[serde(rename = "scopeSpans")]
+    scope_spans: Vec<OtlpScopeSpans>,
+}
+
+#[derive(Deserialize, Debug)]
+struct OtlpScopeSpans {
+    spans: Vec<OtlpSpan>,
+}
+
+#[derive(Deserialize, Debug)]
+struct OtlpSpan {
+    #[serde(rename = "traceId")]
+    trace_id: String,
+    #[serde(rename = "spanId")]
+    span_id: String,
+    name: String,
+}
+
 #[instrument]
 async fn otlp_traces_handler(
+    State(state): State<Arc<AppState>>,
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
-    let resource_count = payload
-        .get("resourceSpans")
-        .and_then(|v| v.as_array())
-        .map(|a| a.len())
-        .unwrap_or(0);
+    let request: OtlpTraceExportRequest = match serde_json::from_value(payload) {
+        Ok(request) => request,
+        Err(error) => {
+            let response = Json(serde_json::json!({
+                "accepted": false,
+                "signal": "trace",
+                "error": format!("invalid OTLP trace payload: {error}"),
+            }));
+            return (axum::http::StatusCode::BAD_REQUEST, response).into_response();
+        }
+    };
+
+    let resource_count = request.resource_spans.len();
+    let span_records: Vec<(&str, &str, &str)> = request
+        .resource_spans
+        .iter()
+        .flat_map(|resource_spans| resource_spans.scope_spans.iter())
+        .flat_map(|scope_spans| scope_spans.spans.iter())
+        .map(|span| (span.trace_id.as_str(), span.span_id.as_str(), span.name.as_str()))
+        .collect();
+
+    state.metrics.inc_traces_ingested(span_records.len() as u64);
 
     let response = Json(OtlpIngestResponse {
         accepted: true,
@@ -544,23 +647,61 @@ async fn otlp_traces_handler(
     (axum::http::StatusCode::ACCEPTED, response).into_response()
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct EvaluateSloRequest {
+    gate_name: String,
+    expression: String,
+    log_shape_observed: bool,
+    metric_observed: bool,
+    slo_expected: bool,
+}
+
+#[instrument]
+async fn evaluate_slo_handler(
+    Json(req): Json<EvaluateSloRequest>,
+) -> impl IntoResponse {
+    let mut registry = MetricRegistry::new();
+    let report = check_otel_logic_slo_as_sarif(
+        &mut registry,
+        &req.gate_name,
+        &req.expression,
+        req.log_shape_observed,
+        req.metric_observed,
+        req.slo_expected,
+    );
+
+    let status = if report.has_errors() {
+        axum::http::StatusCode::OK
+    } else {
+        axum::http::StatusCode::OK
+    };
+
+    (status, Json(report)).into_response()
+}
+
 pub fn create_app() -> Result<Router, anyhow::Error> {
     let state = Arc::new(AppState::new()?);
 
     Ok(Router::new()
         .route("/", get(dashboard_handler))
         .route("/health", get(health_handler))
+        .route("/metrics", get(metrics_handler))
         .route("/ws/telemetry", get(websocket_handler))
         .route("/v1/logs", post(otlp_logs_handler))
         .route("/v1/metrics", post(otlp_metrics_handler))
         .route("/v1/traces", post(otlp_traces_handler))
+        .route("/rotel/evaluate", post(evaluate_slo_handler))
         .with_state(state))
 }
 
 pub async fn run_server() -> Result<(), anyhow::Error> {
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await?;
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080")
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to bind to 0.0.0.0:8080: {e}"))?;
     info!("Rotel Visual OTel Surface starting on 0.0.0.0:8080");
 
-    axum::serve(listener, create_app()?).await?;
+    axum::serve(listener, create_app()?)
+        .await
+        .map_err(|e| anyhow::anyhow!("Server error: {e}"))?;
     Ok(())
 }

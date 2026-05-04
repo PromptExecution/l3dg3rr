@@ -154,6 +154,7 @@ test-phi4-mistral:
 unsloth-finetune-plan:
     @echo "TODO: install Unsloth and add a reproducible Phi-4 mini documentation fine-tuning recipe."
 
+# TODO: add cargo bench benchmark for docgen rendering pipeline performance
 # ─── Devtools (Linux) ─────────────────────────────────────────────────────
 
 # Install common developer tools missing from the base Ubuntu 24.04 image.
@@ -465,4 +466,75 @@ docgen-check:
     @node -c book/theme/rhai-live.js
     @echo "Running live-editor unit tests..."
     @node --test book/theme/rhai-live-core.test.js
+    @echo "Checking iso-pipeline-objects.html has at least 5 mermaid blocks..."
+    @count=$$(grep -c 'class="mermaid"' book/book/iso-pipeline-objects.html); echo "Found $$count mermaid blocks in iso-pipeline-objects.html"; if [ "$$count" -lt 5 ]; then echo "error: expected at least 5 mermaid blocks, found $$count"; exit 1; fi; echo "✓ iso-pipeline-objects.html has $$count mermaid blocks (>= 5)"
     @echo "All documentation diagrams validated!"
+
+# Negative test: verify broken cross-references are present in output (mdBook
+# does not fail on broken links at build time — this confirms the behavior)
+docgen-check-negative:
+    @if [ ! -x ~/.cargo/bin/mdbook ]; then echo "error: mdbook not found — run: cargo install mdbook mdbook-mermaid"; exit 1; fi
+    @if [ ! -x ~/.cargo/bin/mdbook-mermaid ]; then echo "error: mdbook-mermaid not found — run: cargo install mdbook-mermaid"; exit 1; fi
+    @if [ ! -x ~/.cargo/bin/mdbook-rhai-mermaid ]; then cargo install --path crates/mdbook-rhai-mermaid --quiet; fi
+    @echo "Creating temp file with broken cross-reference..."
+    echo "# Broken Page" > book/src/broken.md
+    echo "" >> book/src/broken.md
+    echo "[bad](./nonexistent.html)" >> book/src/broken.md
+    echo "[good](./intro.html)" >> book/src/broken.md
+    echo "[relative](../nonexistent/deep.html)" >> book/src/broken.md
+    @echo "Building book with known-broken link..."
+    PATH="$$HOME/.cargo/bin:$$PATH" $$HOME/.cargo/bin/mdbook build book
+    @echo "Verifying broken link appears in output (mdBook doesn't fail at build time)..."
+    @grep -q 'href="./nonexistent.html"' book/book/broken.html && echo "✓ confirmed: nonexistent.html link present in output" || { echo "error: expected broken link not found"; rm -f book/src/broken.md; exit 1; }
+    @grep -q 'href="../nonexistent/deep.html"' book/book/broken.html && echo "✓ confirmed: deep broken link present in output" || { echo "error: expected deep broken link not found"; rm -f book/src/broken.md; exit 1; }
+    @grep -q 'href="./intro.html"' book/book/broken.html && echo "✓ confirmed: valid link also present" || { echo "error: valid link missing"; rm -f book/src/broken.md; exit 1; }
+    @echo "Cleaning up temp test file..."
+    rm -f book/src/broken.md
+    rm -rf book/book/broken.html
+    @echo "✓ docgen-check-negative passed — mdBook does not fail on broken links"
+
+# Run the McpProvider smoke test (compile-and-construct, no external binaries needed)
+test-mcp-providers:
+    cargo test -p ledgerr-mcp --test mcp_provider_smoke 2>&1 | tail -20
+
+# ─── wrkflw: local CI pipeline runner ──────────────────────────────────────
+
+# Run the wrkflw-local-docgen workflow locally using emulation mode (no Docker).
+# Tests all visualization pipeline stages: Rhai parser, iso lint, viz derive,
+# legal Z3, docgen build, Kasuari constraints, iso objects, live-editor JS.
+# Requires: cargo install wrkflw
+wrkflw-docgen-test emulation="secure-emulation":
+    @if ! command -v wrkflw >/dev/null 2>&1; then echo "error: wrkflw not found — run: cargo install wrkflw"; exit 1; fi
+    @echo "=== wrkflw: Running docgen visualization pipeline ==="
+    wrkflw run --runtime {{emulation}} .github/workflows/wrkflw-docgen.yml
+    @echo "=== wrkflw-docgen-test complete ==="
+
+# Validate the wrkflw workflow definition for syntax correctness
+wrkflw-validate:
+    @if ! command -v wrkflw >/dev/null 2>&1; then echo "error: wrkflw not found — run: cargo install wrkflw"; exit 1; fi
+    wrkflw validate --verbose .github/workflows/wrkflw-docgen.yml
+    @echo "✓ wrkflw-docgen workflow validates"
+
+# List all workflows wrkflw can discover
+wrkflw-list:
+    @if ! command -v wrkflw >/dev/null 2>&1; then echo "error: wrkflw not found — run: cargo install wrkflw"; exit 1; fi
+    wrkflw list
+
+# Run specific stages of the docgen pipeline via wrkflw with job selection
+wrkflw-job job="stage-1-rhai-parser-tests" emulation="secure-emulation":
+    @if ! command -v wrkflw >/dev/null 2>&1; then echo "error: wrkflw not found — run: cargo install wrkflw"; exit 1; fi
+    wrkflw run --job "{{job}}" --runtime {{emulation}} .github/workflows/wrkflw-docgen.yml
+
+# Open wrkflw TUI to inspect and run workflows interactively
+wrkflw-tui:
+    @if ! command -v wrkflw >/dev/null 2>&1; then echo "error: wrkflw not found — run: cargo install wrkflw"; exit 1; fi
+    wrkflw tui
+
+# Full wrkflw test: validate first, then run the full docgen pipeline
+wrkflw-full-test emulation="secure-emulation":
+    @if ! command -v wrkflw >/dev/null 2>&1; then echo "error: wrkflw not found — run: cargo install wrkflw"; exit 1; fi
+    @echo "=== Step 1: Validate ==="
+    wrkflw validate .github/workflows/wrkflw-docgen.yml
+    @echo ""
+    @echo "=== Step 2: Run docgen pipeline ==="
+    wrkflw run --runtime {{emulation}} .github/workflows/wrkflw-docgen.yml

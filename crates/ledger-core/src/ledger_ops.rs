@@ -186,15 +186,14 @@ impl LedgerOperation for IngestStatementOp {
     }
 
     fn execute(&self, ctx: &OperationContext) -> Result<OperationResult, LedgerOpError> {
-        use calamine::{open_workbook_auto, Reader};
         use crate::document::DocType;
         use crate::document_shape::classify_document_shape;
         use crate::ingest::{IngestedLedger, TransactionInput};
+        use calamine::{open_workbook_auto, Reader};
 
-        let input_path = ctx
-            .input_path
-            .as_ref()
-            .ok_or_else(|| LedgerOpError::InvalidInput("input_path not set in context".to_string()))?;
+        let input_path = ctx.input_path.as_ref().ok_or_else(|| {
+            LedgerOpError::InvalidInput("input_path not set in context".to_string())
+        })?;
 
         let filename = input_path
             .file_name()
@@ -249,7 +248,11 @@ impl LedgerOperation for IngestStatementOp {
             .enumerate()
             .filter_map(|(i, cell)| {
                 let s = cell.to_string().trim().to_ascii_lowercase();
-                if s.is_empty() { None } else { Some((s, i)) }
+                if s.is_empty() {
+                    None
+                } else {
+                    Some((s, i))
+                }
             })
             .collect();
 
@@ -444,17 +447,25 @@ impl LedgerOperation for ExportWorkbookOp {
         }
 
         // Write each sheet group
-        let write_sheet = |wb: &mut Workbook, sheet_name: &str, rows: &[TxProjectionRow]| -> Result<(), LedgerOpError> {
+        let write_sheet = |wb: &mut Workbook,
+                           sheet_name: &str,
+                           rows: &[TxProjectionRow]|
+         -> Result<(), LedgerOpError> {
             let ws = wb
                 .worksheet_from_name(sheet_name)
                 .map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
-            ws.write_string(0, 0, "tx_id").map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
-            ws.write_string(0, 1, "category").map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
-            ws.write_string(0, 2, "reason").map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
+            ws.write_string(0, 0, "tx_id")
+                .map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
+            ws.write_string(0, 1, "category")
+                .map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
+            ws.write_string(0, 2, "reason")
+                .map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
             for (idx, row) in rows.iter().enumerate() {
                 let r = (idx + 1) as u32;
-                ws.write_string(r, 0, &row.tx_id).map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
-                ws.write_string(r, 2, &row.source_ref).map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
+                ws.write_string(r, 0, &row.tx_id)
+                    .map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
+                ws.write_string(r, 2, &row.source_ref)
+                    .map_err(|e| LedgerOpError::Workbook(e.to_string()))?;
             }
             Ok(())
         };
@@ -570,7 +581,8 @@ impl LedgerOperation for PdfIngestOp {
         //   6. This op should be idempotent: the Blake3 content hash prevents duplicate rows
         //      even if the PDF is re-ingested
         Err(LedgerOpError::NotImplemented(
-            "PdfIngestOp: PDF ingestion via reqif-opa-mcp not yet implemented (phase-2)".to_string(),
+            "PdfIngestOp: PDF ingestion via reqif-opa-mcp not yet implemented (phase-2)"
+                .to_string(),
         ))
     }
 }
@@ -640,18 +652,14 @@ impl OperationDispatcher {
 
         for event in events {
             let op: Box<dyn LedgerOperation> = match &event.operation {
-                OperationKind::CheckTaxDeadline { deadline_id } => {
-                    Box::new(CheckTaxDeadlineOp {
-                        deadline_id: deadline_id.clone(),
-                        warn_days_before: 30,
-                    })
-                }
-                OperationKind::IngestStatement { source_glob } => {
-                    Box::new(IngestStatementOp {
-                        source_glob: source_glob.clone(),
-                        vendor_hint: None,
-                    })
-                }
+                OperationKind::CheckTaxDeadline { deadline_id } => Box::new(CheckTaxDeadlineOp {
+                    deadline_id: deadline_id.clone(),
+                    warn_days_before: 30,
+                }),
+                OperationKind::IngestStatement { source_glob } => Box::new(IngestStatementOp {
+                    source_glob: source_glob.clone(),
+                    vendor_hint: None,
+                }),
                 OperationKind::ClassifyTransactions { rule_dir } => {
                     Box::new(ClassifyTransactionsOp {
                         rule_dir: PathBuf::from(rule_dir),
@@ -659,24 +667,18 @@ impl OperationDispatcher {
                         account_filter: None,
                     })
                 }
-                OperationKind::ReconcileAccount { account_id } => {
-                    Box::new(ReconcileAccountOp {
-                        account_id: account_id.clone(),
-                        dry_run: false,
-                    })
-                }
-                OperationKind::ExportWorkbook { output_path } => {
-                    Box::new(ExportWorkbookOp {
-                        output_path: PathBuf::from(output_path),
-                        include_flags: true,
-                    })
-                }
-                OperationKind::GenerateAuditTrail { year } => {
-                    Box::new(GenerateAuditTrailOp {
-                        output_path: PathBuf::from(format!("audit-trail-{}.xlsx", year)),
-                        year: *year,
-                    })
-                }
+                OperationKind::ReconcileAccount { account_id } => Box::new(ReconcileAccountOp {
+                    account_id: account_id.clone(),
+                    dry_run: false,
+                }),
+                OperationKind::ExportWorkbook { output_path } => Box::new(ExportWorkbookOp {
+                    output_path: PathBuf::from(output_path),
+                    include_flags: true,
+                }),
+                OperationKind::GenerateAuditTrail { year } => Box::new(GenerateAuditTrailOp {
+                    output_path: PathBuf::from(format!("audit-trail-{}.xlsx", year)),
+                    year: *year,
+                }),
             };
 
             dispatcher.ops.push(op);
@@ -686,10 +688,7 @@ impl OperationDispatcher {
     }
 
     /// Run every registered operation and collect results.
-    pub fn run_all(
-        &self,
-        ctx: &OperationContext,
-    ) -> Vec<Result<OperationResult, LedgerOpError>> {
+    pub fn run_all(&self, ctx: &OperationContext) -> Vec<Result<OperationResult, LedgerOpError>> {
         self.ops.iter().map(|op| op.execute(ctx)).collect()
     }
 
@@ -699,7 +698,10 @@ impl OperationDispatcher {
         id: &str,
         ctx: &OperationContext,
     ) -> Option<Result<OperationResult, LedgerOpError>> {
-        self.ops.iter().find(|op| op.id() == id).map(|op| op.execute(ctx))
+        self.ops
+            .iter()
+            .find(|op| op.id() == id)
+            .map(|op| op.execute(ctx))
     }
 }
 
@@ -735,10 +737,7 @@ mod tests {
 
     #[test]
     fn operation_context_new() {
-        let ctx = OperationContext::new(
-            PathBuf::from("/work"),
-            PathBuf::from("/rules"),
-        );
+        let ctx = OperationContext::new(PathBuf::from("/work"), PathBuf::from("/rules"));
         assert_eq!(ctx.working_dir, PathBuf::from("/work"));
         assert_eq!(ctx.rules_dir, PathBuf::from("/rules"));
         assert!(!ctx.dry_run);
@@ -747,8 +746,7 @@ mod tests {
 
     #[test]
     fn operation_context_builder_dry_run() {
-        let ctx = OperationContext::new(PathBuf::from("/w"), PathBuf::from("/r"))
-            .dry_run();
+        let ctx = OperationContext::new(PathBuf::from("/w"), PathBuf::from("/r")).dry_run();
         assert!(ctx.dry_run);
     }
 

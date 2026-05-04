@@ -57,7 +57,10 @@ impl ServiceHandle {
         &self,
         file_name: String,
     ) -> Result<ledger_core::filename::StatementFilename, ToolError> {
-        self.send(|reply_tx| GateMessage::ValidateFilename { file_name, reply_tx })
+        self.send(|reply_tx| GateMessage::ValidateFilename {
+            file_name,
+            reply_tx,
+        })
     }
 
     pub fn ingest_statement_rows(
@@ -387,9 +390,8 @@ impl ServiceActor {
                 break;
             }
             // Catch panics so a single faulty request doesn't kill the entire actor.
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                self.dispatch(msg)
-            }));
+            let result =
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.dispatch(msg)));
             if let Err(panic) = result {
                 let info = if let Some(s) = panic.downcast_ref::<&str>() {
                     s.to_string()
@@ -405,178 +407,176 @@ impl ServiceActor {
 
     fn dispatch(&mut self, msg: GateMessage) {
         match msg {
-                GateMessage::Shutdown => { /* handled in run() */ }
-                GateMessage::ListAccounts { reply_tx } => {
-                    let _ = reply_tx.send(self.service.list_accounts());
-                }
-                GateMessage::ListAccountsTool { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.list_accounts_tool(request));
-                }
-                GateMessage::DocumentInventory { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.document_inventory(request));
-                }
-                GateMessage::ValidateFilename {
-                    file_name,
-                    reply_tx,
-                } => {
-                    let _ = reply_tx.send(self.service.validate_source_filename(&file_name));
-                }
-                GateMessage::IngestStatementRows { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.ingest_statement_rows(request));
-                }
-                GateMessage::IngestPdf { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.ingest_pdf(request));
-                }
-                GateMessage::GetRawContext { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.get_raw_context(request));
-                }
-                GateMessage::RunRhaiRule { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.run_rhai_rule(request));
-                }
-                GateMessage::ClassifyIngested { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.classify_ingested(request));
-                }
-                GateMessage::QueryFlags { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.query_flags(request));
-                }
-                GateMessage::ClassifyTransaction { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.classify_transaction(request));
-                }
-                GateMessage::ReconcileExcelClassification { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.reconcile_excel_classification(request));
-                }
-                GateMessage::QueryAuditLog { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.query_audit_log(request));
-                }
-                GateMessage::ExportCpaWorkbook { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.export_cpa_workbook(request));
-                }
-                GateMessage::GetScheduleSummary { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.get_schedule_summary(request));
-                }
-                GateMessage::HsmTransition { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.hsm_transition_tool(request));
-                }
-                GateMessage::HsmStatus { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.hsm_status_tool(request));
-                }
-                GateMessage::HsmResume { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.hsm_resume_tool(request));
-                }
-                GateMessage::EventHistory { filter, reply_tx } => {
-                    let _ = reply_tx.send(self.service.event_history(filter));
-                }
-                GateMessage::ReplayLifecycle { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.replay_lifecycle(request));
-                }
-                GateMessage::TaxAssist { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.tax_assist_tool(request));
-                }
-                GateMessage::TaxEvidenceChain { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.tax_evidence_chain_tool(request));
-                }
-                GateMessage::TaxAmbiguityReview { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.tax_ambiguity_review_tool(request));
-                }
-                GateMessage::ValidateReconciliationStage { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.validate_reconciliation_stage_tool(request));
-                }
-                GateMessage::ReconcileReconciliationStage { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.reconcile_reconciliation_stage_tool(request));
-                }
-                GateMessage::CommitReconciliationStage { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.commit_reconciliation_stage_tool(request));
-                }
-                GateMessage::AdjustTransaction { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.adjust_transaction(request));
-                }
-                GateMessage::OntologyUpsertEntities { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.ontology_upsert_entities(request));
-                }
-                GateMessage::OntologyUpsertEdges { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.ontology_upsert_edges(request));
-                }
-                GateMessage::OntologyQueryPath { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.ontology_query_path(request));
-                }
-                GateMessage::OntologyExportSnapshot { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.ontology_export_snapshot(request));
-                }
-                GateMessage::IngestImage { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.ingest_image_tool(request));
-                }
-                GateMessage::ApplyTags { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.apply_tags_tool(request));
-                }
-                GateMessage::RemoveTags { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.remove_tags_tool(request));
-                }
-                GateMessage::ListTagged { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.list_tagged_tool(request));
-                }
-                GateMessage::SyncFsMetadata { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.sync_fs_metadata_tool(request));
-                }
-                GateMessage::NormalizeFilename { request, reply_tx } => {
-                    let _ = reply_tx.send(self.service.normalize_filename_tool(request));
-                }
-                #[cfg(feature = "xero")]
-                GateMessage::XeroGetAuthUrl { reply_tx } => {
-                    let _ = reply_tx.send(self.service.xero_get_auth_url());
-                }
-                #[cfg(feature = "xero")]
-                GateMessage::XeroExchangeCode {
-                    code,
-                    state,
-                    reply_tx,
-                } => {
-                    let _ = reply_tx.send(self.service.xero_exchange_code(code, state));
-                }
-                #[cfg(feature = "xero")]
-                GateMessage::XeroFetchContacts { search, reply_tx } => {
-                    let _ =
-                        reply_tx.send(self.service.xero_fetch_contacts(search.as_deref()));
-                }
-                #[cfg(feature = "xero")]
-                GateMessage::XeroFetchAccounts { reply_tx } => {
-                    let _ = reply_tx.send(self.service.xero_fetch_accounts());
-                }
-                #[cfg(feature = "xero")]
-                GateMessage::XeroFetchBankAccounts { reply_tx } => {
-                    let _ = reply_tx.send(self.service.xero_fetch_bank_accounts());
-                }
-                #[cfg(feature = "xero")]
-                GateMessage::XeroFetchInvoices { status, reply_tx } => {
-                    let _ =
-                        reply_tx.send(self.service.xero_fetch_invoices(status.as_deref()));
-                }
-                #[cfg(feature = "xero")]
-                GateMessage::XeroLinkEntity {
+            GateMessage::Shutdown => { /* handled in run() */ }
+            GateMessage::ListAccounts { reply_tx } => {
+                let _ = reply_tx.send(self.service.list_accounts());
+            }
+            GateMessage::ListAccountsTool { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.list_accounts_tool(request));
+            }
+            GateMessage::DocumentInventory { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.document_inventory(request));
+            }
+            GateMessage::ValidateFilename {
+                file_name,
+                reply_tx,
+            } => {
+                let _ = reply_tx.send(self.service.validate_source_filename(&file_name));
+            }
+            GateMessage::IngestStatementRows { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.ingest_statement_rows(request));
+            }
+            GateMessage::IngestPdf { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.ingest_pdf(request));
+            }
+            GateMessage::GetRawContext { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.get_raw_context(request));
+            }
+            GateMessage::RunRhaiRule { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.run_rhai_rule(request));
+            }
+            GateMessage::ClassifyIngested { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.classify_ingested(request));
+            }
+            GateMessage::QueryFlags { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.query_flags(request));
+            }
+            GateMessage::ClassifyTransaction { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.classify_transaction(request));
+            }
+            GateMessage::ReconcileExcelClassification { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.reconcile_excel_classification(request));
+            }
+            GateMessage::QueryAuditLog { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.query_audit_log(request));
+            }
+            GateMessage::ExportCpaWorkbook { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.export_cpa_workbook(request));
+            }
+            GateMessage::GetScheduleSummary { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.get_schedule_summary(request));
+            }
+            GateMessage::HsmTransition { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.hsm_transition_tool(request));
+            }
+            GateMessage::HsmStatus { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.hsm_status_tool(request));
+            }
+            GateMessage::HsmResume { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.hsm_resume_tool(request));
+            }
+            GateMessage::EventHistory { filter, reply_tx } => {
+                let _ = reply_tx.send(self.service.event_history(filter));
+            }
+            GateMessage::ReplayLifecycle { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.replay_lifecycle(request));
+            }
+            GateMessage::TaxAssist { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.tax_assist_tool(request));
+            }
+            GateMessage::TaxEvidenceChain { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.tax_evidence_chain_tool(request));
+            }
+            GateMessage::TaxAmbiguityReview { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.tax_ambiguity_review_tool(request));
+            }
+            GateMessage::ValidateReconciliationStage { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.validate_reconciliation_stage_tool(request));
+            }
+            GateMessage::ReconcileReconciliationStage { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.reconcile_reconciliation_stage_tool(request));
+            }
+            GateMessage::CommitReconciliationStage { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.commit_reconciliation_stage_tool(request));
+            }
+            GateMessage::AdjustTransaction { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.adjust_transaction(request));
+            }
+            GateMessage::OntologyUpsertEntities { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.ontology_upsert_entities(request));
+            }
+            GateMessage::OntologyUpsertEdges { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.ontology_upsert_edges(request));
+            }
+            GateMessage::OntologyQueryPath { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.ontology_query_path(request));
+            }
+            GateMessage::OntologyExportSnapshot { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.ontology_export_snapshot(request));
+            }
+            GateMessage::IngestImage { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.ingest_image_tool(request));
+            }
+            GateMessage::ApplyTags { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.apply_tags_tool(request));
+            }
+            GateMessage::RemoveTags { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.remove_tags_tool(request));
+            }
+            GateMessage::ListTagged { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.list_tagged_tool(request));
+            }
+            GateMessage::SyncFsMetadata { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.sync_fs_metadata_tool(request));
+            }
+            GateMessage::NormalizeFilename { request, reply_tx } => {
+                let _ = reply_tx.send(self.service.normalize_filename_tool(request));
+            }
+            #[cfg(feature = "xero")]
+            GateMessage::XeroGetAuthUrl { reply_tx } => {
+                let _ = reply_tx.send(self.service.xero_get_auth_url());
+            }
+            #[cfg(feature = "xero")]
+            GateMessage::XeroExchangeCode {
+                code,
+                state,
+                reply_tx,
+            } => {
+                let _ = reply_tx.send(self.service.xero_exchange_code(code, state));
+            }
+            #[cfg(feature = "xero")]
+            GateMessage::XeroFetchContacts { search, reply_tx } => {
+                let _ = reply_tx.send(self.service.xero_fetch_contacts(search.as_deref()));
+            }
+            #[cfg(feature = "xero")]
+            GateMessage::XeroFetchAccounts { reply_tx } => {
+                let _ = reply_tx.send(self.service.xero_fetch_accounts());
+            }
+            #[cfg(feature = "xero")]
+            GateMessage::XeroFetchBankAccounts { reply_tx } => {
+                let _ = reply_tx.send(self.service.xero_fetch_bank_accounts());
+            }
+            #[cfg(feature = "xero")]
+            GateMessage::XeroFetchInvoices { status, reply_tx } => {
+                let _ = reply_tx.send(self.service.xero_fetch_invoices(status.as_deref()));
+            }
+            #[cfg(feature = "xero")]
+            GateMessage::XeroLinkEntity {
+                local_id,
+                xero_entity_type,
+                xero_id,
+                display_name,
+                ontology_path,
+                reply_tx,
+            } => {
+                let _ = reply_tx.send(self.service.xero_link_entity(
                     local_id,
                     xero_entity_type,
                     xero_id,
                     display_name,
                     ontology_path,
-                    reply_tx,
-                } => {
-                    let _ = reply_tx.send(self.service.xero_link_entity(
-                        local_id,
-                        xero_entity_type,
-                        xero_id,
-                        display_name,
-                        ontology_path,
-                    ));
-                }
-                #[cfg(feature = "xero")]
-                GateMessage::XeroSyncCatalog {
-                    ontology_path,
-                    reply_tx,
-                } => {
-                    let _ = reply_tx.send(self.service.xero_sync_catalog(ontology_path));
-                }
+                ));
+            }
+            #[cfg(feature = "xero")]
+            GateMessage::XeroSyncCatalog {
+                ontology_path,
+                reply_tx,
+            } => {
+                let _ = reply_tx.send(self.service.xero_sync_catalog(ontology_path));
             }
         }
     }
+}
 
 pub fn spawn_actor(service: TurboLedgerService) -> ServiceHandle {
     let (tx, rx) = crossbeam::channel::unbounded::<GateMessage>();
@@ -603,29 +603,36 @@ mod tests {
 
     #[test]
     fn service_handle_list_accounts() {
-        let service = TurboLedgerService::from_manifest_str(&test_manifest())
-            .expect("manifest must parse");
+        let service =
+            TurboLedgerService::from_manifest_str(&test_manifest()).expect("manifest must parse");
         let handle = spawn_actor(service);
         let accounts = handle.list_accounts().expect("list_accounts must succeed");
-        assert!(accounts.iter().any(|a: &AccountSummary| a.account_id == "WF-BH-CHK"));
+        assert!(accounts
+            .iter()
+            .any(|a: &AccountSummary| a.account_id == "WF-BH-CHK"));
     }
 
     #[test]
     fn service_handle_list_accounts_tool() {
-        let service = TurboLedgerService::from_manifest_str(&test_manifest())
-            .expect("manifest must parse");
+        let service =
+            TurboLedgerService::from_manifest_str(&test_manifest()).expect("manifest must parse");
         let handle = spawn_actor(service);
-        let response = handle.list_accounts_tool(ListAccountsRequest)
+        let response = handle
+            .list_accounts_tool(ListAccountsRequest)
             .expect("list_accounts_tool must succeed");
-        assert!(response.accounts.iter().any(|a| a.account_id == "WF-BH-CHK"));
+        assert!(response
+            .accounts
+            .iter()
+            .any(|a| a.account_id == "WF-BH-CHK"));
     }
 
     #[test]
     fn service_handle_validate_filename() {
-        let service = TurboLedgerService::from_manifest_str(&test_manifest())
-            .expect("manifest must parse");
+        let service =
+            TurboLedgerService::from_manifest_str(&test_manifest()).expect("manifest must parse");
         let handle = spawn_actor(service);
-        let result = handle.validate_source_filename("WF--BH-CHK--2023-01--statement.pdf".to_string());
+        let result =
+            handle.validate_source_filename("WF--BH-CHK--2023-01--statement.pdf".to_string());
         assert!(result.is_ok());
         let parsed = result.unwrap();
         assert_eq!(parsed.vendor, "WF");
@@ -635,28 +642,26 @@ mod tests {
 
     #[test]
     fn actor_survives_bad_statement_filename() {
-        let service = TurboLedgerService::from_manifest_str(&test_manifest())
-            .expect("manifest must parse");
+        let service =
+            TurboLedgerService::from_manifest_str(&test_manifest()).expect("manifest must parse");
         let handle = spawn_actor(service);
         let result = handle.validate_source_filename("bad-filename.pdf".to_string());
         assert!(result.is_err());
         // Actor thread should still be alive for subsequent calls.
-        let accounts = handle.list_accounts().expect("actor should still be responsive");
+        let accounts = handle
+            .list_accounts()
+            .expect("actor should still be responsive");
         assert!(!accounts.is_empty());
     }
 
     #[test]
     fn actor_handles_concurrent_calls() {
-        let service = TurboLedgerService::from_manifest_str(&test_manifest())
-            .expect("manifest must parse");
+        let service =
+            TurboLedgerService::from_manifest_str(&test_manifest()).expect("manifest must parse");
         let handle = spawn_actor(service);
         let handle2 = handle.clone();
-        let jh1 = std::thread::spawn(move || {
-            handle.list_accounts().expect("thread 1")
-        });
-        let jh2 = std::thread::spawn(move || {
-            handle2.list_accounts().expect("thread 2")
-        });
+        let jh1 = std::thread::spawn(move || handle.list_accounts().expect("thread 1"));
+        let jh2 = std::thread::spawn(move || handle2.list_accounts().expect("thread 2"));
         let r1 = jh1.join().expect("thread 1 join");
         let r2 = jh2.join().expect("thread 2 join");
         assert!(r1.iter().any(|a| a.account_id == "WF-BH-CHK"));

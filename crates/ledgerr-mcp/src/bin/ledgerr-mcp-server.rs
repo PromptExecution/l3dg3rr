@@ -5,9 +5,9 @@ use ledgerr_mcp::mcp_adapter;
 use serde_json::{json, Value};
 
 #[cfg(feature = "b00t")]
-use ledgerr_mcp_core::McpProviderRegistry;
-#[cfg(feature = "b00t")]
 use ledgerr_mcp::providers::definitions::register_default_providers;
+#[cfg(feature = "b00t")]
+use ledgerr_mcp_core::McpProviderRegistry;
 
 fn main() {
     // Pre-warm: construct and spawn the service actor on startup so all
@@ -29,7 +29,9 @@ fn initialize_providers() {
     let results = registry.initialize_all();
     for (name, result) in &results {
         match result {
-            Ok(info) => tracing::info!(provider = %name, tools = info.tools.len(), "external provider registered"),
+            Ok(info) => {
+                tracing::info!(provider = %name, tools = info.tools.len(), "external provider registered")
+            }
             Err(e) => tracing::warn!(provider = %name, error = %e, "external provider init failed"),
         }
     }
@@ -37,8 +39,6 @@ fn initialize_providers() {
     // the mcp_adapter global (for tools/list merging).
     ledgerr_mcp::mcp_adapter::set_global_provider_registry(registry);
 }
-
-
 
 fn serve<R: BufRead, W: Write>(reader: R, mut writer: W) {
     for line in reader.lines() {
@@ -161,11 +161,19 @@ fn handle_request(request: Value) -> Option<Value> {
                 }
                 "l3dg3rr_validate_reconciliation" => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::dispatch_reconciliation(global_raw_service(), "validate", &arguments)
+                    mcp_adapter::dispatch_reconciliation(
+                        global_raw_service(),
+                        "validate",
+                        &arguments,
+                    )
                 }
                 "l3dg3rr_reconcile_postings" => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::dispatch_reconciliation(global_raw_service(), "reconcile", &arguments)
+                    mcp_adapter::dispatch_reconciliation(
+                        global_raw_service(),
+                        "reconcile",
+                        &arguments,
+                    )
                 }
                 "l3dg3rr_commit_guarded" => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
@@ -221,7 +229,10 @@ fn handle_request(request: Value) -> Option<Value> {
                 }
                 "l3dg3rr_reconcile_excel_classification" => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-                    mcp_adapter::handle_reconcile_excel_classification(global_raw_service(), &arguments)
+                    mcp_adapter::handle_reconcile_excel_classification(
+                        global_raw_service(),
+                        &arguments,
+                    )
                 }
                 "l3dg3rr_get_schedule_summary" => {
                     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
@@ -247,14 +258,15 @@ fn handle_request(request: Value) -> Option<Value> {
                     )
                 }
                 _ => {
-                    #[cfg(feature = "b00t")] {
+                    #[cfg(feature = "b00t")]
+                    {
                         // Registry is accessed internally by handle_external_tool
                         // via mcp_adapter's GLOBAL_PROVIDER_REGISTRY.
                         let ext_args = params.get("arguments").cloned().unwrap_or(Value::Null);
-                        let dummy = ledgerr_mcp_core::McpProviderRegistry::new();
-                        mcp_adapter::handle_external_tool(&dummy, tool_name, &ext_args)
+                        mcp_adapter::handle_external_tool(tool_name, &ext_args)
                     }
-                    #[cfg(not(feature = "b00t"))] {
+                    #[cfg(not(feature = "b00t"))]
+                    {
                         mcp_adapter::unknown_tool_result(tool_name)
                     }
                 }
@@ -270,20 +282,28 @@ fn handle_request(request: Value) -> Option<Value> {
 }
 
 /// Build the service, spawn an actor, and leak a raw reference for the adapter path.
-fn build_service() -> (&'static ledgerr_mcp::TurboLedgerService, ledgerr_mcp::actor::ServiceHandle) {
+fn build_service() -> (
+    &'static ledgerr_mcp::TurboLedgerService,
+    ledgerr_mcp::actor::ServiceHandle,
+) {
     let manifest = std::env::var("LEDGERR_MCP_MANIFEST").unwrap_or_else(|_| {
         "[session]\nworkbook_path=\"tax-ledger.xlsx\"\nactive_year=2023\n\n[accounts]\nWF-BH-CHK = { institution = \"Wells Fargo\", type = \"checking\", currency = \"USD\" }\n".to_string()
     });
     let service = ledgerr_mcp::TurboLedgerService::from_manifest_str(&manifest)
         .expect("default manifest must parse");
     let handle = service.spawn_actor();
-    let raw = Box::new(ledgerr_mcp::TurboLedgerService::from_manifest_str(&manifest)
-        .expect("default manifest must parse"));
+    let raw = Box::new(
+        ledgerr_mcp::TurboLedgerService::from_manifest_str(&manifest)
+            .expect("default manifest must parse"),
+    );
     let leaked = Box::leak(raw);
     (leaked, handle)
 }
 
 fn global_raw_service() -> &'static ledgerr_mcp::TurboLedgerService {
-    static PAIR: OnceLock<(&'static ledgerr_mcp::TurboLedgerService, ledgerr_mcp::actor::ServiceHandle)> = OnceLock::new();
-    PAIR.get_or_init(|| build_service()).0
+    static PAIR: OnceLock<(
+        &'static ledgerr_mcp::TurboLedgerService,
+        ledgerr_mcp::actor::ServiceHandle,
+    )> = OnceLock::new();
+    PAIR.get_or_init(build_service).0
 }

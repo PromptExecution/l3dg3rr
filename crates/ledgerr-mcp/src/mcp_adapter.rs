@@ -23,8 +23,8 @@ use serde_json::{json, Value};
 
 use crate::{
     contract::{
-        self, AuditArgs, DocumentsArgs, EvidenceArgs, OntologyArgs, ReconciliationArgs,
-        ReviewArgs, TaxArgs, WorkflowArgs,
+        self, AuditArgs, DocumentsArgs, EvidenceArgs, OntologyArgs, ReconciliationArgs, ReviewArgs,
+        TaxArgs, WorkflowArgs,
     },
     ClassifyIngestedRequest, ClassifyTransactionRequest, DocumentInventoryRequest,
     DocumentQueueStatusRequest, EventHistoryFilter, ExportCpaWorkbookRequest, FlagStatusRequest,
@@ -58,9 +58,7 @@ fn external_tool_descriptors() -> Vec<Value> {
     registry
         .all_tool_descriptors()
         .into_iter()
-        .map(|td: ToolDescriptor| {
-            json!({ "name": td.name, "inputSchema": td.input_schema })
-        })
+        .map(|td: ToolDescriptor| json!({ "name": td.name, "inputSchema": td.input_schema }))
         .collect()
 }
 
@@ -240,11 +238,7 @@ pub fn tool_names() -> Vec<String> {
 
 /// Hook for external MCP providers.  Dispatches via the global provider registry.
 #[cfg(feature = "b00t")]
-pub fn handle_external_tool(
-    _registry: &ledgerr_mcp_core::McpProviderRegistry,
-    tool_name: &str,
-    arguments: &Value,
-) -> Value {
+pub fn handle_external_tool(tool_name: &str, arguments: &Value) -> Value {
     let Some(reg) = GLOBAL_PROVIDER_REGISTRY.get() else {
         return unknown_tool_result(tool_name);
     };
@@ -258,11 +252,7 @@ pub fn handle_external_tool(
 }
 
 #[cfg(not(feature = "b00t"))]
-pub fn handle_external_tool(
-    _registry: (),
-    tool_name: &str,
-    _arguments: &Value,
-) -> Value {
+pub fn handle_external_tool(tool_name: &str, _arguments: &Value) -> Value {
     unknown_tool_result(tool_name)
 }
 
@@ -2476,7 +2466,11 @@ pub fn handle_evidence_tool(service: &TurboLedgerService, arguments: &Value) -> 
             use arc_kit_au::ProvenanceScanner;
             let evidence = match service.evidence.lock() {
                 Ok(e) => e,
-                Err(_) => return error_envelope(&ToolError::Internal("evidence mutex poisoned".to_string())),
+                Err(_) => {
+                    return error_envelope(&ToolError::Internal(
+                        "evidence mutex poisoned".to_string(),
+                    ))
+                }
             };
             let gaps = evidence.find_missing_provenance();
             let gap_jsons: Vec<_> = gaps
@@ -2506,7 +2500,11 @@ pub fn handle_evidence_tool(service: &TurboLedgerService, arguments: &Value) -> 
             use arc_kit_au::EvidenceTracer;
             let evidence = match service.evidence.lock() {
                 Ok(e) => e,
-                Err(_) => return error_envelope(&ToolError::Internal("evidence mutex poisoned".to_string())),
+                Err(_) => {
+                    return error_envelope(&ToolError::Internal(
+                        "evidence mutex poisoned".to_string(),
+                    ))
+                }
             };
             match evidence.trace_transaction(&tx_id) {
                 Some(chain) => {

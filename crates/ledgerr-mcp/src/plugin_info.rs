@@ -21,7 +21,9 @@ use serde_json::{json, Value};
 
 pub const PLUGIN_INFO_TOOL: &str = "l3dg3rr_plugin_info";
 
+#[allow(dead_code)]
 const GITHUB_OWNER: &str = "PromptExecution";
+#[allow(dead_code)]
 const GITHUB_REPO: &str = "l3dg3rr";
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 

@@ -64,13 +64,13 @@ impl StatementVendor {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DocumentShape {
     pub vendor: StatementVendor,
-    pub account_type: String,      // "checking", "savings", "brokerage", "crypto"
-    pub statement_format: String,  // "csv_ofx", "pdf_tabular", "xlsx_native", "csv_generic"
+    pub account_type: String, // "checking", "savings", "brokerage", "crypto"
+    pub statement_format: String, // "csv_ofx", "pdf_tabular", "xlsx_native", "csv_generic"
     pub column_map: HashMap<String, String>, // canonical → source_header
-    pub date_format: Option<String>,         // e.g. "%m/%d/%Y"
-    pub currency: String,          // "USD", "AUD", "EUR"
+    pub date_format: Option<String>, // e.g. "%m/%d/%Y"
+    pub currency: String,     // "USD", "AUD", "EUR"
     pub confidence: f64,
-    pub signals: Vec<String>,      // which signals fired
+    pub signals: Vec<String>, // which signals fired
 }
 
 impl DocumentShape {
@@ -143,10 +143,7 @@ impl<'a> Classifier<'a> {
             let vendor_slug = parts[0].to_ascii_lowercase();
             if let Some(v) = vendor_from_slug(&vendor_slug) {
                 self.vendor = v;
-                self.add_signal(
-                    format!("filename-convention vendor={vendor_slug}"),
-                    0.5,
-                );
+                self.add_signal(format!("filename-convention vendor={vendor_slug}"), 0.5);
                 // account type from second segment if present
                 if parts.len() >= 2 {
                     self.account_type = parts[1].to_ascii_lowercase();
@@ -163,20 +160,48 @@ impl<'a> Classifier<'a> {
         let fl = self.filename_lower.clone();
 
         let checks: &[(&str, StatementVendor, &str)] = &[
-            ("wellsfargo", StatementVendor::WellsFargo, "filename-keyword:wellsfargo"),
+            (
+                "wellsfargo",
+                StatementVendor::WellsFargo,
+                "filename-keyword:wellsfargo",
+            ),
             ("wf_", StatementVendor::WellsFargo, "filename-keyword:wf_"),
             ("chase", StatementVendor::Chase, "filename-keyword:chase"),
             ("jpmc", StatementVendor::Chase, "filename-keyword:jpmc"),
             ("hsbc", StatementVendor::Hsbc, "filename-keyword:hsbc"),
             ("anz", StatementVendor::Anz, "filename-keyword:anz"),
-            ("commbank", StatementVendor::Commbank, "filename-keyword:commbank"),
+            (
+                "commbank",
+                StatementVendor::Commbank,
+                "filename-keyword:commbank",
+            ),
             ("cba", StatementVendor::Commbank, "filename-keyword:cba"),
-            ("westpac", StatementVendor::WestpacAu, "filename-keyword:westpac"),
-            ("interactive", StatementVendor::Interactive, "filename-keyword:interactive"),
-            ("coinbase", StatementVendor::Coinbase, "filename-keyword:coinbase"),
+            (
+                "westpac",
+                StatementVendor::WestpacAu,
+                "filename-keyword:westpac",
+            ),
+            (
+                "interactive",
+                StatementVendor::Interactive,
+                "filename-keyword:interactive",
+            ),
+            (
+                "coinbase",
+                StatementVendor::Coinbase,
+                "filename-keyword:coinbase",
+            ),
             ("kraken", StatementVendor::Kraken, "filename-keyword:kraken"),
-            ("bankofamerica", StatementVendor::BankOfAmerica, "filename-keyword:bankofamerica"),
-            ("boa", StatementVendor::BankOfAmerica, "filename-keyword:boa"),
+            (
+                "bankofamerica",
+                StatementVendor::BankOfAmerica,
+                "filename-keyword:bankofamerica",
+            ),
+            (
+                "boa",
+                StatementVendor::BankOfAmerica,
+                "filename-keyword:boa",
+            ),
         ];
 
         for (needle, vendor, signal) in checks {
@@ -187,11 +212,10 @@ impl<'a> Classifier<'a> {
         }
 
         // Crypto hints → account type
-        if fl.contains("coinbase") || fl.contains("kraken") {
-            if self.account_type.is_empty() {
+        if (fl.contains("coinbase") || fl.contains("kraken"))
+            && self.account_type.is_empty() {
                 self.account_type = "crypto".to_string();
             }
-        }
     }
 
     // -----------------------------------------------------------------------
@@ -201,8 +225,12 @@ impl<'a> Classifier<'a> {
         let content_lower = self.sample_content.to_ascii_lowercase();
 
         // Chase CSV header
-        if self.sample_content.contains("Transaction Date,Post Date,Description,Amount")
-            || self.sample_content.contains("Transaction Date,Post Date,Description,Category,Type,Amount")
+        if self
+            .sample_content
+            .contains("Transaction Date,Post Date,Description,Amount")
+            || self
+                .sample_content
+                .contains("Transaction Date,Post Date,Description,Category,Type,Amount")
         {
             if self.vendor == StatementVendor::Unknown {
                 self.vendor = StatementVendor::Chase;
@@ -290,7 +318,10 @@ impl<'a> Classifier<'a> {
     // Step 5: CSV column map inference
     // -----------------------------------------------------------------------
     fn infer_column_map(&mut self) {
-        if !matches!(self.doc_type, DocType::SpreadsheetCsv | DocType::SpreadsheetXlsx) {
+        if !matches!(
+            self.doc_type,
+            DocType::SpreadsheetCsv | DocType::SpreadsheetXlsx
+        ) {
             return;
         }
 
@@ -310,8 +341,12 @@ impl<'a> Classifier<'a> {
                 | "transaction_date" => Some("date"),
                 "amount" | "debit" | "credit" | "debit amount" | "credit amount"
                 | "transaction amount" => Some("amount"),
-                "description" | "memo" | "narrative" | "transaction description"
-                | "trans description" | "details" => Some("description"),
+                "description"
+                | "memo"
+                | "narrative"
+                | "transaction description"
+                | "trans description"
+                | "details" => Some("description"),
                 "balance" | "running balance" | "available balance" => Some("balance"),
                 "category" | "type" | "transaction type" => Some("category"),
                 _ => None,
@@ -324,10 +359,7 @@ impl<'a> Classifier<'a> {
         }
 
         if !self.column_map.is_empty() {
-            self.add_signal(
-                format!("csv-column-map:{}", self.column_map.len()),
-                0.1,
-            );
+            self.add_signal(format!("csv-column-map:{}", self.column_map.len()), 0.1);
         }
     }
 
@@ -351,9 +383,7 @@ impl<'a> Classifier<'a> {
     // -----------------------------------------------------------------------
     fn reconcile_au_currency(&mut self) {
         match &self.vendor {
-            StatementVendor::Anz
-            | StatementVendor::Commbank
-            | StatementVendor::WestpacAu => {
+            StatementVendor::Anz | StatementVendor::Commbank | StatementVendor::WestpacAu => {
                 self.currency = "AUD".to_string();
             }
             _ => {}
@@ -392,9 +422,9 @@ impl<'a> Classifier<'a> {
 // ---------------------------------------------------------------------------
 
 enum DatePattern {
-    Iso,      // 2024-01-15
-    UsSlash,  // 01/15/2024
-    AuSlash,  // 15/01/2024 (day > 12 in first position gives this away)
+    Iso,     // 2024-01-15
+    UsSlash, // 01/15/2024
+    AuSlash, // 15/01/2024 (day > 12 in first position gives this away)
 }
 
 fn has_date_pattern(content: &str, pattern: DatePattern) -> bool {
@@ -439,7 +469,7 @@ fn has_date_pattern(content: &str, pattern: DatePattern) -> bool {
                     let day_tens = w[0];
                     let day_units = w[1];
                     let year_ok = w[6..10].iter().all(|c| c.is_ascii_digit());
-                    let is_valid_day_tens = day_tens >= b'0' && day_tens <= b'3';
+                    let is_valid_day_tens = (b'0'..=b'3').contains(&day_tens);
                     let unit_digit = day_units.is_ascii_digit();
                     // AU style if day tens > 1 (i.e. 20-31) or tens == 1 and units > 2 (13-19)
                     let looks_au = (day_tens == b'1' && day_units > b'2')
@@ -511,46 +541,40 @@ mod tests {
 
     #[test]
     fn wellsfargo_filename_keyword() {
-        let shape = classify_document_shape(
-            &DocType::SpreadsheetCsv,
-            "wellsfargo_checking_2024.csv",
-            "",
-        );
+        let shape =
+            classify_document_shape(&DocType::SpreadsheetCsv, "wellsfargo_checking_2024.csv", "");
         assert_eq!(shape.vendor, StatementVendor::WellsFargo);
         assert!(shape.confidence > 0.0);
     }
 
     #[test]
     fn wellsfargo_wf_prefix() {
-        let shape = classify_document_shape(
-            &DocType::SpreadsheetCsv,
-            "wf_savings_jan2024.csv",
-            "",
-        );
+        let shape = classify_document_shape(&DocType::SpreadsheetCsv, "wf_savings_jan2024.csv", "");
         assert_eq!(shape.vendor, StatementVendor::WellsFargo);
     }
 
     #[test]
     fn chase_csv_header_detection() {
         let header = "Transaction Date,Post Date,Description,Amount\n01/15/2024,01/16/2024,AMAZON.COM,-42.99\n";
-        let shape = classify_document_shape(
-            &DocType::SpreadsheetCsv,
-            "statement.csv",
-            header,
-        );
+        let shape = classify_document_shape(&DocType::SpreadsheetCsv, "statement.csv", header);
         assert_eq!(shape.vendor, StatementVendor::Chase);
         // Column map should have date and amount
-        assert!(shape.column_map.contains_key("date"), "expected 'date' key in column_map, got {:?}", shape.column_map);
-        assert!(shape.column_map.contains_key("amount"), "expected 'amount' key, got {:?}", shape.column_map);
+        assert!(
+            shape.column_map.contains_key("date"),
+            "expected 'date' key in column_map, got {:?}",
+            shape.column_map
+        );
+        assert!(
+            shape.column_map.contains_key("amount"),
+            "expected 'amount' key, got {:?}",
+            shape.column_map
+        );
     }
 
     #[test]
     fn au_filename_vendor_and_currency() {
-        let shape = classify_document_shape(
-            &DocType::Pdf,
-            "anz--checking--2024-03--statement.pdf",
-            "",
-        );
+        let shape =
+            classify_document_shape(&DocType::Pdf, "anz--checking--2024-03--statement.pdf", "");
         assert_eq!(shape.vendor, StatementVendor::Anz);
         assert_eq!(shape.currency, "AUD");
     }
@@ -579,11 +603,8 @@ mod tests {
 
     #[test]
     fn vendor_account_filename_convention_parse() {
-        let shape = classify_document_shape(
-            &DocType::Pdf,
-            "chase--checking--2024-01--statement.pdf",
-            "",
-        );
+        let shape =
+            classify_document_shape(&DocType::Pdf, "chase--checking--2024-01--statement.pdf", "");
         assert_eq!(shape.vendor, StatementVendor::Chase);
         assert_eq!(shape.account_type, "checking");
     }
@@ -631,10 +652,7 @@ mod tests {
 
     #[test]
     fn vendor_slug_roundtrip() {
-        assert_eq!(
-            StatementVendor::WellsFargo.slug(),
-            "wellsfargo"
-        );
+        assert_eq!(StatementVendor::WellsFargo.slug(), "wellsfargo");
         assert_eq!(StatementVendor::Anz.slug(), "anz");
         assert_eq!(StatementVendor::Unknown.slug(), "unknown");
     }

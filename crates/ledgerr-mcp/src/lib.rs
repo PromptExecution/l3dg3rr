@@ -23,9 +23,9 @@ use xero_service::XeroService;
 pub mod actor;
 pub mod calendar_tool;
 pub mod contract;
-pub mod gate;
 pub mod events;
 pub mod focus_tool;
+pub mod gate;
 pub mod hsm;
 pub mod mcp_adapter;
 pub mod ontology;
@@ -1120,12 +1120,7 @@ impl TurboLedgerService {
         Ok(response)
     }
 
-    fn emit_ingest_evidence(
-        &self,
-        row: &TransactionInput,
-        tx_id: &str,
-    ) -> Result<(), ToolError> {
-        use arc_kit_au::EdgeType;
+    fn emit_ingest_evidence(&self, row: &TransactionInput, tx_id: &str) -> Result<(), ToolError> {
         use arc_kit_au::node::{ExtractedRow, SourceDoc, Transaction};
         use chrono::Utc;
 
@@ -2781,14 +2776,17 @@ impl TurboLedgerService {
             })
             .filter(|r| {
                 request.doc_type.as_deref().is_none_or(|dt| {
-                    format!("{:?}", r.doc_type).to_ascii_lowercase().contains(dt)
+                    format!("{:?}", r.doc_type)
+                        .to_ascii_lowercase()
+                        .contains(dt)
                 })
             })
             .filter(|r| {
                 // If a directory filter was provided, only include records under that directory.
-                request.directory.as_deref().is_none_or(|dir| {
-                    std::path::Path::new(&r.file_path).starts_with(dir)
-                })
+                request
+                    .directory
+                    .as_deref()
+                    .is_none_or(|dir| std::path::Path::new(&r.file_path).starts_with(dir))
             })
             .map(|r| DocumentSummary {
                 doc_id: r.doc_id.clone(),
@@ -2944,10 +2942,7 @@ impl TurboLedgerService {
         };
         let path = resolved_path.as_path();
 
-        let ext = path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("pdf");
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("pdf");
         let original_name = path
             .file_name()
             .and_then(|n| n.to_str())

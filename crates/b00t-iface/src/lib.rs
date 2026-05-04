@@ -21,9 +21,9 @@
 
 pub mod core;
 pub mod exec;
+pub mod metric;
 pub mod sarif;
 pub mod viz;
-pub mod metric;
 
 #[cfg(feature = "b00t")]
 pub mod ralph;

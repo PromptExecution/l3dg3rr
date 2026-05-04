@@ -10,12 +10,12 @@
 //! - `promise` — typed event: a value that will be produced at a future lifecycle point
 //! - `machine` — abstract state machine over surface states
 
-pub mod surface;
 pub mod governance;
-pub mod promise;
 pub mod machine;
+pub mod promise;
+pub mod surface;
 
-pub use surface::*;
 pub use governance::*;
-pub use promise::*;
 pub use machine::*;
+pub use promise::*;
+pub use surface::*;

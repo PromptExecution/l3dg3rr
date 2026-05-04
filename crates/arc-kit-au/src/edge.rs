@@ -56,18 +56,18 @@ pub struct EvidenceEdge {
 
 impl EvidenceEdge {
     pub fn new(from: NodeId, to: NodeId, edge_type: EdgeType) -> Self {
-        Self { from, to, edge_type }
+        Self {
+            from,
+            to,
+            edge_type,
+        }
     }
 }
 
 /// Edge traversal utilities.
 pub trait EdgeTraversal {
     /// Find all edges of a specific type from a node.
-    fn edges_of_type<'a>(
-        &'a self,
-        from: &'a NodeId,
-        edge_type: EdgeType,
-    ) -> Vec<&'a EvidenceEdge>;
+    fn edges_of_type<'a>(&'a self, from: &'a NodeId, edge_type: EdgeType) -> Vec<&'a EvidenceEdge>;
 
     /// Find all incoming edges to a node.
     fn incoming_edges<'a>(&'a self, to: &'a NodeId) -> Vec<&'a EvidenceEdge>;

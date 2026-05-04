@@ -100,6 +100,7 @@ impl PipelineState<Ingested> {
 impl PipelineState<Validated> {
     /// Verify transaction against legal rules.
     /// Returns Ok(Classified) if no Unrecoverable violations, Err(NeedsReview) otherwise.
+    #[allow(clippy::result_large_err)]
     pub fn verify_legal(
         self,
         solver: &crate::legal::LegalSolver,
@@ -194,11 +195,15 @@ pub fn evaluate_commit_gate(
         .collect();
 
     if !unrecoverable.is_empty() {
-        return CommitGate::Blocked { issues: unrecoverable };
+        return CommitGate::Blocked {
+            issues: unrecoverable,
+        };
     }
 
     if state.confidence >= threshold {
-        CommitGate::Approved { confidence: state.confidence }
+        CommitGate::Approved {
+            confidence: state.confidence,
+        }
     } else {
         CommitGate::PendingOperator {
             confidence: state.confidence,
@@ -216,15 +221,30 @@ pub fn evaluate_commit_gate(
 
 #[derive(Debug, Clone)]
 pub enum PipelineEvent {
-    DocumentIngested { document_id: String, source_ref: String },
+    DocumentIngested {
+        document_id: String,
+        source_ref: String,
+    },
     ValidationPassed,
-    ValidationFailed { reason: String },
-    Classified { category: String },
-    LowConfidence { score: f32 },
-    Reconciled { xero_id: Option<String> },
-    XeroPushFailed { error: String },
+    ValidationFailed {
+        reason: String,
+    },
+    Classified {
+        category: String,
+    },
+    LowConfidence {
+        score: f32,
+    },
+    Reconciled {
+        xero_id: Option<String>,
+    },
+    XeroPushFailed {
+        error: String,
+    },
     CommitApproved,
-    CommitRejected { reason: String },
+    CommitRejected {
+        reason: String,
+    },
 }
 
 #[derive(Default)]
@@ -252,12 +272,18 @@ impl Default for LedgerPipeline {
 
 impl LedgerPipeline {
     pub fn new(jurisdiction: crate::legal::Jurisdiction) -> Self {
-        Self { jurisdiction, repair_attempts: 0, xero_retries: 0 }
+        Self {
+            jurisdiction,
+            repair_attempts: 0,
+            xero_retries: 0,
+        }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Default)]
 pub enum State {
+    #[default]
     Ingested,
     Validating,
     Classifying,
@@ -266,11 +292,6 @@ pub enum State {
     NeedsReview,
 }
 
-impl Default for State {
-    fn default() -> Self {
-        State::Ingested
-    }
-}
 
 pub fn init() -> State {
     State::Ingested
@@ -332,7 +353,9 @@ pub mod verbs {
         type Input = Vec<u8>;
         type Output = String;
 
-        fn name(&self) -> &'static str { "detect" }
+        fn name(&self) -> &'static str {
+            "detect"
+        }
         fn reversibility(&self) -> crate::validation::Reversibility {
             crate::validation::Reversibility::Free
         }
@@ -360,7 +383,9 @@ pub mod verbs {
         type Input = (String, f64);
         type Output = bool;
 
-        fn name(&self) -> &'static str { "validate" }
+        fn name(&self) -> &'static str {
+            "validate"
+        }
         fn reversibility(&self) -> crate::validation::Reversibility {
             crate::validation::Reversibility::Free
         }
@@ -540,17 +565,25 @@ mod tests {
             &mut ctx,
         );
         assert_eq!(next, Some(State::Validating));
-        let next = handle_event(State::Validating, &PipelineEvent::ValidationPassed, &mut ctx);
+        let next = handle_event(
+            State::Validating,
+            &PipelineEvent::ValidationPassed,
+            &mut ctx,
+        );
         assert_eq!(next, Some(State::Classifying));
         let next = handle_event(
             State::Classifying,
-            &PipelineEvent::Classified { category: "6-8800".to_string() },
+            &PipelineEvent::Classified {
+                category: "6-8800".to_string(),
+            },
             &mut ctx,
         );
         assert_eq!(next, Some(State::Reconciling));
         let next = handle_event(
             State::Reconciling,
-            &PipelineEvent::Reconciled { xero_id: Some("XERO-123".to_string()) },
+            &PipelineEvent::Reconciled {
+                xero_id: Some("XERO-123".to_string()),
+            },
             &mut ctx,
         );
         assert_eq!(next, Some(State::Committed));
@@ -562,14 +595,18 @@ mod tests {
         ctx.repair_attempts = 0;
         let next = handle_event(
             State::Validating,
-            &PipelineEvent::ValidationFailed { reason: "test".to_string() },
+            &PipelineEvent::ValidationFailed {
+                reason: "test".to_string(),
+            },
             &mut ctx,
         );
         assert_eq!(next, Some(State::Validating));
         assert_eq!(ctx.repair_attempts, 1);
         let next = handle_event(
             State::Validating,
-            &PipelineEvent::ValidationFailed { reason: "test".to_string() },
+            &PipelineEvent::ValidationFailed {
+                reason: "test".to_string(),
+            },
             &mut ctx,
         );
         assert_eq!(next, Some(State::NeedsReview));
@@ -596,8 +633,7 @@ mod tests {
         use crate::legal::{au_gst, LegalSolver};
         let solver = LegalSolver::new();
         let rules = vec![au_gst::rule_38_190()];
-        let state =
-            PipelineState::<Ingested>::new("doc1", "WF--BH--2026-01").validate(Vec::new());
+        let state = PipelineState::<Ingested>::new("doc1", "WF--BH--2026-01").validate(Vec::new());
         let result = state.verify_legal(&solver, &rules);
         assert!(result.is_ok() || result.is_err());
     }
@@ -609,7 +645,10 @@ mod tests {
             .classify("6-8800".to_string())
             .reconcile(None);
         let gate = evaluate_commit_gate(&state, 0.85);
-        assert!(matches!(gate, crate::validation::CommitGate::Approved { .. }));
+        assert!(matches!(
+            gate,
+            crate::validation::CommitGate::Approved { .. }
+        ));
     }
 
     #[test]

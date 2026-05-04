@@ -187,7 +187,9 @@ impl SarifLog {
 
     pub fn has_errors(&self) -> bool {
         self.runs.iter().any(|r| {
-            r.results.iter().any(|res| matches!(res.level, SarifLevel::Error))
+            r.results
+                .iter()
+                .any(|res| matches!(res.level, SarifLevel::Error))
         })
     }
 
@@ -215,8 +217,12 @@ impl LintRule {
     pub fn to_sarif_rule(&self) -> SarifRule {
         SarifRule {
             id: self.id.clone(),
-            short_description: Some(SarifMessage { text: self.short_desc.clone() }),
-            full_description: Some(SarifMessage { text: self.long_desc.clone() }),
+            short_description: Some(SarifMessage {
+                text: self.short_desc.clone(),
+            }),
+            full_description: Some(SarifMessage {
+                text: self.long_desc.clone(),
+            }),
             help_uri: None,
             properties: HashMap::new(),
         }
@@ -226,14 +232,20 @@ impl LintRule {
         SarifResult {
             rule_id: self.id.clone(),
             level: self.level.clone(),
-            message: SarifMessage { text: self.long_desc.clone() },
+            message: SarifMessage {
+                text: self.long_desc.clone(),
+            },
             locations: Some(vec![SarifLocation {
                 physical_location: SarifPhysicalLocation {
-                    artifact_location: SarifArtifactLocation { uri: file.to_owned() },
+                    artifact_location: SarifArtifactLocation {
+                        uri: file.to_owned(),
+                    },
                     region: SarifRegion {
                         start_line: line,
                         end_line: None,
-                        snippet: Some(SarifMessage { text: snippet.to_owned() }),
+                        snippet: Some(SarifMessage {
+                            text: snippet.to_owned(),
+                        }),
                     },
                 },
             }]),
@@ -319,9 +331,7 @@ pub fn l3dg3rr_doc_rules() -> Vec<LintRule> {
 }
 
 /// Generate a SARIF report for a set of doc/code rule violations.
-pub fn check_l3dg3rr_standards(
-    doc_files: &[(&str, &str)],
-) -> SarifLog {
+pub fn check_l3dg3rr_standards(doc_files: &[(&str, &str)]) -> SarifLog {
     let rules = l3dg3rr_doc_rules();
     let mut log = SarifLog::new();
     let mut run = SarifRun::new("l3dg3rr-lint", "1.0.0");
@@ -332,31 +342,54 @@ pub fn check_l3dg3rr_standards(
 
     for (file, content) in doc_files {
         for rule in &rules {
-            if rule.id.contains("mermaid-parse") && content.contains("```rhai") && !content.contains("flowchart TD") {
-                run.add_result(rule.to_result(file, first_line_containing(content, "```rhai"), "Rhai fence found but no Mermaid output detected"));
+            if rule.id.contains("mermaid-parse")
+                && content.contains("```rhai")
+                && !content.contains("flowchart TD")
+            {
+                run.add_result(rule.to_result(
+                    file,
+                    first_line_containing(content, "```rhai"),
+                    "Rhai fence found but no Mermaid output detected",
+                ));
             }
             if rule.id.contains("iso-projection") && content.contains("isoProject") {
                 let line = first_line_containing(content, "isoProject");
                 if !content.contains("0.866") || !content.contains("0.5") {
-                    run.add_result(rule.to_result(file, line, "isoProject may not use standard 2:1 dimetric constants"));
+                    run.add_result(rule.to_result(
+                        file,
+                        line,
+                        "isoProject may not use standard 2:1 dimetric constants",
+                    ));
                 }
             }
             if rule.id.contains("cross-ref") {
                 // Simple heuristic: check for broken markdown links
                 for (i, line_content) in content.lines().enumerate() {
-                    if line_content.contains("](./") && !line_content.ends_with(".md)") && !line_content.ends_with(".md#") {
+                    if line_content.contains("](./")
+                        && !line_content.ends_with(".md)")
+                        && !line_content.ends_with(".md#")
+                    {
                         // Potential broken reference — report as note
                         run.add_result(SarifResult {
                             rule_id: rule.id.clone(),
                             level: SarifLevel::Note,
-                            message: SarifMessage { text: format!("Potential broken cross-ref: {}", line_content.trim()) },
+                            message: SarifMessage {
+                                text: format!(
+                                    "Potential broken cross-ref: {}",
+                                    line_content.trim()
+                                ),
+                            },
                             locations: Some(vec![SarifLocation {
                                 physical_location: SarifPhysicalLocation {
-                                    artifact_location: SarifArtifactLocation { uri: file.to_string() },
+                                    artifact_location: SarifArtifactLocation {
+                                        uri: file.to_string(),
+                                    },
                                     region: SarifRegion {
                                         start_line: (i + 1) as u64,
                                         end_line: None,
-                                        snippet: Some(SarifMessage { text: line_content.to_owned() }),
+                                        snippet: Some(SarifMessage {
+                                            text: line_content.to_owned(),
+                                        }),
                                     },
                                 },
                             }]),
@@ -382,15 +415,14 @@ pub fn check_l3dg3rr_standards(
 
             if rule.id.contains("unwired-legal-verification") {
                 // Check that PipelineBuilder::build() references LegalSolver
-                if content.contains("PipelineBuilder") && content.contains("fn build(") {
-                    if !content.contains("LegalSolver") && !content.contains("legal_solver") {
+                if content.contains("PipelineBuilder") && content.contains("fn build(")
+                    && !content.contains("LegalSolver") && !content.contains("legal_solver") {
                         run.add_result(rule.to_result(
                             file,
                             first_line_containing(content, "fn build("),
                             "PipelineBuilder::build() does not instantiate LegalSolver — enable_legal_verification flag is dead code",
                         ));
                     }
-                }
             }
 
             if rule.id.contains("mcp-provider-unwired") {
@@ -398,28 +430,28 @@ pub fn check_l3dg3rr_standards(
                 if (content.contains("mcp_adapter") || content.contains("ledgerr-mcp-server"))
                     && content.contains("tool_name")
                     && content.contains("match")
-                {
-                    if !content.contains("McpProviderRegistry") && !content.contains("handle_external_tool") {
+                    && !content.contains("McpProviderRegistry")
+                        && !content.contains("handle_external_tool")
+                    {
                         run.add_result(rule.to_result(
                             file,
                             first_line_containing(content, "fn handle_request"),
                             "Tool dispatch in ledgerr-mcp-server does not reference McpProviderRegistry — external providers are unreachable",
                         ));
                     }
-                }
             }
 
             if rule.id.contains("z3-kasuari-coherence") {
                 // Check that both Z3 and Kasuari concepts are used together
-                if content.contains("verify_legal") || content.contains("LegalSolver::verify") {
-                    if !content.contains("constraints") && !content.contains("VendorConstraintSet") {
+                if (content.contains("verify_legal") || content.contains("LegalSolver::verify"))
+                    && !content.contains("constraints") && !content.contains("VendorConstraintSet")
+                    {
                         run.add_result(rule.to_result(
                             file,
                             first_line_containing(content, "verify_legal"),
                             "Legal verification runs without constraint checking — Z3 result should feed into Kasuari-style constraint evaluation",
                         ));
                     }
-                }
             }
         }
     }
@@ -439,7 +471,11 @@ fn first_line_containing(content: &str, needle: &str) -> u64 {
 /// Evaluate an observable OTel/Rotel build-gate expression using existing
 /// symbolic logic helpers. Supported forms are `log_shape && metric` and
 /// `log_shape || metric`; AND/OR are derived from NAND/NOR.
-pub fn evaluate_otel_logic_expression(expression: &str, log_shape_observed: bool, metric_observed: bool) -> bool {
+pub fn evaluate_otel_logic_expression(
+    expression: &str,
+    log_shape_observed: bool,
+    metric_observed: bool,
+) -> bool {
     let tokens = tokenize_shorthand(expression);
     if tokens.iter().any(|t| matches!(t, ShorthandToken::Or)) {
         !nor(log_shape_observed, metric_observed)
@@ -463,14 +499,34 @@ pub fn check_otel_logic_slo_as_sarif(
     let surface = format!("rotel-otel:{gate_name}");
     let sli_met = evaluate_otel_logic_expression(expression, log_shape_observed, metric_observed);
 
-    registry.record(&surface, "log_shape_observed", MetricValue::Counter(log_shape_observed as u64));
-    registry.record(&surface, "metric_observed", MetricValue::Counter(metric_observed as u64));
-    registry.record(&surface, "sli_met", MetricValue::Gauge(if sli_met { 1.0 } else { 0.0 }));
-    registry.record(&surface, "slo_expected", MetricValue::Gauge(if slo_expected { 1.0 } else { 0.0 }));
+    registry.record(
+        &surface,
+        "log_shape_observed",
+        MetricValue::Counter(log_shape_observed as u64),
+    );
+    registry.record(
+        &surface,
+        "metric_observed",
+        MetricValue::Counter(metric_observed as u64),
+    );
+    registry.record(
+        &surface,
+        "sli_met",
+        MetricValue::Gauge(if sli_met { 1.0 } else { 0.0 }),
+    );
+    registry.record(
+        &surface,
+        "slo_expected",
+        MetricValue::Gauge(if slo_expected { 1.0 } else { 0.0 }),
+    );
     registry.record(
         &surface,
         "build_gate",
-        MetricValue::State(if sli_met == slo_expected { "pass".into() } else { "fail".into() }),
+        MetricValue::State(if sli_met == slo_expected {
+            "pass".into()
+        } else {
+            "fail".into()
+        }),
     );
 
     let rule = LintRule {
@@ -492,14 +548,22 @@ pub fn check_otel_logic_slo_as_sarif(
         properties.insert("sli.expression".to_string(), expression.to_string());
         properties.insert("sli.value".to_string(), sli_met.to_string());
         properties.insert("slo.expected".to_string(), slo_expected.to_string());
-        properties.insert("otel.log_shape_observed".to_string(), log_shape_observed.to_string());
-        properties.insert("otel.metric_observed".to_string(), metric_observed.to_string());
+        properties.insert(
+            "otel.log_shape_observed".to_string(),
+            log_shape_observed.to_string(),
+        );
+        properties.insert(
+            "otel.metric_observed".to_string(),
+            metric_observed.to_string(),
+        );
         properties.insert("rotel.surface".to_string(), surface.clone());
 
         run.add_result(SarifResult {
             rule_id: rule.id,
             level: SarifLevel::Error,
-            message: SarifMessage { text: rule.long_desc },
+            message: SarifMessage {
+                text: rule.long_desc,
+            },
             locations: None,
             fixes: None,
             properties: Some(properties),
@@ -532,7 +596,9 @@ mod tests {
         run.add_result(SarifResult {
             rule_id: "test/error".into(),
             level: SarifLevel::Error,
-            message: SarifMessage { text: "something broke".into() },
+            message: SarifMessage {
+                text: "something broke".into(),
+            },
             locations: None,
             fixes: None,
             properties: None,
@@ -554,7 +620,9 @@ mod tests {
     fn lint_detects_missing_mermaid() {
         let content = "# Test\n\n```rhai\nfn foo() -> bar\n```\n\nNo mermaid output";
         let report = check_l3dg3rr_standards(&[("test.md", content)]);
-        let mermaid_results: Vec<_> = report.runs[0].results.iter()
+        let mermaid_results: Vec<_> = report.runs[0]
+            .results
+            .iter()
             .filter(|r| r.rule_id.contains("mermaid-parse"))
             .collect();
         assert!(!mermaid_results.is_empty(), "should flag missing mermaid");
@@ -564,7 +632,9 @@ mod tests {
     fn valid_mermaid_passes_lint() {
         let content = "```rhai\nfn foo() -> bar\n```\n\n```mermaid\nflowchart TD\nfoo[bar]\n```";
         let report = check_l3dg3rr_standards(&[("good.md", content)]);
-        let mermaid_results: Vec<_> = report.runs[0].results.iter()
+        let _mermaid_results: Vec<_> = report.runs[0]
+            .results
+            .iter()
             .filter(|r| r.rule_id.contains("mermaid-parse"))
             .collect();
         // With valid mermaid content following a rhai fence, the heuristic may
@@ -577,10 +647,15 @@ mod tests {
     fn iso_projection_constants_checked() {
         let content = "function isoProject(pt, scale, origin) { return {x: 0, y: 0}; }";
         let report = check_l3dg3rr_standards(&[("viz.js", content)]);
-        let iso_results: Vec<_> = report.runs[0].results.iter()
+        let iso_results: Vec<_> = report.runs[0]
+            .results
+            .iter()
             .filter(|r| r.rule_id.contains("iso-projection"))
             .collect();
-        assert!(!iso_results.is_empty(), "should flag missing 0.866/0.5 constants");
+        assert!(
+            !iso_results.is_empty(),
+            "should flag missing 0.866/0.5 constants"
+        );
     }
 
     #[test]
@@ -590,7 +665,9 @@ mod tests {
         run.add_result(SarifResult {
             rule_id: "test/note".into(),
             level: SarifLevel::Note,
-            message: SarifMessage { text: "info".into() },
+            message: SarifMessage {
+                text: "info".into(),
+            },
             locations: None,
             fixes: None,
             properties: None,
@@ -607,7 +684,9 @@ mod tests {
     fn dead_builder_field_detected() {
         let content = "#[allow(dead_code)]\nmax_retries: usize,\nenable_legal_verification: bool,\n}\n\npub fn build(self) -> LedgerPipeline {";
         let report = check_l3dg3rr_standards(&[("pipeline.rs", content)]);
-        let dead_results: Vec<_> = report.runs[0].results.iter()
+        let dead_results: Vec<_> = report.runs[0]
+            .results
+            .iter()
             .filter(|r| r.rule_id.contains("dead-builder-field"))
             .collect();
         assert!(!dead_results.is_empty(), "should flag dead builder fields");
@@ -618,27 +697,39 @@ mod tests {
         // Simulate content where build() references PipelineBuilder but not LegalSolver
         let content = "impl PipelineBuilder {\n    pub fn build(self) -> LedgerPipeline {\n        LedgerPipeline::new(self.jurisdiction)\n    }\n}";
         let report = check_l3dg3rr_standards(&[("pipeline.rs", content)]);
-        let legal_results: Vec<_> = report.runs[0].results.iter()
+        let legal_results: Vec<_> = report.runs[0]
+            .results
+            .iter()
             .filter(|r| r.rule_id.contains("unwired-legal-verification"))
             .collect();
-        assert!(!legal_results.is_empty(), "should flag unwired legal verification");
+        assert!(
+            !legal_results.is_empty(),
+            "should flag unwired legal verification"
+        );
     }
 
     #[test]
     fn wired_legal_verification_passes() {
         let content = "impl PipelineBuilder {\n    pub fn build(self) -> LedgerPipeline {\n        let solver = LegalSolver::new();\n        LedgerPipeline::new(self.jurisdiction).with_legal_solver(solver)\n    }\n}";
         let report = check_l3dg3rr_standards(&[("pipeline.rs", content)]);
-        let legal_results: Vec<_> = report.runs[0].results.iter()
+        let legal_results: Vec<_> = report.runs[0]
+            .results
+            .iter()
             .filter(|r| r.rule_id.contains("unwired-legal-verification"))
             .collect();
-        assert!(legal_results.is_empty(), "should pass when LegalSolver is wired");
+        assert!(
+            legal_results.is_empty(),
+            "should pass when LegalSolver is wired"
+        );
     }
 
     #[test]
     fn mcp_provider_unwired_detected() {
         let content = "fn handle_request(request: Value) -> Option<Value> {\n    let tool_name = params.get(\"name\").and_then(Value::as_str).unwrap_or(\"\");\n    match tool_name {\n        mcp_adapter::DOCUMENTS_TOOL => { }\n        _ => mcp_adapter::unknown_tool_result(tool_name),\n    }\n}";
         let report = check_l3dg3rr_standards(&[("ledgerr-mcp-server.rs", content)]);
-        let mcp_results: Vec<_> = report.runs[0].results.iter()
+        let mcp_results: Vec<_> = report.runs[0]
+            .results
+            .iter()
             .filter(|r| r.rule_id.contains("mcp-provider-unwired"))
             .collect();
         assert!(!mcp_results.is_empty(), "should flag unwired MCP provider");
@@ -649,20 +740,30 @@ mod tests {
         // Pipeline has legal verification but no constraint checking
         let content = "fn verify_legal(&self, solver, rules) {\n    let result = solver.verify(rule, facts);\n    // no constraint evaluation after legal check\n}";
         let report = check_l3dg3rr_standards(&[("pipeline.rs", content)]);
-        let coherence_results: Vec<_> = report.runs[0].results.iter()
+        let coherence_results: Vec<_> = report.runs[0]
+            .results
+            .iter()
             .filter(|r| r.rule_id.contains("z3-kasuari-coherence"))
             .collect();
-        assert!(!coherence_results.is_empty(), "should flag missing kasuari constraints after z3");
+        assert!(
+            !coherence_results.is_empty(),
+            "should flag missing kasuari constraints after z3"
+        );
     }
 
     #[test]
     fn z3_kasuari_coherence_passes_when_composed() {
         let content = "fn process_tx(&self, solver, rules, constraints) {\n    let result = solver.verify_all(rules, &facts);\n    let eval = constraints.evaluate(amount, day, tax_code, account);\n}";
         let report = check_l3dg3rr_standards(&[("pipeline.rs", content)]);
-        let coherence_results: Vec<_> = report.runs[0].results.iter()
+        let coherence_results: Vec<_> = report.runs[0]
+            .results
+            .iter()
             .filter(|r| r.rule_id.contains("z3-kasuari-coherence"))
             .collect();
-        assert!(coherence_results.is_empty(), "should pass when both z3 and constraints are used");
+        assert!(
+            coherence_results.is_empty(),
+            "should pass when both z3 and constraints are used"
+        );
     }
 
     #[test]
@@ -679,9 +780,17 @@ mod tests {
 
         assert!(!report.has_errors());
         let flat = registry.flat_display();
-        let surface = flat.get("rotel-otel:gpu-driver-fault").expect("surface metrics");
-        assert_eq!(surface.get("log_shape_observed").map(String::as_str), Some("1"));
-        assert_eq!(surface.get("metric_observed").map(String::as_str), Some("1"));
+        let surface = flat
+            .get("rotel-otel:gpu-driver-fault")
+            .expect("surface metrics");
+        assert_eq!(
+            surface.get("log_shape_observed").map(String::as_str),
+            Some("1")
+        );
+        assert_eq!(
+            surface.get("metric_observed").map(String::as_str),
+            Some("1")
+        );
         assert_eq!(surface.get("build_gate").map(String::as_str), Some("pass"));
     }
 
@@ -701,9 +810,15 @@ mod tests {
         let result = &report.runs[0].results[0];
         assert_eq!(result.rule_id, "l3dg3rr/otel/build-gate-slo");
         let props = result.properties.as_ref().expect("sarif properties");
-        assert_eq!(props.get("sli.expression").map(String::as_str), Some("log_shape && metric"));
+        assert_eq!(
+            props.get("sli.expression").map(String::as_str),
+            Some("log_shape && metric")
+        );
         assert_eq!(props.get("sli.value").map(String::as_str), Some("false"));
-        assert_eq!(props.get("otel.metric_observed").map(String::as_str), Some("false"));
+        assert_eq!(
+            props.get("otel.metric_observed").map(String::as_str),
+            Some("false")
+        );
     }
 
     #[test]
@@ -719,13 +834,21 @@ mod tests {
         );
 
         assert!(!report.has_errors());
-        assert!(evaluate_otel_logic_expression("log_shape || metric", true, false));
+        assert!(evaluate_otel_logic_expression(
+            "log_shape || metric",
+            true,
+            false
+        ));
     }
 
     #[test]
     fn runtime_rules_have_all_ids() {
         let rules = l3dg3rr_doc_rules();
-        assert!(rules.len() >= 11, "expected at least 11 rules (7 doc + 4 runtime), got {}", rules.len());
+        assert!(
+            rules.len() >= 11,
+            "expected at least 11 rules (7 doc + 4 runtime), got {}",
+            rules.len()
+        );
         let runtime_ids = [
             "l3dg3rr/code/dead-builder-field",
             "l3dg3rr/code/unwired-legal-verification",

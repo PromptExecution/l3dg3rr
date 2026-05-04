@@ -23,13 +23,16 @@
 //! (wired to a source) before any transition can fire. An unfilled port
 //! produces `Disposition::Unrecoverable`.
 
-
-
 /// Gate integer codes used by the macro's static array generation.
 /// 0=NAND, 1=NOR, 2=ADD, 3=WAIT, 4=TX, 5=RX, 6=CAP
 pub const GATE_CODES: &[(u8, &str)] = &[
-    (0, "NAND"), (1, "NOR"), (2, "ADD"), (3, "WAIT"),
-    (4, "TX"),   (5, "RX"),  (6, "CAP"),
+    (0, "NAND"),
+    (1, "NOR"),
+    (2, "ADD"),
+    (3, "WAIT"),
+    (4, "TX"),
+    (5, "RX"),
+    (6, "CAP"),
 ];
 
 /// Port identifier within a meta-state machine.
@@ -138,7 +141,13 @@ impl FluxCapacitor {
         id
     }
 
-    pub fn wire(&mut self, from_gate: usize, from_port: usize, to_gate: usize, to_port: usize) -> Result<(), String> {
+    pub fn wire(
+        &mut self,
+        from_gate: usize,
+        from_port: usize,
+        to_gate: usize,
+        to_port: usize,
+    ) -> Result<(), String> {
         if from_gate >= self.ports.len() {
             return Err(format!("from_gate {from_gate} does not exist"));
         }
@@ -147,13 +156,22 @@ impl FluxCapacitor {
         }
         let from_kind = self.ports[from_gate].kind;
         if from_port >= from_kind.arity_out() {
-            return Err(format!("from_gate {from_gate} ({from_kind:?}) has no output port {from_port}"));
+            return Err(format!(
+                "from_gate {from_gate} ({from_kind:?}) has no output port {from_port}"
+            ));
         }
         let to_kind = self.ports[to_gate].kind;
         if to_port >= to_kind.arity_in() {
-            return Err(format!("to_gate {to_gate} ({to_kind:?}) has no input port {to_port}"));
+            return Err(format!(
+                "to_gate {to_gate} ({to_kind:?}) has no input port {to_port}"
+            ));
         }
-        let wire = Wire { from_gate, from_port, to_gate, to_port };
+        let wire = Wire {
+            from_gate,
+            from_port,
+            to_gate,
+            to_port,
+        };
         self.ports[to_gate].input_ports[to_port] = Some(wire.clone());
         self.ports[from_gate].output_wire = Some(wire.clone());
         self.wires.push(wire);
@@ -167,7 +185,13 @@ impl FluxCapacitor {
             let required = kind.arity_in();
             let filled = gate.input_ports.iter().filter(|p| p.is_some()).count();
             if filled < required && kind != GateKind::Rx && kind != GateKind::Cap {
-                unfilled.push((gate.id, format!("{kind:?} gate {} has {filled}/{required} ports filled", gate.id)));
+                unfilled.push((
+                    gate.id,
+                    format!(
+                        "{kind:?} gate {} has {filled}/{required} ports filled",
+                        gate.id
+                    ),
+                ));
             }
         }
         unfilled
@@ -224,11 +248,23 @@ pub fn tokenize_shorthand(input: &str) -> Vec<ShorthandToken> {
     let mut chars = input.chars().peekable();
     while let Some(c) = chars.next() {
         match c {
-            '&' if chars.peek() == Some(&'&') => { chars.next(); tokens.push(ShorthandToken::And); }
-            '|' if chars.peek() == Some(&'|') => { chars.next(); tokens.push(ShorthandToken::Or); }
+            '&' if chars.peek() == Some(&'&') => {
+                chars.next();
+                tokens.push(ShorthandToken::And);
+            }
+            '|' if chars.peek() == Some(&'|') => {
+                chars.next();
+                tokens.push(ShorthandToken::Or);
+            }
             '!' => tokens.push(ShorthandToken::Not),
-            '-' if chars.peek() == Some(&'>') => { chars.next(); tokens.push(ShorthandToken::Arrow); }
-            '<' if chars.peek() == Some(&'-') => { chars.next(); tokens.push(ShorthandToken::BackArrow); }
+            '-' if chars.peek() == Some(&'>') => {
+                chars.next();
+                tokens.push(ShorthandToken::Arrow);
+            }
+            '<' if chars.peek() == Some(&'-') => {
+                chars.next();
+                tokens.push(ShorthandToken::BackArrow);
+            }
             '=' => tokens.push(ShorthandToken::Eq),
             ':' => tokens.push(ShorthandToken::Colon),
             '{' => tokens.push(ShorthandToken::LBrace),
@@ -245,7 +281,12 @@ pub fn tokenize_shorthand(input: &str) -> Vec<ShorthandToken> {
             c if c.is_ascii_alphabetic() || c == '_' || c == '.' => {
                 let mut s = String::from(c);
                 while let Some(&c) = chars.peek() {
-                    if c.is_ascii_alphanumeric() || c == '_' || c == '.' { s.push(c); chars.next(); } else { break; }
+                    if c.is_ascii_alphanumeric() || c == '_' || c == '.' {
+                        s.push(c);
+                        chars.next();
+                    } else {
+                        break;
+                    }
                 }
                 tokens.push(ShorthandToken::Ident(s));
             }
@@ -257,11 +298,21 @@ pub fn tokenize_shorthand(input: &str) -> Vec<ShorthandToken> {
 
 // ── Gate evaluation functions ────────────────────────────────────────────────
 
-pub fn nand(a: bool, b: bool) -> bool { !(a && b) }
-pub fn nor(a: bool, b: bool) -> bool { !(a || b) }
-pub fn add_u8(a: u8, b: u8) -> u8 { a.wrapping_add(b) }
+pub fn nand(a: bool, b: bool) -> bool {
+    !(a && b)
+}
+pub fn nor(a: bool, b: bool) -> bool {
+    !(a || b)
+}
+pub fn add_u8(a: u8, b: u8) -> u8 {
+    a.wrapping_add(b)
+}
 pub fn wait_stable(current: bool, previous: bool, debounce_ticks: u64, tick: u64) -> bool {
-    if current == previous && tick >= debounce_ticks { current } else { previous }
+    if current == previous && tick >= debounce_ticks {
+        current
+    } else {
+        previous
+    }
 }
 
 // ── MultiBridge: two gate networks composed under a typed invariant ─────────
@@ -307,10 +358,16 @@ impl MultiBridge {
 
         for (s, t) in &self.wires {
             if seen_source.contains(s) {
-                issues.push(format!("bridge '{}': source port {s} wired multiple times", self.name));
+                issues.push(format!(
+                    "bridge '{}': source port {s} wired multiple times",
+                    self.name
+                ));
             }
             if seen_target.contains(t) {
-                issues.push(format!("bridge '{}': target port {t} wired multiple times", self.name));
+                issues.push(format!(
+                    "bridge '{}': target port {t} wired multiple times",
+                    self.name
+                ));
             }
             seen_source.push(*s);
             seen_target.push(*t);
@@ -320,13 +377,23 @@ impl MultiBridge {
     }
 
     /// Apply the bridge wiring to a pair of capacitors.
-    pub fn apply(&self, source: &mut FluxCapacitor, target: &mut FluxCapacitor) -> Result<(), String> {
+    pub fn apply(
+        &self,
+        source: &mut FluxCapacitor,
+        target: &mut FluxCapacitor,
+    ) -> Result<(), String> {
         for (s_port, t_port) in &self.wires {
             if *s_port >= source.ports.len() {
-                return Err(format!("bridge '{}': source has no port {s_port}", self.name));
+                return Err(format!(
+                    "bridge '{}': source has no port {s_port}",
+                    self.name
+                ));
             }
             if *t_port >= target.ports.len() {
-                return Err(format!("bridge '{}': target has no port {t_port}", self.name));
+                return Err(format!(
+                    "bridge '{}': target has no port {t_port}",
+                    self.name
+                ));
             }
             // Wire source gate's output to target gate's input (port 0 → port 0)
             let _ = source.wire(*s_port, 0, *t_port, 0);
@@ -336,13 +403,23 @@ impl MultiBridge {
 }
 
 /// Invariant validator: checks that a specific invariant holds across a bridge.
-pub fn check_bridge_invariant(bridge: &MultiBridge, source: &FluxCapacitor, target: &FluxCapacitor) -> Vec<String> {
+pub fn check_bridge_invariant(
+    bridge: &MultiBridge,
+    source: &FluxCapacitor,
+    target: &FluxCapacitor,
+) -> Vec<String> {
     let mut violations = bridge.validate_invariants();
     if !source.is_stable() {
-        violations.push(format!("bridge '{}': source capacitor not stable", bridge.name));
+        violations.push(format!(
+            "bridge '{}': source capacitor not stable",
+            bridge.name
+        ));
     }
     if !target.is_stable() {
-        violations.push(format!("bridge '{}': target capacitor not stable", bridge.name));
+        violations.push(format!(
+            "bridge '{}': target capacitor not stable",
+            bridge.name
+        ));
     }
     violations
 }
@@ -407,7 +484,11 @@ impl ModelTransformer {
     }
 
     /// Apply the transformation by wiring input capacitor to output capacitor.
-    pub fn transform(&self, input: &mut FluxCapacitor, _output: &mut FluxCapacitor) -> Result<(), String> {
+    pub fn transform(
+        &self,
+        input: &mut FluxCapacitor,
+        _output: &mut FluxCapacitor,
+    ) -> Result<(), String> {
         self.check_port_compatibility()?;
         let n = self.input_shape.len().min(self.output_shape.len());
         for i in 0..n {
@@ -754,6 +835,7 @@ macro_rules! abstract_cap_test {
 pub use abstract_cap_test;
 
 /// Runtime test helper: builds flux capacitor from gate kinds and checks stability.
+#[cfg(test)]
 fn run_stable_test(kinds: &[GateKind]) {
     let mut cap = FluxCapacitor::new();
     let ids: Vec<usize> = kinds.iter().map(|k| cap.add_gate(*k)).collect();
@@ -765,7 +847,11 @@ fn run_stable_test(kinds: &[GateKind]) {
         }
     }
     let stable = cap.evaluate();
-    assert!(stable, "flux capacitor not meta-stable: {:?}", cap.all_ports_filled());
+    assert!(
+        stable,
+        "flux capacitor not meta-stable: {:?}",
+        cap.all_ports_filled()
+    );
 }
 
 #[cfg(test)]
@@ -927,35 +1013,61 @@ mod tests {
 
     // ── symbolic_gate_test! invocations ────────────────────────────
 
-    mod gate_nand_tx_cap { symbolic_gate_test!(NAND, TX, CAP); }
-    mod gate_rx_nand { symbolic_gate_test!(RX, NAND); }
-    mod gate_tx_only { symbolic_gate_test!(TX); }
-    mod gate_rx_wait_cap_stable { symbolic_gate_test!(stable => RX, WAIT, CAP); }
+    mod gate_nand_tx_cap {
+        symbolic_gate_test!(NAND, TX, CAP);
+    }
+    mod gate_rx_nand {
+        symbolic_gate_test!(RX, NAND);
+    }
+    mod gate_tx_only {
+        symbolic_gate_test!(TX);
+    }
+    mod gate_rx_wait_cap_stable {
+        symbolic_gate_test!(stable => RX, WAIT, CAP);
+    }
 
     // ── bridge_invariant_test! invocations ─────────────────────────
     // Rx → Nand in same capacitor: Rx output port 0 → Nand input port 0
-    mod bridge_rx_to_nand { bridge_invariant_test!("rx2nand" => 0:Rx >> 0:Nand); }
+    mod bridge_rx_to_nand {
+        bridge_invariant_test!("rx2nand" => 0:Rx >> 0:Nand);
+    }
     // Wait → Nand: Wait output feeds Nand input
-    mod bridge_wait_nand { bridge_invariant_test!("wait2nand" => 0:Wait >> 0:Nand); }
+    mod bridge_wait_nand {
+        bridge_invariant_test!("wait2nand" => 0:Wait >> 0:Nand);
+    }
     // Rx, Rx >> Wait: two Rx gates wired in src capacitor, Wait in dst capacitor
     // Both capacitors are independently stable (Rx has no input ports, Wait is unfilled but skipped)
     // Actually both need internal wires — skip for now, use single-capacitor test instead
-    // 
+    //
 
     // ── transformer_invariant_test! invocations ────────────────────
 
-    mod tx_rx_nand_to_nor { transformer_invariant_test!("rx_nand_nor" => Rx, Nand ~> Nand, Nor); }
-    mod tx_single_rx_to_wait { transformer_invariant_test!("rx_wait" => Rx ~> Wait); }
+    mod tx_rx_nand_to_nor {
+        transformer_invariant_test!("rx_nand_nor" => Rx, Nand ~> Nand, Nor);
+    }
+    mod tx_single_rx_to_wait {
+        transformer_invariant_test!("rx_wait" => Rx ~> Wait);
+    }
     // Output gates must have input ports to receive transformed values
-    mod tx_three_chain { transformer_invariant_test!("chain" => Rx, Wait, Nand ~> Wait, Nor, Add); }
+    mod tx_three_chain {
+        transformer_invariant_test!("chain" => Rx, Wait, Nand ~> Wait, Nor, Add);
+    }
 
     // ── abstract_cap_test! invocations ─────────────────────────────
 
-    mod abs_single_pair { abstract_cap_test!("single" => [Rx, Wait, Cap]); }
+    mod abs_single_pair {
+        abstract_cap_test!("single" => [Rx, Wait, Cap]);
+    }
     // Two Rx feed Nand (both ports) → Nand stable → Wait stable
-    mod abs_two_networks { abstract_cap_test!("two_net" => [Rx, Wait] ~ [Rx, Wait]); }
-    mod abs_with_bridge_tx { abstract_cap_test!("w_bridge_tx" => [Rx, Wait] ~~ [Rx, Nand ~> Nand, Nor]); }
-    mod abs_three_net_bridge_tx { abstract_cap_test!("complex" => [Rx, Wait] ~ [Rx, Nand] ~~ [Rx ~> Wait]); }
+    mod abs_two_networks {
+        abstract_cap_test!("two_net" => [Rx, Wait] ~ [Rx, Wait]);
+    }
+    mod abs_with_bridge_tx {
+        abstract_cap_test!("w_bridge_tx" => [Rx, Wait] ~~ [Rx, Nand ~> Nand, Nor]);
+    }
+    mod abs_three_net_bridge_tx {
+        abstract_cap_test!("complex" => [Rx, Wait] ~ [Rx, Nand] ~~ [Rx ~> Wait]);
+    }
 
     // ── MultiBridge runtime tests ──────────────────────────────────
 
@@ -971,7 +1083,9 @@ mod tests {
         let mut bridge = MultiBridge::new("dup", GateKind::Nand, GateKind::Nor);
         bridge.wire(0, 0).wire(0, 1);
         let violations = bridge.validate_invariants();
-        assert!(violations.iter().any(|v| v.contains("wired multiple times")));
+        assert!(violations
+            .iter()
+            .any(|v| v.contains("wired multiple times")));
     }
 
     #[test]
@@ -1127,6 +1241,8 @@ mod tests {
         abs.add_bridge(bridge);
 
         let violations = abs.check_all_invariants();
-        assert!(violations.iter().any(|v| v.contains("wired multiple times")));
+        assert!(violations
+            .iter()
+            .any(|v| v.contains("wired multiple times")));
     }
 }

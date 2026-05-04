@@ -450,7 +450,9 @@ mod arc_kit_bridge {
 }
 
 #[cfg(feature = "arc-kit-au")]
-pub use arc_kit_au::{EdgeType, EvidenceGraph, EvidenceNode, EvidenceStore, NodeId, ProvenanceBadge};
+pub use arc_kit_au::{
+    EdgeType, EvidenceGraph, EvidenceNode, EvidenceStore, NodeId, ProvenanceBadge,
+};
 #[cfg(feature = "arc-kit-au")]
 pub use arc_kit_au::{
     EvidenceBuilder, EvidenceChain, EvidenceTracer, ProvenanceGap, ProvenanceScanner,

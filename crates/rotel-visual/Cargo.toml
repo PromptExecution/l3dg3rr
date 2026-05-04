@@ -17,6 +17,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 ledger-core = { workspace = true }
 anyhow = { workspace = true }
+b00t-iface = { path = "../b00t-iface" }
 
 [dev-dependencies]
 tower = { version = "0.4", features = ["util"] }

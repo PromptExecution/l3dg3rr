@@ -7,17 +7,14 @@ use z3::{ast::Bool, Config, Context, SatResult, Solver};
 
 /// Jurisdiction for tax rule evaluation (US, AU, UK, etc.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum Jurisdiction {
+    #[default]
     US,
     AU,
     UK,
 }
 
-impl Default for Jurisdiction {
-    fn default() -> Self {
-        Self::US
-    }
-}
 
 impl Jurisdiction {
     pub fn code(&self) -> &'static str {
@@ -264,7 +261,9 @@ impl LegalSolver {
         let violation_bool = Bool::from_bool(&ctx, violation);
         solver.assert(&violation_bool);
         match solver.check() {
-            SatResult::Sat => Z3Result::Violated { witness: witness.to_string() },
+            SatResult::Sat => Z3Result::Violated {
+                witness: witness.to_string(),
+            },
             SatResult::Unsat => Z3Result::Satisfied,
             SatResult::Unknown => Z3Result::Unknown,
         }
@@ -273,7 +272,9 @@ impl LegalSolver {
     #[cfg(not(feature = "legal-z3"))]
     fn violation_result(&self, violation: bool, witness: &str) -> Z3Result {
         if violation {
-            Z3Result::Violated { witness: witness.to_string() }
+            Z3Result::Violated {
+                witness: witness.to_string(),
+            }
         } else {
             Z3Result::Satisfied
         }
@@ -293,7 +294,9 @@ pub mod au_gst {
 
     pub fn rule_40_5() -> LegalRule {
         LegalRule::new("au-gst-40-5", Jurisdiction::AU)
-            .with_description("Financial supplies are input-taxed; no GST credits on related expenses")
+            .with_description(
+                "Financial supplies are input-taxed; no GST credits on related expenses",
+            )
             .with_category("GST")
             .with_formula("supply_type == financial -> input_taxed AND no_gst_credit")
     }
@@ -395,10 +398,15 @@ mod tests {
 
     #[test]
     fn test_from_z3result_violated() {
-        let issues: Vec<crate::validation::Issue> =
-            Z3Result::Violated { witness: "test violation".to_string() }.into();
+        let issues: Vec<crate::validation::Issue> = Z3Result::Violated {
+            witness: "test violation".to_string(),
+        }
+        .into();
         assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].disposition, crate::validation::Disposition::Unrecoverable);
+        assert_eq!(
+            issues[0].disposition,
+            crate::validation::Disposition::Unrecoverable
+        );
     }
 
     #[test]
