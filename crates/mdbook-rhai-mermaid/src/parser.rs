@@ -1,3 +1,4 @@
+use indexmap::IndexMap;
 /// Graph-based AST for the rhai pseudo-DSL.
 ///
 /// Two statement forms are supported:
@@ -8,7 +9,6 @@
 /// The syntax is stable — richer identity and placement semantics are encoded
 /// in the parser output, not in a second incompatible syntax.
 use std::collections::HashMap;
-use indexmap::IndexMap;
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -42,33 +42,53 @@ impl SemanticRole {
             return SemanticRole::Decision;
         }
         let lower = label.to_lowercase();
-        if lower.contains("ingest") || lower.contains("load") || lower.contains("parse")
-            || lower.contains("extract") || lower.contains("source") || lower.contains("input")
+        if lower.contains("ingest")
+            || lower.contains("load")
+            || lower.contains("parse")
+            || lower.contains("extract")
+            || lower.contains("source")
+            || lower.contains("input")
         {
             return SemanticRole::Ingest;
         }
-        if lower.contains("validate") || lower.contains("verify") || lower.contains("check")
-            || lower.contains("guard") || lower.contains("audit") || lower.contains("rule")
+        if lower.contains("validate")
+            || lower.contains("verify")
+            || lower.contains("check")
+            || lower.contains("guard")
+            || lower.contains("audit")
+            || lower.contains("rule")
         {
             return SemanticRole::Validate;
         }
-        if lower.contains("classify") || lower.contains("label") || lower.contains("tag")
-            || lower.contains("map") || lower.contains("route")
+        if lower.contains("classify")
+            || lower.contains("label")
+            || lower.contains("tag")
+            || lower.contains("map")
+            || lower.contains("route")
         {
             return SemanticRole::Classify;
         }
-        if lower.contains("review") || lower.contains("approve") || lower.contains("manual")
-            || lower.contains("operator") || lower.contains("human")
+        if lower.contains("review")
+            || lower.contains("approve")
+            || lower.contains("manual")
+            || lower.contains("operator")
+            || lower.contains("human")
         {
             return SemanticRole::Review;
         }
-        if lower.contains("reconcile") || lower.contains("match") || lower.contains("balance")
+        if lower.contains("reconcile")
+            || lower.contains("match")
+            || lower.contains("balance")
             || lower.contains("ledger")
         {
             return SemanticRole::Reconcile;
         }
-        if lower.contains("commit") || lower.contains("publish") || lower.contains("export")
-            || lower.contains("write") || lower.contains("persist") || lower.contains("done")
+        if lower.contains("commit")
+            || lower.contains("publish")
+            || lower.contains("export")
+            || lower.contains("write")
+            || lower.contains("persist")
+            || lower.contains("done")
             || lower.contains("finish")
         {
             return SemanticRole::Commit;
@@ -76,6 +96,7 @@ impl SemanticRole {
         SemanticRole::Step
     }
 
+    #[allow(dead_code)]
     pub fn key(&self) -> &'static str {
         match self {
             SemanticRole::Ingest => "ingest",
@@ -96,14 +117,18 @@ pub struct Node {
     /// Stable identity key — survives cosmetic label changes.
     /// Defaults to the same as `id` but can be set explicitly for
     /// identity-stable reflow across source edits.
+    #[allow(dead_code)]
     pub identity_key: String,
     pub label: String,
     pub kind: NodeKind,
     /// Semantic role inferred from label keywords.
+    #[allow(dead_code)]
     pub role: SemanticRole,
     /// For match arms: declaration order index within the match group.
+    #[allow(dead_code)]
     pub arm_index: Option<usize>,
     /// Whether this node is a default/fallback arm (`_` or `else`).
+    #[allow(dead_code)]
     pub is_default: bool,
 }
 
@@ -113,9 +138,11 @@ pub struct Edge {
     pub to: String,
     pub label: Option<String>,
     /// For match arms: declaration order index.
+    #[allow(dead_code)]
     pub arm_index: Option<usize>,
     /// Whether this edge represents a default/fallback path.
     pub is_default: bool,
+
 }
 
 #[derive(Debug, Default)]
@@ -130,15 +157,18 @@ impl Graph {
         if !self.nodes.contains_key(&id) {
             self.order.push(id.clone());
             let role = SemanticRole::infer(&label, &kind);
-            self.nodes.insert(id.clone(), Node {
-                id: id.clone(),
-                identity_key: id,
-                label,
-                kind,
-                role,
-                arm_index: None,
-                is_default: false,
-            });
+            self.nodes.insert(
+                id.clone(),
+                Node {
+                    id: id.clone(),
+                    identity_key: id,
+                    label,
+                    kind,
+                    role,
+                    arm_index: None,
+                    is_default: false,
+                },
+            );
         }
     }
 
@@ -154,20 +184,29 @@ impl Graph {
         if !self.nodes.contains_key(&id) {
             self.order.push(id.clone());
             let role = SemanticRole::infer(&label, &kind);
-            self.nodes.insert(id.clone(), Node {
-                id,
-                identity_key,
-                label,
-                kind,
-                role,
-                arm_index,
-                is_default,
-            });
+            self.nodes.insert(
+                id.clone(),
+                Node {
+                    id,
+                    identity_key,
+                    label,
+                    kind,
+                    role,
+                    arm_index,
+                    is_default,
+                },
+            );
         }
     }
 
     pub fn add_edge(&mut self, from: String, to: String, label: Option<String>) {
-        self.edges.push(Edge { from, to, label, arm_index: None, is_default: false });
+        self.edges.push(Edge {
+            from,
+            to,
+            label,
+            arm_index: None,
+            is_default: false,
+        });
     }
 
     pub fn add_edge_rich(
@@ -178,7 +217,13 @@ impl Graph {
         arm_index: Option<usize>,
         is_default: bool,
     ) {
-        self.edges.push(Edge { from, to, label, arm_index, is_default });
+        self.edges.push(Edge {
+            from,
+            to,
+            label,
+            arm_index,
+            is_default,
+        });
     }
 }
 
@@ -188,7 +233,13 @@ impl Graph {
 
 pub fn sanitize_id(raw: &str) -> String {
     raw.chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
@@ -503,16 +554,25 @@ mod tests {
             if confidence > 0.8 -> commit
         "#;
         let g = parse(src);
-        let decision_nodes: Vec<&Node> =
-            g.nodes.values().filter(|n| n.kind == NodeKind::Decision).collect();
+        let decision_nodes: Vec<&Node> = g
+            .nodes
+            .values()
+            .filter(|n| n.kind == NodeKind::Decision)
+            .collect();
         assert_eq!(decision_nodes.len(), 2);
 
         let false_edge = g.edges.iter().find(|e| e.label.as_deref() == Some("false"));
         assert!(false_edge.is_some(), "expected a false-chain edge");
 
         let fe = false_edge.unwrap();
-        assert!(fe.from.contains("0_8"), "false edge from should reference 0.8 threshold");
-        assert!(fe.to.contains("0_5"), "false edge to should reference 0.5 threshold");
+        assert!(
+            fe.from.contains("0_8"),
+            "false edge from should reference 0.8 threshold"
+        );
+        assert!(
+            fe.to.contains("0_5"),
+            "false edge to should reference 0.5 threshold"
+        );
     }
 
     #[test]
@@ -576,12 +636,22 @@ mod tests {
         "#;
         let g = parse(src);
 
-        let match_nodes: Vec<&Node> = g.nodes.values().filter(|n| n.kind == NodeKind::Match).collect();
+        let match_nodes: Vec<&Node> = g
+            .nodes
+            .values()
+            .filter(|n| n.kind == NodeKind::Match)
+            .collect();
         assert_eq!(match_nodes.len(), 1);
         assert_eq!(match_nodes[0].label, "match result.disposition");
         assert_eq!(g.edges.len(), 3);
-        assert_eq!(g.edges[0].label.as_deref(), Some("Disposition::Unrecoverable"));
-        assert_eq!(g.edges[1].label.as_deref(), Some("Disposition::Recoverable"));
+        assert_eq!(
+            g.edges[0].label.as_deref(),
+            Some("Disposition::Unrecoverable")
+        );
+        assert_eq!(
+            g.edges[1].label.as_deref(),
+            Some("Disposition::Recoverable")
+        );
         assert_eq!(g.edges[2].label.as_deref(), Some("Disposition::Advisory"));
     }
 
@@ -613,7 +683,10 @@ mod tests {
 
         assert_eq!(g.nodes["ingest_pdf"].role, SemanticRole::Ingest);
         assert_eq!(g.nodes["validate_rows"].role, SemanticRole::Validate);
-        assert_eq!(g.nodes["classify_transactions"].role, SemanticRole::Classify);
+        assert_eq!(
+            g.nodes["classify_transactions"].role,
+            SemanticRole::Classify
+        );
         assert_eq!(g.nodes["reconcile_xero"].role, SemanticRole::Reconcile);
         assert_eq!(g.nodes["review_flags"].role, SemanticRole::Review);
         assert_eq!(g.nodes["commit_workbook"].role, SemanticRole::Commit);
@@ -657,5 +730,76 @@ mod tests {
         assert_eq!(ingest.id, "ingest");
         assert_eq!(ingest.identity_key, "ingest");
         assert_eq!(ingest.label, "ingest");
+    }
+
+    // -----------------------------------------------------------------------
+    // Malformed / negative input tests — parser must not panic and should
+    // gracefully skip or partially parse malformed lines.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_malformed_misspelled_fn() {
+        let g = parse("fnn ingest() -> classify\n");
+        assert!(g.nodes.is_empty());
+        assert!(g.edges.is_empty());
+    }
+
+    #[test]
+    fn test_malformed_missing_target_arrow() {
+        let g = parse("fn ingest()\n");
+        assert!(g.nodes.is_empty());
+        assert!(g.edges.is_empty());
+    }
+
+    #[test]
+    fn test_malformed_if_missing_target() {
+        let g = parse("if confidence > 0.5 ->\n");
+        assert!(g.nodes.is_empty());
+        assert!(g.edges.is_empty());
+    }
+
+    #[test]
+    fn test_malformed_double_arrow() {
+        // split_once("->") splits on first occurrence, so target is "-> classify"
+        // which is non-empty — parser produces a node named "-> classify".
+        // Still must not panic and should produce a valid Graph.
+        // split_once("->") captures "-> classify" as the target.
+        // sanitize_id turns "-> classify" into "___classify".
+        let g = parse("fn ingest() -> -> classify\n");
+        assert!(g.nodes.contains_key("ingest"));
+        assert!(g.nodes.contains_key("___classify"));
+        assert_eq!(g.nodes.len(), 2);
+        assert_eq!(g.edges.len(), 1);
+    }
+
+    #[test]
+    fn test_malformed_empty_target_name() {
+        let g = parse("fn ingest() -> \n");
+        assert!(g.nodes.is_empty());
+        assert!(g.edges.is_empty());
+    }
+
+    #[test]
+    fn test_malformed_match_missing_arm() {
+        let src = "match result -> Unrecoverable -> \n";
+        let g = parse(src);
+        // match needs expr, arm, AND target all non-empty — empty target skips
+        assert!(g.nodes.is_empty());
+        assert!(g.edges.is_empty());
+    }
+
+    #[test]
+    fn test_malformed_very_long_label() {
+        let long_name = "x".repeat(1000);
+        let src = format!("fn {}() -> done\n", long_name);
+        let g = parse(&src);
+        // Parser may or may not include the node, but must not panic.
+        // The sanitized id will be valid since 'x' is alphanumeric.
+        assert!(g.nodes.is_empty() || g.nodes.len() == 2);
+        assert!(g.edges.is_empty() || g.edges.len() == 1);
+        if let Some(node) = g.nodes.get(&long_name) {
+            assert_eq!(node.id, long_name);
+            assert_eq!(node.identity_key, long_name);
+        }
     }
 }

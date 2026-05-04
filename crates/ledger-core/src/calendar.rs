@@ -7,8 +7,8 @@ use chrono::{Datelike, Days, Months, NaiveDate};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::legal::Jurisdiction;
 use crate::ledger_ops::OperationKind;
+use crate::legal::Jurisdiction;
 
 // ---------------------------------------------------------------------------
 // Recurrence rule
@@ -134,8 +134,8 @@ impl BusinessCalendar {
     /// Load from a TOML file. The TOML format mirrors [`ScheduledEvent`] fields.
     pub fn from_toml_file(path: &std::path::Path) -> Result<Self, CalendarError> {
         let raw = std::fs::read_to_string(path)?;
-        let parsed: TomlCalendar = toml::from_str(&raw)
-            .map_err(|e| CalendarError::Toml(e.to_string()))?;
+        let parsed: TomlCalendar =
+            toml::from_str(&raw).map_err(|e| CalendarError::Toml(e.to_string()))?;
 
         let events = parsed
             .events
@@ -164,18 +164,10 @@ impl BusinessCalendar {
     /// constructed (e.g. day_of_month 31 in February).
     pub fn next_due(rule: &RecurrenceRule, after: NaiveDate) -> Option<NaiveDate> {
         match rule {
-            RecurrenceRule::Monthly { day_of_month } => {
-                next_monthly(after, *day_of_month)
-            }
-            RecurrenceRule::Annual { month, day } => {
-                next_annual(after, *month, *day)
-            }
-            RecurrenceRule::QuarterlyEstimated { day } => {
-                next_quarterly_estimated(after, *day)
-            }
-            RecurrenceRule::EveryNDays { n } => {
-                after.checked_add_days(Days::new(*n as u64))
-            }
+            RecurrenceRule::Monthly { day_of_month } => next_monthly(after, *day_of_month),
+            RecurrenceRule::Annual { month, day } => next_annual(after, *month, *day),
+            RecurrenceRule::QuarterlyEstimated { day } => next_quarterly_estimated(after, *day),
+            RecurrenceRule::EveryNDays { n } => after.checked_add_days(Days::new(*n as u64)),
             RecurrenceRule::CronExpr(_) => None,
         }
     }
@@ -290,7 +282,8 @@ impl BusinessCalendar {
             },
             ScheduledEvent {
                 id: "us-fatca-8938".to_string(),
-                description: "FATCA Form 8938 (foreign financial assets) due with return".to_string(),
+                description: "FATCA Form 8938 (foreign financial assets) due with return"
+                    .to_string(),
                 recurrence: RecurrenceRule::Annual { month: 4, day: 15 },
                 operation: OperationKind::CheckTaxDeadline {
                     deadline_id: "us-fatca-8938".to_string(),
@@ -346,7 +339,8 @@ impl BusinessCalendar {
             },
             ScheduledEvent {
                 id: "au-annual-return-tax-agent".to_string(),
-                description: "AU income tax return with registered tax agent due May 15".to_string(),
+                description: "AU income tax return with registered tax agent due May 15"
+                    .to_string(),
                 recurrence: RecurrenceRule::Annual { month: 5, day: 15 },
                 operation: OperationKind::CheckTaxDeadline {
                     deadline_id: "au-annual-return-tax-agent".to_string(),
@@ -354,7 +348,11 @@ impl BusinessCalendar {
                 jurisdiction: Some(Jurisdiction::AU),
                 enabled: true,
                 last_run: None,
-                tags: vec!["au".to_string(), "annual-return".to_string(), "tax-agent".to_string()],
+                tags: vec![
+                    "au".to_string(),
+                    "annual-return".to_string(),
+                    "tax-agent".to_string(),
+                ],
             },
             ScheduledEvent {
                 id: "au-monthly-ingest".to_string(),
@@ -627,7 +625,12 @@ mod tests {
         let items = cal.upcoming(from, 60);
         // Verify sort order
         for w in items.windows(2) {
-            assert!(w[0].0 <= w[1].0, "dates out of order: {:?} > {:?}", w[0].0, w[1].0);
+            assert!(
+                w[0].0 <= w[1].0,
+                "dates out of order: {:?} > {:?}",
+                w[0].0,
+                w[1].0
+            );
         }
     }
 
@@ -690,7 +693,10 @@ mod tests {
     fn events_by_tag_returns_matching() {
         let cal = BusinessCalendar::us_tax_defaults();
         let fbar_events = cal.events_by_tag("fbar");
-        assert!(!fbar_events.is_empty(), "expected at least one fbar-tagged event");
+        assert!(
+            !fbar_events.is_empty(),
+            "expected at least one fbar-tagged event"
+        );
         for ev in &fbar_events {
             assert!(ev.tags.contains(&"fbar".to_string()));
         }

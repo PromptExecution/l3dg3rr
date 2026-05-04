@@ -2,6 +2,31 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v1.8.1 - 2026-05-02
+#### Features
+- (**b00t-iface**) SARIF module enhancements and ralph stub - (27cabfa) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+- (**datum**) AST linter, logic gates, protocol constraint system, and tomllmd compiler - (d90660e) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+- (**ledgerr-mcp**) generic McpProvider trait and stdio providers for b00t, just, ir0ntology - (ccbf9e6) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+- (**prd7**) sunset legacy dispatch behind cfg feature flag - (496bdcf) - Claude Sonnet (coordinator)
+- (**prd7**) McpProvider trait, actor/gate modules, ledgerr-mcp-core crate - (2ec1ae8) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+- (**prd7**) Phase 0 — wire constraint + legal solvers into pipeline; add type attestation concept - (44ac9a5) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+- (**prd9**) Phase 0 — isometric pipeline visualization types and lint suite - (613127d) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+- add b00t-iface interface library with datum lifecycle, autoresearch, SARIF lint, isometric viz, and b00t↔l3dg3rr handshake - (89bfbaa) - Claude Sonnet (coordinator)
+#### Bug Fixes
+- (**b00t-iface**) use expect() instead of unwrap() on tempdir creation in tests - (bc89f33) - copilot-swe-agent[bot], *elasticdotventures*
+- (**b00t-iface**) fix clippy approx_constant and gate external-dir tests with tempdir/real_datums - (f495e7e) - copilot-swe-agent[bot], *elasticdotventures*
+- (**datum**) correct symbolic_gate_test! macro doc — comma-separated args, no recursion - (47e91bb) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+- address PR review feedback - path traversal validation, mkdir, and clippy lints - (6f11460) - copilot-swe-agent[bot], *elasticdotventures*
+#### Documentation
+- (**agents**) operational notes for tomllmd format, McpProvider invariant, datum AST linter - (379220a) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+#### Tests
+- (**ledger-core**) add legal-z3 native integration test; wire libz3-dev and datum CI steps - (4dfd2a6) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+#### Miscellaneous Chores
+- ignore .codebase-memory local MCP index - (606f553) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+- ignore app4dog artifacts; update Cargo.lock - (cb9c8ed) - Claude Sonnet (coordinator), *Claude Sonnet 4.6*
+
+- - -
+
 ## v1.8.0 - 2026-05-01
 #### Miscellaneous Chores
 - (**version**) v1.7.0 - (9162007) - Claude Sonnet (coordinator)

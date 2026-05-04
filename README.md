@@ -116,7 +116,8 @@ See [Capability Map](book/src/capability-map.md) for the full component table.
 | Document shape classifier | Implemented | vendor/format inference for bank statements and CSVs |
 | Business calendar | Implemented | US/AU tax defaults and recurring events |
 | Validation disposition model | Implemented | unrecoverable/recoverable/advisory issue handling |
-| Legal solver path | Partial | AU GST and US Schedule C hard predicates; native Z3 behind `ledger-core/legal-z3` |
+| Constraint + legal synergy layer | Implemented | `ConstraintEvaluation → Issue`, `Z3Result → Issue`, `CommitGate`, `verify_legal()`, `check_constraints()` wired into pipeline (PRD-7 Phase 0) |
+| Legal solver path | Implemented | AU GST s38-190/s40-5, AU FBT, US Schedule C, US FBAR, US FEIE; Z3 behind `ledger-core/legal-z3`; `Jurisdiction::legal_ruleset()` |
 | Workflow TOML compiler | Implemented | Mermaid, Rhai FSM, Rust enum generation |
 | mdBook Rhai-to-Mermaid preprocessor | Implemented | supports `fn`, `if`, and `match` diagram DSL lines |
 | Live Rhai docs editor | Implemented | synchronized isometric and Mermaid views |
@@ -126,6 +127,124 @@ See [Capability Map](book/src/capability-map.md) for the full component table.
 | Evidence traceability (arc-kit-au) | Implemented | petgraph-backed provenance graph with deterministic node identity |
 | Docling extraction bridge | Missing | planned local extraction sidecar |
 | File watcher | Missing | `notify` not yet wired as an end-to-end inbox loop |
+
+
+## Future Ambitions
+
+The roadmap beyond the current stable capability set spans three planned directions. See the linked PRDs for full specification.
+
+### PRD-7: Legal Intelligence Layer — Constraint Synergies
+
+[PRD-7.md](PRD-7.md) specifies the complete integration of the three verification layers (Kasuari constraint solver, Z3 legal solver, typed pipeline) into a unified, jurisdiction-aware pipeline.
+
+Phase 0 is implemented (constraint + legal signals now flow into `MetaCtx` and produce typed `Issue`s). Remaining phases:
+
+- **Phase 1:** FBAR, FEIE, AU s40-5, AU FBT production rule evaluation with `TransactionFacts` auto-populated from pipeline state
+- **Phase 2:** Symbolic Z3 upgrade — violations produce full Z3 models with satisfying assignments, not just witness strings; constraint consistency xtask checks vendor profiles against legal rule sets
+- **Phase 3:** Excel `_audit` sheet materialization — every committed transaction row gets `constraint_score`, `legal_result`, `disposition`, and `stage_trace_json` columns for CPA review
+
+### PRD-8: Kani Formal Verification
+
+[PRD-8.md](PRD-8.md) specifies a formal verification suite using the Kani bit-precise model checker to prove the type system has no arithmetic gaps between versions.
+
+Key harnesses planned:
+- `InvoiceConstraintSolver` arithmetic correctness (no overflow, correct GST tolerance)
+- `VendorConstraintSet` interval invariants (p05 ≤ p95, non-negative)
+- `EvidenceGraph` structural integrity (no duplicate nodes/edges, NodeId determinism)
+- `EvidenceChain<S>` typestate transition completeness
+- Blake3 ID determinism (same inputs → same hash, always)
+- `CommitGate` exhaustiveness (every `Reconciled` state routes to exactly one gate)
+
+### PRD-6-FUTURE: Type Attestation System
+
+[PRD-6-FUTURE.md](PRD-6-FUTURE.md) defines a longer-horizon capability: a `#[attested("invariant")]` proc-macro lint that forces any type claiming a formal property to provide machine-verifiable assertions checked by both Z3 (logical predicates) and Kasuari (numerical bounds), formally proved by Kani, and recorded in an immutable append-only invariant ledger.
+
+Core idea: the Excel workbook gains a `_invariants` sheet where every type-level claim (e.g., "this invoice GST arithmetic is valid", "this pipeline state has passed legal review") is a persistent, Blake3-chained record linking the runtime verification result to the Kani proof that held at build time. New invariants can be registered by any crate at runtime without modifying `ledger-core`, making the knowledge system self-extensible.
+
+This closes the gap between structural type safety (what the Rust type system currently enforces) and semantic correctness (what a CPA needs to trust the output).
+
+## <|🥾|> b00t — Capability Surface
+
+`l3dg3rr` works in concert with the `_b00t_` ecosystem: a mesh of typed, lazy-loaded capabilities that govern how agents discover, install, and execute skills, roles, and blessings.
+
+### Datum Types
+
+Every capability in the b00t mesh is expressed as a `.datum` file — a typed document with a structured AST (`crates/datum/src/ast.rs`), logic gate primitives (`crates/datum/src/logic.rs`), protocol encoding analysis (`crates/datum/src/protocol.rs`), and `.tomllmd` compound document format for summary-level distillation (`verbatim` / `executive` / `epigram`).
+
+Core datum types in the mesh:
+
+| Type | Purpose | Example |
+|---|---|---|
+| `mcp` | MCP server capability | `b00t-mcp.mcp`, `just-mcp.mcp` |
+| `cli` | CLI tool capability | `just.cli`, `uv.cli`, `task.cli` |
+| `install` | Installation recipe | `rust.install`, `docker.install` |
+| `config` | Configuration schema | `opencode.config`, `b00t.config` |
+| `skill` | Agent skill definition | `managing-kubernetes-clusters.skill` |
+| `workflow` | Multi-step automation | `release.workflow`, `deploy.workflow` |
+| `ontology` | Entity relationship graph | `capability.ontology` |
+| `agent` | Agent role/persona | `executive.agent`, `operator.agent` |
+| `provider` | MCP provider registration | `b00t.provider`, `just.provider` |
+| `surface` | ProcessSurface lifecycle | `ralph-loop.surface` |
+
+### Lazy Loading
+
+Skills are lazy-loaded by progressive disclosure: a skill is only ingested into context when a matching capability trigger fires. The capability map (`B00T-CAPABILITY-MAP.md`) tracks which datums map to which skill names, and the `RuleRegistry` (`crates/ledger-core/src/rule_registry.rs`) uses deterministic keyword waterfall + semantic candidate selection to route requests to the right rule set.
+
+### Ralph Loop & Autoresearch
+
+Between capability loads and skill iterations, the Ralph loop (`crates/b00t-iface/src/ralph.rs`) drives an iterative propose → execute → judge → record cycle:
+
+```text
+Init → [Propose → Execute → Judge → Record → Maintain]^n → Terminate
+```
+
+This generalizes the [karpathy/autoresearch](https://github.com/karpathy/autoresearch) pattern as a typed `ProcessSurface` with governance-enforced TTL, crash budget, max iterations, and cadence. Each iteration generates an `ExperimentVerdict` (Pass/Fail) that feeds into the next proposal — the agent keeps iterating until the task objective is met or the budget is exhausted.
+
+The `SurfaceHarness` (`crates/b00t-iface/src/exec/harness.rs`) wraps any `ProcessSurface` with a `SurfaceMachine` state machine and `GovernancePolicy` constraints, producing a `PromiseChain` audit record for every lifecycle transition.
+
+### Soul Configuration
+
+The system determines capability preference using an ordered match of agent role tier (`sm0l` / `ch0nky` / `frontier`), skill invariant tags, and context window budget. Selection follows:
+
+1. Agent role tier (Executive → Operator → Specialist → Auditor)
+2. Skill invariant tags (`#kebab-case` tags from `crates/ledger-core/src/tags.rs`)
+3. Context window budget (truncation-aware, preferring smaller datum summary levels)
+4. Compounding metadata — `.tomllmd` merge strategies can combine two+ datums at different summary levels into a higher-order meta-learn datum
+
+### Datum Visualization
+
+Datum types have a dedicated visualization layer:
+- **Gate-level**: `crates/datum/src/logic.rs` defines NAND, NOR, ADD, WAIT, TX, RX, CAP gates with typed port arity and flux capacitor meta-state stability
+- **Protocol encoding**: `crates/datum/src/protocol.rs` evaluates Z3-style XOR optimality (`O = P XOR B`) and constraint strength (Required / Strong / Medium / Weak)
+- **Isometric rendering**: `crates/b00t-iface/src/viz/mod.rs` produces SVG/glTF scene graphs with semantic role-driven icon/color/layout
+- **Live editor**: The mdBook live Rhai editor (synchronized isometric and Mermaid views) renders datum-type graphs with animated SVG reflow
+
+### Agent/MCP Interop
+
+The `McpProvider` trait (`crates/ledgerr-mcp/src/provider.rs`) and `McpProviderRegistry` allow b00t's external MCP providers (b00t-mcp, just, ir0ntology) to register their tools alongside the built-in `ledgerr_*` capability families. The `ServiceActor` gate system (`crates/ledgerr-mcp/src/actor.rs`, `gate.rs`) routes typed messages through channels, forming the concrete dataflow that maps to the flux capacitor gate metaphor.
+
+---
+
+# Humble Beginnings
+
+This project started as a local-first bookkeeping pipeline — ingest PDF statements, classify transactions with Rhai rules, export a CPA-auditable Excel workbook. The system thesis was a single directed graph of financial document processing:
+
+```rhai
+fn source_documents() -> typed_document_graph
+fn typed_document_graph() -> extraction_and_normalization
+fn extraction_and_normalization() -> transaction_classification
+fn transaction_classification() -> validation_and_legal_checks
+fn validation_and_legal_checks() -> reconciliation
+fn reconciliation() -> workbook_export
+fn workbook_export() -> cpa_review
+fn cpa_review() -> audit_history
+```
+
+That pipeline is still real and still works. But the architecture kept revealing a deeper structure: the bookkeeping pipeline was one *surface* of a more general executive dashboarding and logic process system. The same typed-state machine that governs document ingest is now also governing agent capability discovery, skill lifecycle, and LLM verification loops. The same `MetaCtx` carry-forward confidence model that compounds validation scores also governs which b00t capabilities load into agent context.
+
+The workbook remains the canonical human/accountant artifact. But the system behind it is now a formally grounded logic process control plane, where every transition — financial or agentic — is typed, traced, and governed by the same verification infrastructure.
+
+---
 
 ## Documentation Map
 
@@ -188,6 +307,40 @@ Use `Justfile` as the executable workflow contract. When a command changes, upda
 - `crates/ledgerr-mcp/src/contract.rs`: source of truth for the published MCP surface.
 
 The default MCP catalog should stay collapsed to the top-level `ledgerr_*` capability families. Add sub-operations through required `action` parameters instead of expanding the default tool list.
+
+## Release and Versioning Policy
+
+l3dg3rr follows an **odd/even minor version** convention, similar to the Ubuntu LTS model.
+
+| Minor version | Series | Characteristics |
+|---|---|---|
+| Even (`1.0`, `1.2`, `1.4`, `1.8`, …) | **Stable** | Long-term supported. Full test gate including local Phi-4 model-inference tests. GitHub release published. Suitable for production operator use. |
+| Odd (`1.1`, `1.3`, `1.5`, `1.7`, …) | **Dev / Experimental** | Fast-moving. Breaking changes within a major series are permitted. Model-inference tests may be skipped. GitHub pre-release created by the same `release` workflow. No LTS support. |
+
+### Release commands
+
+```sh
+# Release bump — outcome depends on the next version:
+# - even minor => stable release, full test gate including phi4 inference, GitHub release created
+# - odd minor => dev/experimental release, fast gate only, no stable GitHub release
+just release minor   # or: just release major / just release patch
+
+# Fast test gate only (excludes phi4 GGUF inference, ~seconds)
+just test-fast
+```
+
+### What the `release` recipe does
+
+1. Detects the next version's minor parity and selects the appropriate test gate:
+   - **Even minor (stable)** — full `cargo test` suite including phi4 GGUF inference
+   - **Odd minor (dev)** — fast gate only (`--skip phi4_produces_output --skip phi4_mistral_produces_output`)
+2. Runs `./scripts/e2e_mvp.sh` end-to-end smoke path
+3. Calls `cog bump --<version>` — sets version in all `Cargo.toml` files, creates a conventional-commit bump commit and a semver git tag
+4. Pushes branch and tags to origin with `git push --follow-tags`
+5. **Even minor** — creates a stable GitHub release (`gh release create --latest`)
+6. **Odd minor** — creates a GitHub pre-release (`gh release create --prerelease`)
+
+Pushing the tag triggers `.github/workflows/docs.yml`, which redeploys GitHub Pages regardless of minor parity.
 
 ## Docker
 

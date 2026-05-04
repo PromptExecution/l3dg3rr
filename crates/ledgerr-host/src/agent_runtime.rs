@@ -348,7 +348,7 @@ impl RigAgentRuntime {
             }
         };
         let assistant_text =
-            extract_assistant_message(response.choice.into_iter()).ok_or_else(|| {
+            extract_assistant_message(response.choice).ok_or_else(|| {
                 self.audit_sink
                     .record_model_call(event_base.failed("missing_assistant_message"));
                 AgentRuntimeError::MissingAssistantMessage

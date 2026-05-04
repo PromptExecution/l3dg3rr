@@ -1,0 +1,28 @@
+[package]
+name = "b00t-iface"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "b00t process interface library — lifecycle management for MCP servers, sidecars, and daemons"
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json = "1"
+thiserror = { workspace = true }
+tracing = { workspace = true }
+notify = "8"
+datum = { path = "../datum" }
+reqwest = { workspace = true, optional = true }
+dirs = "6"
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[features]
+default = []
+b00t = []
+autoresearch = ["b00t", "dep:reqwest"]
+real_datums = []
+
+[lints]
+workspace = true

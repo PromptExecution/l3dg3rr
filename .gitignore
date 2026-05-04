@@ -20,3 +20,8 @@
 book/book/
 prd.md
 target/
+.claude/scheduled_tasks.lock
+
+# app4dog — external project datum files (not tracked in this repo)
+app4dog*
+.codebase-memory/

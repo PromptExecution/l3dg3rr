@@ -56,20 +56,33 @@ impl WorkflowToml {
             }
             // Guard without else
             if t.guard.is_some() && t.else_to.is_none() {
-                errors.push(format!("transition {}→{} has guard but no else", t.from, t.to));
+                errors.push(format!(
+                    "transition {}→{} has guard but no else",
+                    t.from, t.to
+                ));
             }
         }
 
         // Check exactly one initial
-        let initials: Vec<_> = self.state.iter().filter(|s| s.initial == Some(true)).collect();
+        let initials: Vec<_> = self
+            .state
+            .iter()
+            .filter(|s| s.initial == Some(true))
+            .collect();
         if initials.len() != 1 {
-            errors.push(format!("exactly one initial state required, found {}", initials.len()));
+            errors.push(format!(
+                "exactly one initial state required, found {}",
+                initials.len()
+            ));
         }
 
         // Check non-terminal states have outgoing transitions
         for s in self.state.iter().filter(|s| s.terminal != Some(true)) {
             if !self.transitions.iter().any(|t| t.from == s.id) {
-                errors.push(format!("non-terminal state {} has no outgoing transitions", s.id));
+                errors.push(format!(
+                    "non-terminal state {} has no outgoing transitions",
+                    s.id
+                ));
             }
         }
 
@@ -120,13 +133,15 @@ impl WorkflowToml {
             let from = &t.from;
             let to = &t.to;
             let event = &t.event;
-            
+
             let arm = match &t.guard {
                 None => format!("        [\"{}\", \"{}\"] => \"{}\"", from, event, to),
                 Some(g) => {
                     let else_to = t.else_to.as_deref().unwrap_or(to);
-                    format!("        [\"{}\", \"{}\"] => if {} then \"{}\" else \"{}\"",
-                        from, event, g, to, else_to)
+                    format!(
+                        "        [\"{}\", \"{}\"] => if {} then \"{}\" else \"{}\"",
+                        from, event, g, to, else_to
+                    )
                 }
             };
             arms.push(arm);

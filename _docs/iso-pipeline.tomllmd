@@ -1,0 +1,186 @@
++++
+title = "Isometric Pipeline Visualization"
+module = "ledger-core::iso"
+layer = "visualization"
+prd = ["PRD-9", "PRD-6-FUTURE"]
+status = "phase-0-complete"
+lint_cmd = "cargo test -p ledger-core --test iso_lint"
++++
+
+# iso-pipeline — dynamic documentation section
+
+## verbatim
+
+The isometric pipeline visualization system maps every PRD-6 / PRD-7 domain type
+to a 3-D coordinate in a 6-layer ZLayer stack (Document z=0 through Attestation z=5).
+The X axis encodes pipeline progress; Y encodes confidence lift; Z encodes verification depth.
+Each type implements `HasVisualization` returning a `VisualizationSpec` with:
+- `SemanticType` — one of 12 classification categories
+- `ZLayer` — z-axis stack position (0–5)
+- `rhai_dsl` — a concrete Rhai snippet demonstrating the type's role in the pipeline
+- `description` — a single-line human summary
+
+The lint suite enforces this contract: all 20 tests must pass before the visualization
+layer is considered sound.
+
+Live status:
+{{ cmd: cargo test -p ledger-core --test iso_lint 2>&1 | grep -E "^test result|FAILED" }}
+
+## executive
+
+20 domain types across 5 ZLayers implement `HasVisualization`.
+Lint tests enforce description, DSL, layer index, and semantic type completeness.
+SVG SMIL animation is Phase 0; rerun.io (Phase 1) and manim (Phase 2) are planned.
+The z=5 Attestation layer is reserved for PRD-6-FUTURE (`ledger-attest` proc-macro).
+
+## epigram
+
+*The pipeline is a path through verified space — each type a point that knows where it stands.*
+
+---
+
+## ZLayer stack (machine-readable)
+
+```toml
+[[layer]]
+index = 0
+name = "Document"
+color = "#334155"
+base_z = 0.0
+types = []
+
+[[layer]]
+index = 1
+name = "Pipeline"
+color = "#1d4ed8"
+base_z = 136.0
+types = [
+  "PipelineState<Ingested>",
+  "PipelineState<Validated>",
+  "PipelineState<Classified>",
+  "PipelineState<Reconciled>",
+  "PipelineState<Committed>",
+  "PipelineState<NeedsReview>",
+  "CommitGate",
+  "MetaFlag",
+  "StageResult<T>",
+]
+
+[[layer]]
+index = 2
+name = "Constraint"
+color = "#7c3aed"
+base_z = 272.0
+types = [
+  "ConstraintEvaluation",
+  "VendorConstraintSet",
+  "InvoiceConstraintSolver",
+  "InvoiceVerification",
+  "Issue",
+]
+
+[[layer]]
+index = 3
+name = "Legal"
+color = "#b91c1c"
+base_z = 408.0
+types = [
+  "Z3Result",
+  "LegalRule",
+  "LegalSolver",
+  "Jurisdiction",
+  "TransactionFacts",
+]
+
+[[layer]]
+index = 4
+name = "FormalProof"
+color = "#0f766e"
+base_z = 544.0
+types = ["KasuariSolver"]
+
+[[layer]]
+index = 5
+name = "Attestation"
+color = "#b45309"
+base_z = 680.0
+types = []  # PRD-6-FUTURE: InvariantEntry, AttestationSpec, InvariantRegistry
+```
+
+---
+
+## Projection invariant
+
+```toml
+[projection_test]
+input = { x = 192.0, y = 0.0, z = 0.0 }
+scale = 1.0
+origin = { x = 0.0, y = 0.0 }
+expected = { screen_x = 166.272, screen_y = 96.0 }
+tolerance = 0.01
+```
+
+Verification:
+{{ cmd: cargo test -p ledger-core iso_project_matches_js_contract 2>&1 | grep -E "^test |FAILED" }}
+
+---
+
+## Animation backends
+
+```toml
+[[animation_backend]]
+phase = 0
+name = "SVG SMIL"
+method = "IsoAnimationPath::to_smil_svg"
+output = "inline <animateTransform>"
+status = "implemented"
+
+[[animation_backend]]
+phase = 1
+name = "rerun.io"
+method = "rerun crate integration"
+output = "interactive 3D timeline"
+status = "planned"
+
+[[animation_backend]]
+phase = 2
+name = "manim"
+method = "IsoAnimationPath::to_manim_script"
+output = "Python scene stub -> rendered video"
+status = "implemented-stub"
+```
+
+---
+
+## EntanglementRef
+
+```toml
+[[entanglement]]
+ref = "PRD-9"
+path = "PRD-9.md"
+relation = "specification"
+
+[[entanglement]]
+ref = "PRD-6-FUTURE"
+path = "PRD-6-FUTURE.md"
+relation = "future-layer"
+note = "z=5 Attestation layer reserved for ledger-attest proc-macro"
+
+[[entanglement]]
+ref = "iso_lint"
+path = "crates/ledger-core/tests/iso_lint.rs"
+relation = "enforcement"
+note = "20 compile-time lint tests; CI failure if any fail"
+
+[[entanglement]]
+ref = "iso_objects"
+path = "crates/ledger-core/src/iso_objects.rs"
+relation = "implementation"
+note = "HasVisualization impls for all 20 domain types"
+
+[[entanglement]]
+ref = "rhai-live-core"
+path = "crates/b00t-iface/src/viz/mod.rs"
+relation = "js-parity"
+note = "iso_project formula must match rhai-live-core.js isoProject()"
+```

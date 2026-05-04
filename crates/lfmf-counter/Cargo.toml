@@ -1,0 +1,27 @@
+[package]
+name = "lfmf-counter"
+version.workspace = true
+edition.workspace = true
+description = "LFMF lesson counter with $🦨++ and $🐛++ support"
+license.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+chrono = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "lfmf-stats"
+path = "src/main.rs"
+
+[lints]
+workspace = true
