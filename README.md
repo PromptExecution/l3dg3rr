@@ -2,11 +2,11 @@
 
 [![CI](https://github.com/PromptExecution/l3dg3rr/actions/workflows/ci.yml/badge.svg)](https://github.com/PromptExecution/l3dg3rr/actions/workflows/ci.yml)
 [![Release](https://github.com/PromptExecution/l3dg3rr/actions/workflows/release.yml/badge.svg)](https://github.com/PromptExecution/l3dg3rr/actions/workflows/release.yml)
-[![Documentation](https://img.shields.io/badge/docs-github.io-blue)](https://promptexecution.github.io/l3dg3rr/)
+[![Documentation](https://img.shields.io/badge/docs-github.io-blue)](https://promptexecution.github.io/ledgrrr/)
 
 `l3dg3rr` is a local-first bookkeeping application for turning financial documents into an accountant-usable, CPA-auditable source of truth. Its core shape is a strongly typed, ontologically linked graph of scriptable, visual-first workflows: Rust owns financial invariants, Rhai owns editable classification and workflow rules, and AI/LLM agents drive supervised ETL through MCP tools without taking custody of credentials or approval authority.
 
-Read the live book: <https://promptexecution.github.io/l3dg3rr/>
+Read the live book: <https://promptexecution.github.io/ledgrrr/>
 
 **Primary bookkeeping outcome:** ingest raw historical statements, classify and reconcile transactions, preserve evidence and mutation history, then export a CPA-reviewable Excel workbook without requiring private data to leave the local machine.
 
@@ -96,7 +96,7 @@ Current behavior:
 
 Deep references:
 
-- Live docs: <https://promptexecution.github.io/l3dg3rr/>
+- Live docs: <https://promptexecution.github.io/ledgrrr/>
 - [Match Visualization Plan](book/src/match-visualization-plan.md)
 - [Visualization](book/src/visualize.md)
 - [Workflow](book/src/workflow.md)
@@ -250,7 +250,7 @@ The workbook remains the canonical human/accountant artifact. But the system beh
 
 The published book is the detailed reference and should be preferred over expanding the README indefinitely:
 
-- <https://promptexecution.github.io/l3dg3rr/>: live GitHub Pages book
+- <https://promptexecution.github.io/ledgrrr/>: live GitHub Pages book
 - [Introduction](book/src/intro.md): product guarantees and primary surfaces
 - [MCP Surface](book/src/mcp-surface.md): published `ledgerr_*` tool families
 - [Document Ingestion](book/src/document-ingestion.md): source routing and extraction assumptions

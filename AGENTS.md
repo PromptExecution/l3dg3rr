@@ -341,7 +341,7 @@ Treat this as a standing operational gate, not a one-time migration task.
   - Multi-model verification loop: LLM proposes, second model reviews, operator approves.
   - Multi-jurisdiction: US/AU/UK with rules keyed by Jurisdiction.
 - 2026-04-20: mdbook documentation with executable code examples.
-  - Live at https://promptexecution.github.io/l3dg3rr/
+  - Live at https://promptexecution.github.io/ledgrrr/
   - Every chapter includes executable Rust code examples that can run as integration tests.
   - Include rhai code blocks that parse to Mermaid diagrams: ` ```rhai ` code fences.
   - Keep auto-diagram Rhai blocks to the supported mini-DSL only: `fn source() -> target`, `if expr -> target`, and `match expr => Arm -> target`. Do not drop general imperative Rhai examples into diagram sections unless they are fenced with another language or explicitly meant to render no diagram.
