@@ -219,9 +219,10 @@ fn t00n_opt_str(s: Option<&str>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ChargeCategory, ChargeFrequency, Decimal};
+    use crate::{ChargeCategory, ChargeFrequency};
     use chrono::DateTime;
     use rust_decimal::prelude::FromPrimitive;
+    use rust_decimal::Decimal;
 
     fn sample_row(exp: &str, variant: &str, cost: f64) -> CostAndUsageRow {
         CostAndUsageRow {
