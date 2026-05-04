@@ -17,6 +17,7 @@
 
 use crate::{CostAndUsageRow, FocusDelta};
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 /// Serialize FOCUS CostAndUsage rows to TOON tabular format.
 /// Output includes the `# reqif.yaml` header attribution.
@@ -99,10 +100,8 @@ pub fn focus_rows_to_t00n(
 /// Serialize a FocusDelta to TOON format.
 pub fn focus_delta_to_t00n(delta: &FocusDelta) -> String {
     let mut out = String::new();
-    out.push_str(&format!("# reqif.yaml: focus-delta/v1\n"));
-    out.push_str(&format!(
-        "focus_delta{{experiment_id,control_billed,treatment_billed,delta_billed,recommendation}}:\n"
-    ));
+    out.push_str("# reqif.yaml: focus-delta/v1\n");
+    out.push_str("focus_delta{experiment_id,control_billed,treatment_billed,delta_billed,recommendation}:\n");
     out.push_str(&format!(
         "  {},{:.2},{:.2},{:.2},{}\n",
         delta.experiment_id,
@@ -132,7 +131,7 @@ pub fn experiment_comparison_to_t00n(
     recommendation: &str,
 ) -> String {
     let mut out = String::new();
-    out.push_str(&format!("# reqif.yaml: experiment-score/v1\n"));
+    out.push_str("# reqif.yaml: experiment-score/v1\n");
     out.push_str(&format!("experiment_id: {}\n", t00n_escape(experiment_id)));
     out.push_str("variants[2]{variant,roi,cost,time,accuracy,utility,risk}:\n");
 
@@ -159,6 +158,9 @@ pub fn experiment_comparison_to_t00n(
 /// Validate TOON tabular row count against declared [N].
 /// Returns Ok(count) if valid, Err with diagnostic if mismatch.
 pub fn validate_t00n_row_count(t00n: &str) -> Result<usize, String> {
+    static ROW_COUNT_RE: LazyLock<regex::Regex> =
+        LazyLock::new(|| regex::Regex::new(r"\[(\d+)\]").expect("TOON row-count regex is valid"));
+
     let lines: Vec<&str> = t00n.lines().filter(|l| !l.trim().is_empty() && !l.trim().starts_with('#')).collect();
     if lines.is_empty() {
         return Err("empty t00n document".into());
@@ -166,8 +168,7 @@ pub fn validate_t00n_row_count(t00n: &str) -> Result<usize, String> {
 
     // Find header: matches key[N]{...}:
     let header_line = lines[0];
-    let re = regex::Regex::new(r"\[(\d+)\]").map_err(|e| format!("regex: {e}"))?;
-    let declared: usize = re
+    let declared: usize = ROW_COUNT_RE
         .captures(header_line)
         .and_then(|c| c.get(1))
         .and_then(|m| m.as_str().parse().ok())

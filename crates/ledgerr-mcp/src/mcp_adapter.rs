@@ -108,7 +108,7 @@ pub fn handle_focus_tool(arguments: &Value) -> Value {
         Err(err) => return error_envelope(&err),
     };
 
-    let result = match request {
+    match request {
         crate::contract::FocusArgs::AppendFocusRecord {
             billing_account_id,
             service_name,
@@ -118,21 +118,61 @@ pub fn handle_focus_tool(arguments: &Value) -> Value {
             variant,
             agent_id,
         } => {
+            let record = FocusToolRecord {
+                billing_account_id,
+                service_name,
+                billed_cost,
+                effective_cost,
+                experiment_id: experiment_id.clone(),
+                variant: variant.clone(),
+                agent_id: agent_id.clone(),
+            };
             let input = FocusToolInput {
                 action: "append_focus_record".into(),
-                records: vec![FocusToolRecord {
-                    billing_account_id,
-                    service_name,
-                    billed_cost,
-                    effective_cost,
-                    experiment_id: experiment_id.clone(),
-                    variant: variant.clone(),
-                    agent_id: agent_id.clone(),
-                }],
+                records: vec![record.clone()],
                 experiment_id: experiment_id.clone(),
                 personality: None,
             };
-            focus_tool::handle_focus_tool(input)
+            match focus_tool::handle_focus_tool(input) {
+                Ok(output) => {
+                    // Persist the appended record (not the tool output) to JSONL.
+                    // Path defaults to temp dir; override with FOCUS_SIDECAR_PATH env var.
+                    // TODO: derive path from manifest/workbook path when available in context.
+                    let sidecar_path = std::env::var("FOCUS_SIDECAR_PATH")
+                        .map(std::path::PathBuf::from)
+                        .unwrap_or_else(|_| std::env::temp_dir().join("focus_records.jsonl"));
+                    match serde_json::to_string(&record) {
+                        Ok(serialized) => {
+                            match std::fs::OpenOptions::new()
+                                .create(true)
+                                .append(true)
+                                .open(&sidecar_path)
+                            {
+                                Ok(mut f) => {
+                                    if let Err(e) = writeln!(f, "{serialized}") {
+                                        tracing::warn!(
+                                            path = %sidecar_path.display(),
+                                            err = %e,
+                                            "focus_records JSONL write failed"
+                                        );
+                                    }
+                                }
+                                Err(e) => tracing::warn!(
+                                    path = %sidecar_path.display(),
+                                    err = %e,
+                                    "focus_records JSONL open failed"
+                                ),
+                            }
+                        }
+                        Err(e) => tracing::warn!(err = %e, "focus record serialization failed"),
+                    }
+                    json!({
+                        "content": [text_content(json!(output))],
+                        "isError": false
+                    })
+                }
+                Err(err) => error_envelope(&ToolError::Internal(err)),
+            }
         }
         crate::contract::FocusArgs::QueryFocusSummary => {
             let input = FocusToolInput {
@@ -141,7 +181,10 @@ pub fn handle_focus_tool(arguments: &Value) -> Value {
                 experiment_id: None,
                 personality: None,
             };
-            focus_tool::handle_focus_tool(input)
+            match focus_tool::handle_focus_tool(input) {
+                Ok(output) => json!({ "content": [text_content(json!(output))], "isError": false }),
+                Err(err) => error_envelope(&ToolError::Internal(err)),
+            }
         }
         crate::contract::FocusArgs::ComputeFocusDelta {
             experiment_id,
@@ -173,40 +216,26 @@ pub fn handle_focus_tool(arguments: &Value) -> Value {
                 experiment_id: Some(experiment_id),
                 personality: None,
             };
-            focus_tool::handle_focus_tool(input)
+            match focus_tool::handle_focus_tool(input) {
+                Ok(output) => json!({ "content": [text_content(json!(output))], "isError": false }),
+                Err(err) => error_envelope(&ToolError::Internal(err)),
+            }
         }
         crate::contract::FocusArgs::ExperimentScore {
             experiment_id,
-            score: _score,
-            variant,
+            personality,
+            variant: _variant,
         } => {
             let input = FocusToolInput {
                 action: "experiment_score".into(),
                 records: vec![],
                 experiment_id: Some(experiment_id),
-                personality: Some(variant),
+                personality,
             };
-            focus_tool::handle_focus_tool(input)
-        }
-    };
-
-    match result {
-        Ok(output) => {
-            // Persist to JSONL sidecar
-            if let Ok(mut f) = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open("focus_records.jsonl")
-            {
-                let _ = writeln!(f, "{}", serde_json::to_string(&output).unwrap_or_default());
+            match focus_tool::handle_focus_tool(input) {
+                Ok(output) => json!({ "content": [text_content(json!(output))], "isError": false }),
+                Err(err) => error_envelope(&ToolError::Internal(err)),
             }
-            json!({
-                "content": [text_content(json!(output))],
-                "isError": false
-            })
-        }
-        Err(err) => {
-            error_envelope(&ToolError::Internal(err))
         }
     }
 }

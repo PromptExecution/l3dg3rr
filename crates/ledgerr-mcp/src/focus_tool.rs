@@ -63,6 +63,74 @@ pub fn handle_focus_tool(input: FocusToolInput) -> Result<FocusToolOutput, Strin
     }
 }
 
+/// Convert a `FocusToolRecord` into a `CostAndUsageRow`, returning an error if
+/// any numeric value cannot be converted to `Decimal`.
+fn record_to_row(r: &FocusToolRecord, personality: Option<&str>) -> Result<CostAndUsageRow, String> {
+    Ok(CostAndUsageRow {
+        billing_account_id: r.billing_account_id.clone(),
+        billing_account_name: None,
+        billing_currency: "FOCUS".into(),
+        billing_period_start: chrono::Utc::now(),
+        billing_period_end: chrono::Utc::now(),
+        charge_period_start: chrono::Utc::now(),
+        charge_period_end: chrono::Utc::now(),
+        charge_category: ChargeCategory::Usage,
+        charge_frequency: ChargeFrequency::UsageBased,
+        billed_cost: Decimal::from_f64(r.billed_cost)
+            .ok_or_else(|| format!("cannot convert billed_cost {} to Decimal", r.billed_cost))?,
+        effective_cost: Decimal::from_f64(r.effective_cost)
+            .ok_or_else(|| format!("cannot convert effective_cost {} to Decimal", r.effective_cost))?,
+        service_provider_name: "ledgrrr".into(),
+        service_name: r.service_name.clone(),
+        sku_id: "focus-eval".into(),
+        billing_account_type: None,
+        charge_class: None,
+        charge_description: None,
+        commitment_discount_id: None,
+        commitment_discount_name: None,
+        commitment_discount_category: None,
+        commitment_discount_type: None,
+        commitment_discount_status: None,
+        commitment_discount_quantity: None,
+        commitment_discount_unit: None,
+        consumed_quantity: None,
+        consumed_unit: None,
+        contracted_cost: None,
+        contracted_unit_price: None,
+        invoice_id: None,
+        invoice_issuer_name: None,
+        list_cost: None,
+        list_unit_price: None,
+        pricing_category: None,
+        pricing_quantity: None,
+        pricing_unit: None,
+        region_id: None,
+        region_name: None,
+        resource_id: None,
+        resource_name: None,
+        resource_type: None,
+        service_category: Some("AI Inference".into()),
+        service_subcategory: None,
+        sku_meter: None,
+        sku_price_id: None,
+        sku_price_details: None,
+        sub_account_id: None,
+        sub_account_name: None,
+        sub_account_type: None,
+        availability_zone: None,
+        capacity_reservation_id: None,
+        capacity_reservation_status: None,
+        host_provider_name: None,
+        tags: HashMap::new(),
+        x_experiment_id: r.experiment_id.clone(),
+        x_variant: r.variant.clone(),
+        x_personality: personality.map(|s| s.to_string()),
+        x_experiment_score: None,
+        x_agent_id: r.agent_id.clone(),
+        x_reasoning_review: None,
+    })
+}
+
 /// Validate a FocusToolRecord against FOCUS v1.3 mandatory columns.
 /// Returns Ok(()) if all mandatory fields are present and non-empty.
 fn validate_focus_record(record: &FocusToolRecord) -> Result<(), String> {
@@ -73,8 +141,15 @@ fn validate_focus_record(record: &FocusToolRecord) -> Result<(), String> {
     if record.service_name.is_empty() {
         errors.push("ServiceName".to_string());
     }
-    if record.billed_cost < 0.0 {
+    if !record.billed_cost.is_finite() {
+        errors.push("BilledCost (non-finite)".to_string());
+    } else if record.billed_cost < 0.0 {
         errors.push("BilledCost (negative)".to_string());
+    }
+    if !record.effective_cost.is_finite() {
+        errors.push("EffectiveCost (non-finite)".to_string());
+    } else if record.effective_cost < 0.0 {
+        errors.push("EffectiveCost (negative)".to_string());
     }
     if !errors.is_empty() {
         return Err(format!("FOCUS validation failed: missing/invalid mandatory columns: {}", errors.join(", ")));
@@ -87,71 +162,12 @@ fn handle_append(input: FocusToolInput) -> Result<FocusToolOutput, String> {
     for record in &input.records {
         validate_focus_record(record)?;
     }
+    let personality = input.personality.as_deref();
     let rows: Vec<CostAndUsageRow> = input
         .records
         .iter()
-        .map(|r| CostAndUsageRow {
-            billing_account_id: r.billing_account_id.clone(),
-            billing_account_name: None,
-            billing_currency: "FOCUS".into(),
-            billing_period_start: chrono::Utc::now(),
-            billing_period_end: chrono::Utc::now(),
-            charge_period_start: chrono::Utc::now(),
-            charge_period_end: chrono::Utc::now(),
-            charge_category: ChargeCategory::Usage,
-            charge_frequency: ChargeFrequency::UsageBased,
-            billed_cost: Decimal::from_f64(r.billed_cost).unwrap_or_default(),
-            effective_cost: Decimal::from_f64(r.effective_cost).unwrap_or_default(),
-            service_provider_name: "ledgrrr".into(),
-            service_name: r.service_name.clone(),
-            sku_id: "focus-eval".into(),
-            billing_account_type: None,
-            charge_class: None,
-            charge_description: None,
-            commitment_discount_id: None,
-            commitment_discount_name: None,
-            commitment_discount_category: None,
-            commitment_discount_type: None,
-            commitment_discount_status: None,
-            commitment_discount_quantity: None,
-            commitment_discount_unit: None,
-            consumed_quantity: None,
-            consumed_unit: None,
-            contracted_cost: None,
-            contracted_unit_price: None,
-            invoice_id: None,
-            invoice_issuer_name: None,
-            list_cost: None,
-            list_unit_price: None,
-            pricing_category: None,
-            pricing_quantity: None,
-            pricing_unit: None,
-            region_id: None,
-            region_name: None,
-            resource_id: None,
-            resource_name: None,
-            resource_type: None,
-            service_category: Some("AI Inference".into()),
-            service_subcategory: None,
-            sku_meter: None,
-            sku_price_id: None,
-            sku_price_details: None,
-            sub_account_id: None,
-            sub_account_name: None,
-            sub_account_type: None,
-            availability_zone: None,
-            capacity_reservation_id: None,
-            capacity_reservation_status: None,
-            host_provider_name: None,
-            tags: HashMap::new(),
-            x_experiment_id: r.experiment_id.clone(),
-            x_variant: r.variant.clone(),
-            x_personality: input.personality.clone(),
-            x_experiment_score: None,
-            x_agent_id: r.agent_id.clone(),
-            x_reasoning_review: None,
-        })
-        .collect();
+        .map(|r| record_to_row(r, personality))
+        .collect::<Result<Vec<_>, _>>()?;
 
     let focus_cli = rows
         .iter()
@@ -188,139 +204,20 @@ fn handle_query_summary(_input: FocusToolInput) -> Result<FocusToolOutput, Strin
 }
 
 fn handle_compute_delta(input: FocusToolInput) -> Result<FocusToolOutput, String> {
+    let personality = input.personality.as_deref();
     let control: Vec<CostAndUsageRow> = input
         .records
         .iter()
         .filter(|r| r.variant.as_deref() == Some("control"))
-        .map(|r| CostAndUsageRow {
-            billing_account_id: r.billing_account_id.clone(),
-            billing_account_name: None,
-            billing_currency: "FOCUS".into(),
-            billing_period_start: chrono::Utc::now(),
-            billing_period_end: chrono::Utc::now(),
-            charge_period_start: chrono::Utc::now(),
-            charge_period_end: chrono::Utc::now(),
-            charge_category: ChargeCategory::Usage,
-            charge_frequency: ChargeFrequency::UsageBased,
-            billed_cost: Decimal::from_f64(r.billed_cost).unwrap_or_default(),
-            effective_cost: Decimal::from_f64(r.effective_cost).unwrap_or_default(),
-            service_provider_name: "ledgrrr".into(),
-            service_name: r.service_name.clone(),
-            sku_id: "focus-eval".into(),
-            billing_account_type: None,
-            charge_class: None,
-            charge_description: None,
-            commitment_discount_id: None,
-            commitment_discount_name: None,
-            commitment_discount_category: None,
-            commitment_discount_type: None,
-            commitment_discount_status: None,
-            commitment_discount_quantity: None,
-            commitment_discount_unit: None,
-            consumed_quantity: None,
-            consumed_unit: None,
-            contracted_cost: None,
-            contracted_unit_price: None,
-            invoice_id: None,
-            invoice_issuer_name: None,
-            list_cost: None,
-            list_unit_price: None,
-            pricing_category: None,
-            pricing_quantity: None,
-            pricing_unit: None,
-            region_id: None,
-            region_name: None,
-            resource_id: None,
-            resource_name: None,
-            resource_type: None,
-            service_category: Some("AI Inference".into()),
-            service_subcategory: None,
-            sku_meter: None,
-            sku_price_id: None,
-            sku_price_details: None,
-            sub_account_id: None,
-            sub_account_name: None,
-            sub_account_type: None,
-            availability_zone: None,
-            capacity_reservation_id: None,
-            capacity_reservation_status: None,
-            host_provider_name: None,
-            tags: HashMap::new(),
-            x_experiment_id: r.experiment_id.clone(),
-            x_variant: r.variant.clone(),
-            x_personality: input.personality.clone(),
-            x_experiment_score: None,
-            x_agent_id: r.agent_id.clone(),
-            x_reasoning_review: None,
-        })
-        .collect();
+        .map(|r| record_to_row(r, personality))
+        .collect::<Result<Vec<_>, _>>()?;
 
     let treatment: Vec<CostAndUsageRow> = input
         .records
         .iter()
         .filter(|r| r.variant.as_deref() == Some("treatment"))
-        .map(|r| CostAndUsageRow {
-            billing_account_id: r.billing_account_id.clone(),
-            billing_account_name: None,
-            billing_currency: "FOCUS".into(),
-            billing_period_start: chrono::Utc::now(),
-            billing_period_end: chrono::Utc::now(),
-            charge_period_start: chrono::Utc::now(),
-            charge_period_end: chrono::Utc::now(),
-            charge_category: ChargeCategory::Usage,
-            charge_frequency: ChargeFrequency::UsageBased,
-            billed_cost: Decimal::from_f64(r.billed_cost).unwrap_or_default(),
-            effective_cost: Decimal::from_f64(r.effective_cost).unwrap_or_default(),
-            service_provider_name: "ledgrrr".into(),
-            service_name: r.service_name.clone(),
-            sku_id: "focus-eval".into(),
-            billing_account_type: None,
-            charge_class: None,
-            charge_description: None,
-            commitment_discount_id: None,
-            commitment_discount_name: None,
-            commitment_discount_category: None,
-            commitment_discount_type: None,
-            commitment_discount_status: None,
-            commitment_discount_quantity: None,
-            commitment_discount_unit: None,
-            consumed_quantity: None,
-            consumed_unit: None,
-            contracted_cost: None,
-            contracted_unit_price: None,
-            invoice_id: None,
-            invoice_issuer_name: None,
-            list_cost: None,
-            list_unit_price: None,
-            pricing_category: None,
-            pricing_quantity: None,
-            pricing_unit: None,
-            region_id: None,
-            region_name: None,
-            resource_id: None,
-            resource_name: None,
-            resource_type: None,
-            service_category: Some("AI Inference".into()),
-            service_subcategory: None,
-            sku_meter: None,
-            sku_price_id: None,
-            sku_price_details: None,
-            sub_account_id: None,
-            sub_account_name: None,
-            sub_account_type: None,
-            availability_zone: None,
-            capacity_reservation_id: None,
-            capacity_reservation_status: None,
-            host_provider_name: None,
-            tags: HashMap::new(),
-            x_experiment_id: r.experiment_id.clone(),
-            x_variant: r.variant.clone(),
-            x_personality: input.personality.clone(),
-            x_experiment_score: None,
-            x_agent_id: r.agent_id.clone(),
-            x_reasoning_review: None,
-        })
-        .collect();
+        .map(|r| record_to_row(r, personality))
+        .collect::<Result<Vec<_>, _>>()?;
 
     let mut cs = HashMap::new();
     let mut ts = HashMap::new();

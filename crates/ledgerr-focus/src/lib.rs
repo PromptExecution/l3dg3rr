@@ -270,35 +270,61 @@ impl PersonalityProfile {
     }
 }
 
-// ── Arrow RecordBatch serde (feature-gated) ─────────────────────────────────
+// ── t00n TOON format serializer (always available) ───────────────────────────
 
-#[cfg(feature = "arrow-serde")]
 pub mod t00n;
 
+// ── Arrow RecordBatch serde (feature-gated behind "arrow-serde") ─────────────
+
+#[cfg(feature = "arrow-serde")]
 pub mod arrow_serde {
     use super::*;
     use arrow::array::{
-        ArrayRef, Float64Array, Int64Array, StringArray, TimestampNanosecondArray,
+        ArrayRef, Decimal128Array, Float64Array, StringArray, TimestampNanosecondArray,
     };
-    use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+    use arrow::datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit};
     use arrow::record_batch::RecordBatch;
     use std::sync::Arc;
 
-    /// Build an Arrow Schema for the FOCUS Cost and Usage dataset.
-    pub fn cost_and_usage_schema() -> SchemaRef {
+    /// Precision and scale used for FOCUS monetary Decimal128 columns.
+    /// Scale 9 preserves nanosecond-level decimal precision (9 decimal places).
+    pub const DECIMAL_PRECISION: u8 = 38;
+    pub const DECIMAL_SCALE: i8 = 9;
+
+    /// Convert a `rust_decimal::Decimal` to `i128` at the Arrow Decimal128 scale.
+    fn decimal_to_i128(d: &Decimal) -> i128 {
+        let src_scale = d.scale() as i64;
+        let dst_scale = DECIMAL_SCALE as i64;
+        let mantissa = d.mantissa();
+        let diff = dst_scale - src_scale;
+        if diff >= 0 {
+            mantissa.saturating_mul(10i128.pow(diff as u32))
+        } else {
+            mantissa / 10i128.pow((-diff) as u32)
+        }
+    }
+
+    /// Build a minimal Arrow Schema for the FOCUS Cost and Usage dataset.
+    ///
+    /// This schema covers the mandatory columns and ledgerr x_ extension columns.
+    /// The full FOCUS v1.3 Cost and Usage dataset contains additional conditional
+    /// columns not included here.
+    pub fn core_cost_and_usage_schema() -> SchemaRef {
+        let ts_ns = DataType::Timestamp(TimeUnit::Nanosecond, None);
+        let dec128 = DataType::Decimal128(DECIMAL_PRECISION, DECIMAL_SCALE);
         Arc::new(Schema::new(vec![
             // Mandatory
             Field::new("BillingAccountId", DataType::Utf8, false),
             Field::new("BillingAccountName", DataType::Utf8, true),
             Field::new("BillingCurrency", DataType::Utf8, false),
-            Field::new("BillingPeriodStart", DataType::Int64, false),
-            Field::new("BillingPeriodEnd", DataType::Int64, false),
-            Field::new("ChargePeriodStart", DataType::Int64, false),
-            Field::new("ChargePeriodEnd", DataType::Int64, false),
+            Field::new("BillingPeriodStart", ts_ns.clone(), false),
+            Field::new("BillingPeriodEnd", ts_ns.clone(), false),
+            Field::new("ChargePeriodStart", ts_ns.clone(), false),
+            Field::new("ChargePeriodEnd", ts_ns, false),
             Field::new("ChargeCategory", DataType::Utf8, false),
             Field::new("ChargeFrequency", DataType::Utf8, false),
-            Field::new("BilledCost", DataType::Float64, false),
-            Field::new("EffectiveCost", DataType::Float64, false),
+            Field::new("BilledCost", dec128.clone(), false),
+            Field::new("EffectiveCost", dec128, false),
             Field::new("ServiceProviderName", DataType::Utf8, false),
             Field::new("ServiceName", DataType::Utf8, false),
             Field::new("SkuId", DataType::Utf8, false),
@@ -312,35 +338,46 @@ pub mod arrow_serde {
         ]))
     }
 
-    /// Convert FOCUS CostAndUsageRows to an Arrow RecordBatch.
-    pub fn rows_to_batch(rows: &[CostAndUsageRow]) -> RecordBatch {
-        let schema = cost_and_usage_schema();
+    /// Convert a minimal set of FOCUS CostAndUsageRow fields to an Arrow RecordBatch.
+    ///
+    /// Covers mandatory columns and ledgerr x_ extensions. Nullable string fields
+    /// are represented as proper Arrow nulls (not empty strings).
+    pub fn core_rows_to_batch(rows: &[CostAndUsageRow]) -> RecordBatch {
+        let schema = core_cost_and_usage_schema();
         let batch = RecordBatch::try_new(
             schema,
             vec![
                 Arc::new(StringArray::from(rows.iter().map(|r| r.billing_account_id.as_str()).collect::<Vec<_>>())) as ArrayRef,
-                Arc::new(StringArray::from(rows.iter().map(|r| r.billing_account_name.as_deref().unwrap_or("")).collect::<Vec<_>>())),
+                Arc::new(StringArray::from(rows.iter().map(|r| r.billing_account_name.as_deref()).collect::<Vec<Option<&str>>>())),
                 Arc::new(StringArray::from(rows.iter().map(|r| r.billing_currency.as_str()).collect::<Vec<_>>())),
-                Arc::new(Int64Array::from(rows.iter().map(|r| r.billing_period_start.timestamp_nanos_opt().unwrap_or(0)).collect::<Vec<_>>())),
-                Arc::new(Int64Array::from(rows.iter().map(|r| r.billing_period_end.timestamp_nanos_opt().unwrap_or(0)).collect::<Vec<_>>())),
-                Arc::new(Int64Array::from(rows.iter().map(|r| r.charge_period_start.timestamp_nanos_opt().unwrap_or(0)).collect::<Vec<_>>())),
-                Arc::new(Int64Array::from(rows.iter().map(|r| r.charge_period_end.timestamp_nanos_opt().unwrap_or(0)).collect::<Vec<_>>())),
+                Arc::new(TimestampNanosecondArray::from(rows.iter().map(|r| r.billing_period_start.timestamp_nanos_opt()).collect::<Vec<_>>())),
+                Arc::new(TimestampNanosecondArray::from(rows.iter().map(|r| r.billing_period_end.timestamp_nanos_opt()).collect::<Vec<_>>())),
+                Arc::new(TimestampNanosecondArray::from(rows.iter().map(|r| r.charge_period_start.timestamp_nanos_opt()).collect::<Vec<_>>())),
+                Arc::new(TimestampNanosecondArray::from(rows.iter().map(|r| r.charge_period_end.timestamp_nanos_opt()).collect::<Vec<_>>())),
                 Arc::new(StringArray::from(rows.iter().map(|r| format!("{:?}", r.charge_category)).collect::<Vec<_>>())),
                 Arc::new(StringArray::from(rows.iter().map(|r| format!("{:?}", r.charge_frequency)).collect::<Vec<_>>())),
-                Arc::new(Float64Array::from(rows.iter().map(|r| r.billed_cost.to_f64().unwrap_or(0.0)).collect::<Vec<_>>())),
-                Arc::new(Float64Array::from(rows.iter().map(|r| r.effective_cost.to_f64().unwrap_or(0.0)).collect::<Vec<_>>())),
+                Arc::new(
+                    Decimal128Array::from(rows.iter().map(|r| decimal_to_i128(&r.billed_cost)).collect::<Vec<_>>())
+                        .with_precision_and_scale(DECIMAL_PRECISION, DECIMAL_SCALE)
+                        .expect("BilledCost Decimal128 precision/scale is valid"),
+                ),
+                Arc::new(
+                    Decimal128Array::from(rows.iter().map(|r| decimal_to_i128(&r.effective_cost)).collect::<Vec<_>>())
+                        .with_precision_and_scale(DECIMAL_PRECISION, DECIMAL_SCALE)
+                        .expect("EffectiveCost Decimal128 precision/scale is valid"),
+                ),
                 Arc::new(StringArray::from(rows.iter().map(|r| r.service_provider_name.as_str()).collect::<Vec<_>>())),
                 Arc::new(StringArray::from(rows.iter().map(|r| r.service_name.as_str()).collect::<Vec<_>>())),
                 Arc::new(StringArray::from(rows.iter().map(|r| r.sku_id.as_str()).collect::<Vec<_>>())),
-                Arc::new(StringArray::from(rows.iter().map(|r| r.x_experiment_id.as_deref().unwrap_or("")).collect::<Vec<_>>())),
-                Arc::new(StringArray::from(rows.iter().map(|r| r.x_variant.as_deref().unwrap_or("")).collect::<Vec<_>>())),
-                Arc::new(StringArray::from(rows.iter().map(|r| r.x_personality.as_deref().unwrap_or("")).collect::<Vec<_>>())),
-                Arc::new(Float64Array::from(rows.iter().map(|r| r.x_experiment_score.map(|s| s.to_f64().unwrap_or(0.0)).unwrap_or(0.0)).collect::<Vec<_>>())),
-                Arc::new(StringArray::from(rows.iter().map(|r| r.x_agent_id.as_deref().unwrap_or("")).collect::<Vec<_>>())),
-                Arc::new(StringArray::from(rows.iter().map(|r| r.x_reasoning_review.as_deref().unwrap_or("")).collect::<Vec<_>>())),
+                Arc::new(StringArray::from(rows.iter().map(|r| r.x_experiment_id.as_deref()).collect::<Vec<Option<&str>>>())),
+                Arc::new(StringArray::from(rows.iter().map(|r| r.x_variant.as_deref()).collect::<Vec<Option<&str>>>())),
+                Arc::new(StringArray::from(rows.iter().map(|r| r.x_personality.as_deref()).collect::<Vec<Option<&str>>>())),
+                Arc::new(Float64Array::from(rows.iter().map(|r| r.x_experiment_score.and_then(|s| s.to_f64())).collect::<Vec<Option<f64>>>())),
+                Arc::new(StringArray::from(rows.iter().map(|r| r.x_agent_id.as_deref()).collect::<Vec<Option<&str>>>())),
+                Arc::new(StringArray::from(rows.iter().map(|r| r.x_reasoning_review.as_deref()).collect::<Vec<Option<&str>>>())),
             ],
         )
-        .expect("FOCUS CostAndUsage Arrow RecordBatch construction failed");
+        .expect("FOCUS core CostAndUsage Arrow RecordBatch construction failed");
         batch
     }
 }
@@ -351,6 +388,7 @@ pub mod arrow_serde {
 pub enum FocusError {
     #[error("Invalid FOCUS record: {0}")]
     InvalidRecord(String),
+    #[cfg(feature = "arrow-serde")]
     #[error("Arrow serialization: {0}")]
     ArrowError(#[from] arrow::error::ArrowError),
     #[error("Decimal conversion: {0}")]
@@ -444,7 +482,6 @@ pub fn format_focus_cli(row: &CostAndUsageRow) -> String {
 mod tests {
     use super::*;
     use rust_decimal::prelude::FromPrimitive;
-    use std::str::FromStr;
 
     fn sample_row(experiment_id: &str, variant: &str, cost: f64) -> CostAndUsageRow {
         CostAndUsageRow {
@@ -574,7 +611,7 @@ mod tests {
     fn test_focus_arrow_record_batch() {
         use arrow_serde::*;
         let rows = vec![sample_row("exp-001", "control", 100.0), sample_row("exp-001", "treatment", 150.0)];
-        let batch = rows_to_batch(&rows);
+        let batch = core_rows_to_batch(&rows);
         assert_eq!(batch.num_rows(), 2);
         assert_eq!(batch.num_columns(), 20);
 

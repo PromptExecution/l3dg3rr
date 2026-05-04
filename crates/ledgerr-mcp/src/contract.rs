@@ -8,7 +8,7 @@
 //! - Drift between parser, schema, and docs is a bug and should fail tests.
 //!
 //! Hidden compatibility aliases may continue to parse legacy shapes elsewhere,
-//! but the advertised 8-tool catalog must stay defined here.
+//! but the advertised 10-tool catalog must stay defined here.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -623,8 +623,10 @@ pub enum FocusArgs {
     #[serde(rename = "experiment_score")]
     ExperimentScore {
         experiment_id: String,
-        score: f64,
-        variant: String,
+        /// Psychometric personality label (e.g. "analyst", "explorer", "guardian").
+        personality: Option<String>,
+        /// Experiment variant label (e.g. "control", "treatment").
+        variant: Option<String>,
     },
 }
 
