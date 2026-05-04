@@ -16,6 +16,10 @@ fn main() {
 
 #[cfg(target_os = "windows")]
 fn main() {
+    let _ = std::fs::write(
+        std::env::temp_dir().join("host-tauri-windows-main.txt"),
+        format!("windows main running\n"),
+    );
     use std::panic;
     panic::set_hook(Box::new(|info| {
         let msg = format!("panic: {info}");
@@ -60,20 +64,37 @@ fn main() {
         internal_endpoint,
     };
 
+    // Enable CDP remote debugging port — the launcher should set WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
+    // before launching. The Rust code reads TAURI_CDP_PORT for logging only.
+    let cdp_port = std::env::var("TAURI_CDP_PORT")
+        .ok()
+        .and_then(|v| v.parse::<u16>().ok())
+        .unwrap_or(0);
+    if cdp_port > 0 {
+        eprintln!("[cdp] port={cdp_port} (launcher must set WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS)");
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(app_state)
-        .setup(|app| {
+        .setup(move |app| {
             let _ = std::fs::write(
                 std::env::temp_dir().join("host-tauri-setup-ok.txt"),
                 format!("setup hook ran at {}\n", std::process::id()),
             );
-            if let Some(w) = app.get_webview_window("main") {
-                let build = std::env::var("TAURI_BUILD_NUMBER")
-                    .unwrap_or_else(|_| "0".to_string());
-                let title = format!("ledgrrr v{}+b{}", env!("CARGO_PKG_VERSION"), build);
-                let _: std::result::Result<(), _> = w.set_title(&title);
-            }
+            let build = std::env::var("TAURI_BUILD_NUMBER")
+                .unwrap_or_else(|_| "0".to_string());
+            let title = format!("ledgrrr v{}+b{}", env!("CARGO_PKG_VERSION"), build);
+            let w = tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("index.html".into()))
+                .title(&title)
+                .inner_size(1100.0, 760.0)
+                .center()
+                .resizable(true)
+                .decorations(true)
+                .visible(true)
+                .build()
+                .expect("failed to build main window");
+            let _: std::result::Result<(), _> = w.set_title(&title);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

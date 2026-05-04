@@ -6,17 +6,7 @@
   },
   "app": {
     "withGlobalTauri": true,
-    "windows": [
-      {
-        "title": "ledgrrr",
-        "width": 1100,
-        "height": 760,
-        "center": true,
-        "resizable": true,
-        "decorations": true,
-        "visible": true
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; connect-src ipc: http://ipc.localhost; style-src 'self' 'unsafe-inline'"
     }
