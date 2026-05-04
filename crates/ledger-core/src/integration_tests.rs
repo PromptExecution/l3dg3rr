@@ -35,10 +35,7 @@ mod integration {
         let cal = BusinessCalendar::us_tax_defaults();
         let dispatcher = OperationDispatcher::from_scheduled_events(&cal.events);
 
-        let ctx = OperationContext::new(
-            PathBuf::from("/tmp/working"),
-            PathBuf::from("/tmp/rules"),
-        );
+        let ctx = OperationContext::new(PathBuf::from("/tmp/working"), PathBuf::from("/tmp/rules"));
 
         let result = dispatcher.run_by_id("us-quarterly-estimated", &ctx);
         assert!(
@@ -85,7 +82,9 @@ mod integration {
         //
         // The fixture at tests/fixtures/sample_hsbc_statement.pdf should contain
         // exactly one transaction line for deterministic test assertions.
-        use crate::ledger_ops::{IngestStatementOp, LedgerOperation, LedgerOpError, OperationContext};
+        use crate::ledger_ops::{
+            IngestStatementOp, LedgerOpError, LedgerOperation, OperationContext,
+        };
 
         let op = IngestStatementOp {
             source_glob: "tests/fixtures/*.pdf".to_string(),
@@ -94,8 +93,10 @@ mod integration {
 
         // Point working_dir at the repo root so the glob resolves correctly.
         let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent().unwrap() // crates/ledger-core → crates
-            .parent().unwrap() // crates → repo root
+            .parent()
+            .unwrap() // crates/ledger-core → crates
+            .parent()
+            .unwrap() // crates → repo root
             .to_path_buf();
 
         let ctx = OperationContext::new(repo_root, PathBuf::from("/tmp/rules"));
@@ -158,7 +159,9 @@ mod integration {
         // This test uses ClassifyTransactionsOp output as input to OpaGateOp,
         // demonstrating the pipeline composition:
         //   IngestStatementOp → ClassifyTransactionsOp → OpaGateOp → ExportWorkbookOp
-        use crate::ledger_ops::{ClassifyTransactionsOp, LedgerOperation, LedgerOpError, OperationContext};
+        use crate::ledger_ops::{
+            ClassifyTransactionsOp, LedgerOpError, LedgerOperation, OperationContext,
+        };
 
         // ClassifyTransactionsOp is the nearest existing op; OpaGateOp doesn't exist yet.
         // This stub exercises the existing op to prove pipeline composition compiles.
@@ -168,10 +171,7 @@ mod integration {
             account_filter: None,
         };
 
-        let ctx = OperationContext::new(
-            PathBuf::from("/tmp/working"),
-            PathBuf::from("/tmp/rules"),
-        );
+        let ctx = OperationContext::new(PathBuf::from("/tmp/working"), PathBuf::from("/tmp/rules"));
 
         let classify_result = classify_op.execute(&ctx);
 
@@ -205,24 +205,23 @@ mod integration {
     // Replace proposer/reviewer with AnthropicModelClient for live LLM coverage.
     #[test]
     fn test_llm_verification_proposes_category() {
-        use crate::verify::{MockModelClient, MultiModelConfig, MultiModelVerifier, VerificationOutcome};
+        use crate::verify::{
+            MockModelClient, MultiModelConfig, MultiModelVerifier, VerificationOutcome,
+        };
         let proposer_json = r#"{
             "rule_id": "ForeignIncome",
             "proposed_fix": "ForeignIncome",
             "reasoning": "Wire transfer from foreign employer matches ForeignIncome pattern",
             "confidence": 0.92
         }"#;
-        let reviewer_json =
-            r#"{"approved":true,"concerns":[],"suggestions":[],"confidence":0.90}"#;
+        let reviewer_json = r#"{"approved":true,"concerns":[],"suggestions":[],"confidence":0.90}"#;
 
         let proposer = MockModelClient::default().with_response(proposer_json);
         let reviewer = MockModelClient::default().with_response(reviewer_json);
 
-        let config = MultiModelConfig::new(
-            "claude-haiku-4-5-20251001",
-            "claude-haiku-4-5-20251001",
-        )
-        .with_threshold(0.80);
+        let config =
+            MultiModelConfig::new("claude-haiku-4-5-20251001", "claude-haiku-4-5-20251001")
+                .with_threshold(0.80);
 
         let verifier = MultiModelVerifier::new(proposer, reviewer, config);
 

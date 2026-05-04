@@ -8,9 +8,12 @@ license.workspace = true
 arc-kit-au = { path = "../arc-kit-au" }
 blake3 = "1.8.3"
 chrono = { workspace = true }
-ledger-core = { version = "=1.8.0", path = "../ledger-core" }
-ledgerr-xero = { version = "=1.8.0", path = "../ledgerr-xero", optional = true }
-ledgerr-llm = { version = "=1.8.0", path = "../ledgerr-llm", optional = true }
+ledger-core = { version = "=1.8.1", path = "../ledger-core" }
+ledgerr-mcp-core = { workspace = true }
+ledgerr-xero = { version = "=1.8.1", path = "../ledgerr-xero", optional = true }
+crossbeam = "0.8"
+cfg-if = "1.0"
+ledgerr-llm = { version = "=1.8.1", path = "../ledgerr-llm", optional = true }
 rust_decimal = { version = "1.41.0", features = ["serde"] }
 rust_xlsxwriter = { workspace = true }
 schemars = { version = "0.8", features = ["derive"] }
@@ -18,6 +21,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 thiserror = "2"
 tracing = { workspace = true }
+shellexpand = "3.1.0"
 
 # plugin_info — always available (cross-platform system metadata)
 sysinfo = { version = "0.33", default-features = false, features = ["system"] }
@@ -31,7 +35,8 @@ semver = { version = "1", optional = true }
 winreg = "0.52"
 
 [features]
-default = ["core", "events", "reconciliation", "hsm", "ontology", "classification", "audit", "tax", "xero", "llm"]
+default = ["core", "events", "reconciliation", "hsm", "ontology", "classification", "audit", "tax", "xero", "llm", "legacy"]
+b00t = []
 core = []
 events = ["core"]
 reconciliation = ["core"]
@@ -45,9 +50,21 @@ llm = ["core", "dep:ledgerr-llm"]
 full = ["core", "events", "reconciliation", "hsm", "ontology", "classification", "audit", "tax", "xero", "llm"]
 self-update = ["dep:reqwest", "dep:semver"]
 
+# Legacy: gates the old mcp_adapter.rs dispatch and the pre-actor server
+# match-statement path.  The new actor/gate channel system is the default;
+# this flag keeps the old code compiled for historical reference until
+# the migration is fully validated and the old path can be removed.
+legacy = ["core"]
+
 [dev-dependencies]
 tempfile = "3"
 calamine = "0.34"
+
+# Enable the b00t feature for tests that exercise McpProvider infrastructure
+# and register_default_providers graceful-degradation coverage.
+[dev-dependencies.ledgerr-mcp]
+path = "."
+features = ["b00t"]
 
 [lints]
 workspace = true

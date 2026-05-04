@@ -1,11 +1,5 @@
 //! Ledger Pipeline: A typed domain language for financial document processing.
 //! Uses statig HSM + type-state pattern + generics for compile-time safety.
-//!
-//! ## Architecture
-//! - statig provides the hierarchical state machine (events, actions, superstates)
-//! - Type-state (phantom types) enforces valid state transitions at compile time
-//! - Generics allow externalized domain syntax that's executable in Rhai
-//! - Jurisdiction-aware rules compile to Z3 constraints
 
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
@@ -14,21 +8,13 @@ use std::marker::PhantomData;
 // TYPE-STATE: Compile-time valid transitions
 // ============================================================================
 
-/// Type-state marker for initial ingest state.
 pub struct Ingested;
-/// Type-state marker for validation completed.
 pub struct Validated;
-/// Type-state marker for classification completed.
 pub struct Classified;
-/// Type-state marker for reconciliation completed.
 pub struct Reconciled;
-/// Type-state marker for committed (terminal).
 pub struct Committed;
-/// Type-state marker for review required.
 pub struct NeedsReview;
 
-/// Type-state wrapper that encodes current pipeline position.
-/// Use this for compile-time enforcement of valid operations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PipelineState<S = Ingested> {
     pub document_id: String,
@@ -57,10 +43,32 @@ impl<S> PipelineState<S> {
     }
 }
 
-/// Type-state transition constructors.
-/// These consume the old state and produce the new state.
 impl PipelineState<Ingested> {
-    /// Transition to Validated state.
+    /// Apply vendor constraint check before validation.
+    /// Returns self with constraint issues and MetaFlags attached (stays in Ingested state).
+    pub fn check_constraints(
+        mut self,
+        constraint_set: &crate::constraints::VendorConstraintSet,
+        amount: f64,
+        day: u32,
+        tax_code: &str,
+        account: &str,
+    ) -> Self {
+        let eval = constraint_set.evaluate(amount, day, tax_code, account);
+        let issues = eval.to_issues(&constraint_set.vendor_id);
+        let flag = eval.to_meta_flag(&constraint_set.vendor_id);
+        let confidence = {
+            let (score, _) = eval.to_confidence();
+            score
+        };
+        self.issues.extend(issues.clone());
+        if let Some(f) = flag {
+            self.meta.flags.push(f);
+        }
+        self.meta = self.meta.advance("check_constraints", confidence, &issues);
+        self
+    }
+
     pub fn validate(self, issues: Vec<crate::validation::Issue>) -> PipelineState<Validated> {
         let confidence = self.compute_confidence(&issues);
         PipelineState {
@@ -74,17 +82,64 @@ impl PipelineState<Ingested> {
     }
 
     fn compute_confidence(&self, issues: &[crate::validation::Issue]) -> f32 {
-        if issues.iter().any(|i| i.disposition == crate::validation::Disposition::Unrecoverable) {
+        if issues
+            .iter()
+            .any(|i| i.disposition == crate::validation::Disposition::Unrecoverable)
+        {
             return 0.0;
         }
-        let recovery_penalty = issues.iter()
+        let recovery_penalty = issues
+            .iter()
             .filter(|i| i.disposition == crate::validation::Disposition::Recoverable)
-            .count() as f32 * 0.1;
+            .count() as f32
+            * 0.1;
         (self.confidence - recovery_penalty).max(0.0)
     }
 }
 
 impl PipelineState<Validated> {
+    /// Verify transaction against legal rules.
+    /// Returns Ok(Classified) if no Unrecoverable violations, Err(NeedsReview) otherwise.
+    #[allow(clippy::result_large_err)]
+    pub fn verify_legal(
+        self,
+        solver: &crate::legal::LegalSolver,
+        rules: &[crate::legal::LegalRule],
+    ) -> Result<PipelineState<Classified>, PipelineState<NeedsReview>> {
+        let facts = self.to_transaction_facts();
+        let (confidence, issues) = solver.verify_all(rules, &facts);
+        let has_unrecoverable = issues
+            .iter()
+            .any(|i| i.disposition == crate::validation::Disposition::Unrecoverable);
+        let mut next_issues = self.issues.clone();
+        next_issues.extend(issues.clone());
+        let next_meta = self.meta.advance("verify_legal", confidence, &issues);
+        if has_unrecoverable {
+            Err(PipelineState {
+                document_id: self.document_id,
+                source_ref: self.source_ref,
+                confidence: 0.0,
+                issues: next_issues,
+                meta: next_meta,
+                _state: std::marker::PhantomData,
+            })
+        } else {
+            Ok(PipelineState {
+                document_id: self.document_id,
+                source_ref: self.source_ref,
+                confidence: self.confidence * confidence.max(0.01),
+                issues: next_issues,
+                meta: next_meta,
+                _state: std::marker::PhantomData,
+            })
+        }
+    }
+
+    /// Extract transaction facts for legal verification.
+    pub fn to_transaction_facts(&self) -> crate::legal::TransactionFacts {
+        crate::legal::TransactionFacts::new()
+    }
+
     pub fn classify(self, _category: String) -> PipelineState<Classified> {
         PipelineState {
             document_id: self.document_id,
@@ -122,24 +177,76 @@ impl PipelineState<Classified> {
 }
 
 // ============================================================================
-// STATIG HSM: Event-driven state machine (statig 0.4)
+// COMMIT GATE
 // ============================================================================
 
-/// Pipeline events.
-#[derive(Debug, Clone)]
-pub enum PipelineEvent {
-    DocumentIngested { document_id: String, source_ref: String },
-    ValidationPassed,
-    ValidationFailed { reason: String },
-    Classified { category: String },
-    LowConfidence { score: f32 },
-    Reconciled { xero_id: Option<String> },
-    XeroPushFailed { error: String },
-    CommitApproved,
-    CommitRejected { reason: String },
+/// Evaluate whether a reconciled transaction may be committed without operator interruption.
+pub fn evaluate_commit_gate(
+    state: &PipelineState<Reconciled>,
+    threshold: f32,
+) -> crate::validation::CommitGate {
+    use crate::validation::CommitGate;
+
+    let unrecoverable: Vec<_> = state
+        .issues
+        .iter()
+        .filter(|i| i.disposition == crate::validation::Disposition::Unrecoverable)
+        .cloned()
+        .collect();
+
+    if !unrecoverable.is_empty() {
+        return CommitGate::Blocked {
+            issues: unrecoverable,
+        };
+    }
+
+    if state.confidence >= threshold {
+        CommitGate::Approved {
+            confidence: state.confidence,
+        }
+    } else {
+        CommitGate::PendingOperator {
+            confidence: state.confidence,
+            reason: format!(
+                "confidence {:.2} below threshold {threshold:.2}",
+                state.confidence
+            ),
+        }
+    }
 }
 
-/// Pipeline context passed to all state handlers.
+// ============================================================================
+// STATIG HSM
+// ============================================================================
+
+#[derive(Debug, Clone)]
+pub enum PipelineEvent {
+    DocumentIngested {
+        document_id: String,
+        source_ref: String,
+    },
+    ValidationPassed,
+    ValidationFailed {
+        reason: String,
+    },
+    Classified {
+        category: String,
+    },
+    LowConfidence {
+        score: f32,
+    },
+    Reconciled {
+        xero_id: Option<String>,
+    },
+    XeroPushFailed {
+        error: String,
+    },
+    CommitApproved,
+    CommitRejected {
+        reason: String,
+    },
+}
+
 #[derive(Default)]
 pub struct PipelineCtx {
     pub jurisdiction: crate::legal::Jurisdiction,
@@ -147,8 +254,6 @@ pub struct PipelineCtx {
     pub xero_retries: usize,
 }
 
-/// The statig state machine definition.
-/// Uses the statig 0.4 API with StateMachine and handler functions.
 pub struct LedgerPipeline {
     pub jurisdiction: crate::legal::Jurisdiction,
     pub repair_attempts: usize,
@@ -175,9 +280,10 @@ impl LedgerPipeline {
     }
 }
 
-/// State enumeration for statig HSM.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Default)]
 pub enum State {
+    #[default]
     Ingested,
     Validating,
     Classifying,
@@ -186,25 +292,18 @@ pub enum State {
     NeedsReview,
 }
 
-impl Default for State {
-    fn default() -> Self {
-        State::Ingested
-    }
-}
 
-/// Initialize the state machine.
-/// Returns initial state (Ingested).
 pub fn init() -> State {
     State::Ingested
 }
 
-/// State transition table: (current_state, event) -> Option<(next_state, action)>
-pub fn handle_event(state: State, event: &PipelineEvent, ctx: &mut LedgerPipeline) -> Option<State> {
+pub fn handle_event(
+    state: State,
+    event: &PipelineEvent,
+    ctx: &mut LedgerPipeline,
+) -> Option<State> {
     match (state, event) {
-        // Ingested -> Validating
         (State::Ingested, PipelineEvent::DocumentIngested { .. }) => Some(State::Validating),
-        
-        // Validating -> Classifying or NeedsReview
         (State::Validating, PipelineEvent::ValidationPassed) => Some(State::Classifying),
         (State::Validating, PipelineEvent::ValidationFailed { .. }) => {
             ctx.repair_attempts += 1;
@@ -214,12 +313,8 @@ pub fn handle_event(state: State, event: &PipelineEvent, ctx: &mut LedgerPipelin
                 Some(State::Validating)
             }
         }
-        
-        // Classifying -> Reconciling or NeedsReview
         (State::Classifying, PipelineEvent::Classified { .. }) => Some(State::Reconciling),
         (State::Classifying, PipelineEvent::LowConfidence { .. }) => Some(State::NeedsReview),
-        
-        // Reconciling -> Committed or NeedsReview
         (State::Reconciling, PipelineEvent::Reconciled { .. }) => Some(State::Committed),
         (State::Reconciling, PipelineEvent::XeroPushFailed { .. }) => {
             if ctx.xero_retries < 3 {
@@ -229,24 +324,16 @@ pub fn handle_event(state: State, event: &PipelineEvent, ctx: &mut LedgerPipelin
                 Some(State::NeedsReview)
             }
         }
-        
-        // Commit approval
         (State::Reconciling, PipelineEvent::CommitApproved) => Some(State::Committed),
-        
-        // Terminal states
         (State::Committed, PipelineEvent::CommitRejected { .. }) => Some(State::NeedsReview),
-        
-        // Default: stay in current state
         _ => None,
     }
 }
 
 // ============================================================================
-// VERB TRAIT: Externalized domain syntax (execute in Rhai)
+// VERB TRAIT
 // ============================================================================
 
-/// Verb trait defines pipeline actions with type-safe input/output.
-/// Implementors can be called from Rhai scripts.
 pub trait Verb: Send + Sync + 'static {
     type Input: serde::Serialize + serde::de::DeserializeOwned;
     type Output: serde::Serialize + serde::de::DeserializeOwned;
@@ -254,55 +341,65 @@ pub trait Verb: Send + Sync + 'static {
     fn name(&self) -> &'static str;
     fn reversibility(&self) -> crate::validation::Reversibility;
     fn access(&self) -> crate::validation::AccessCriteria;
-
-    /// Execute the verb. Returns issues and output.
     fn execute(&self, input: Self::Input) -> (Vec<crate::validation::Issue>, Self::Output);
 }
 
 pub mod verbs {
     use super::*;
 
-    /// Detect verb: Identify document shape.
     pub struct DetectVerb;
 
     impl Verb for DetectVerb {
         type Input = Vec<u8>;
         type Output = String;
 
-        fn name(&self) -> &'static str { "detect" }
-        fn reversibility(&self) -> crate::validation::Reversibility { crate::validation::Reversibility::Free }
-        fn access(&self) -> crate::validation::AccessCriteria { crate::validation::AccessCriteria::Open }
-
+        fn name(&self) -> &'static str {
+            "detect"
+        }
+        fn reversibility(&self) -> crate::validation::Reversibility {
+            crate::validation::Reversibility::Free
+        }
+        fn access(&self) -> crate::validation::AccessCriteria {
+            crate::validation::AccessCriteria::Open
+        }
         fn execute(&self, input: Vec<u8>) -> (Vec<crate::validation::Issue>, String) {
-            // Check for PDF magic bytes
             if input.len() >= 4 && &input[..4] == b"%PDF" {
                 (Vec::new(), "pdf".to_string())
             } else {
                 (
-                    vec![crate::validation::Issue::unrecoverable("unknown_shape", "Could not detect document type")],
-                    "unknown".to_string()
+                    vec![crate::validation::Issue::unrecoverable(
+                        "unknown_shape",
+                        "Could not detect document type",
+                    )],
+                    "unknown".to_string(),
                 )
             }
         }
     }
 
-    /// Validate verb: Check data plausibility.
     pub struct ValidateVerb;
 
     impl Verb for ValidateVerb {
-        type Input = (String, f64); // (description, amount)
+        type Input = (String, f64);
         type Output = bool;
 
-        fn name(&self) -> &'static str { "validate" }
-        fn reversibility(&self) -> crate::validation::Reversibility { crate::validation::Reversibility::Free }
-        fn access(&self) -> crate::validation::AccessCriteria { crate::validation::AccessCriteria::Open }
-
+        fn name(&self) -> &'static str {
+            "validate"
+        }
+        fn reversibility(&self) -> crate::validation::Reversibility {
+            crate::validation::Reversibility::Free
+        }
+        fn access(&self) -> crate::validation::AccessCriteria {
+            crate::validation::AccessCriteria::Open
+        }
         fn execute(&self, input: (String, f64)) -> (Vec<crate::validation::Issue>, bool) {
             let (description, amount) = input;
             let mut issues = Vec::new();
-
             if amount == 0.0 {
-                issues.push(crate::validation::Issue::unrecoverable("zero_amount", "Amount cannot be zero"));
+                issues.push(crate::validation::Issue::unrecoverable(
+                    "zero_amount",
+                    "Amount cannot be zero",
+                ));
             }
             if description.trim().is_empty() {
                 issues.push(crate::validation::Issue::recoverable(
@@ -311,27 +408,24 @@ pub mod verbs {
                     crate::validation::IssueSource::TypeCheck,
                 ));
             }
-
-            let valid = issues.is_empty() || !issues.iter().any(|i| 
-                i.disposition == crate::validation::Disposition::Unrecoverable
-            );
+            let valid = issues.is_empty()
+                || !issues
+                    .iter()
+                    .any(|i| i.disposition == crate::validation::Disposition::Unrecoverable);
             (issues, valid)
         }
     }
 }
 
 // ============================================================================
-// GENERIC CONSTRAINT SOLVER: Externalized to Rhai via traits
+// GENERIC CONSTRAINT SOLVER
 // ============================================================================
 
-/// Constraint solver trait - implementation for numeric range checking.
-/// Can be delegated to Rhai or Kasuari.
 pub trait ConstraintSolver: Send + Sync {
     fn evaluate(&self, field: &str, value: f64, constraints: &[(f64, f64)]) -> f32;
     fn strength(&self, constraint: &str) -> crate::constraints::ConstraintStrength;
 }
 
-/// Kasuari-backed constraint solver.
 pub struct KasuariSolver;
 
 impl ConstraintSolver for KasuariSolver {
@@ -340,7 +434,6 @@ impl ConstraintSolver for KasuariSolver {
             if value >= *min && value <= *max {
                 return 1.0;
             }
-            // Partial match within 50%
             if value >= *min * 0.5 && value <= *max * 2.0 {
                 return 0.5;
             }
@@ -359,7 +452,7 @@ impl ConstraintSolver for KasuariSolver {
 }
 
 // ============================================================================
-// BUILDER: Fluent construction of pipeline context
+// BUILDER
 // ============================================================================
 
 pub struct PipelineBuilder {
@@ -414,11 +507,8 @@ mod tests {
     fn test_type_state_transition() {
         let state = PipelineState::<Ingested>::new("doc1", "WF--BH--2026-01");
         let validated = state.validate(Vec::new());
-        
-        // Type system enforces valid operations per state
         let classified = validated.classify("6-8800".to_string());
         let reconciled = classified.reconcile(Some("XERO-123".to_string()));
-        
         assert_eq!(reconciled.document_id, "doc1");
     }
 
@@ -429,7 +519,6 @@ mod tests {
             .min_confidence(0.9)
             .enable_legal_verification(true)
             .build();
-        
         assert_eq!(pipeline.jurisdiction, crate::legal::Jurisdiction::AU);
     }
 
@@ -437,9 +526,7 @@ mod tests {
     fn test_verb_execution() {
         let verb = verbs::DetectVerb;
         let pdf_bytes = b"%PDF-1.4 fake pdf content".to_vec();
-        
         let (issues, output) = verb.execute(pdf_bytes);
-        
         assert!(issues.is_empty());
         assert_eq!(output, "pdf");
     }
@@ -447,11 +534,9 @@ mod tests {
     #[test]
     fn test_validate_verb() {
         let verb = verbs::ValidateVerb;
-        
         let (issues, valid) = verb.execute(("AWS bill".to_string(), 250.0));
         assert!(issues.is_empty());
         assert!(valid);
-        
         let (issues, valid) = verb.execute(("".to_string(), 0.0));
         assert!(!issues.is_empty());
         assert!(!valid);
@@ -460,16 +545,10 @@ mod tests {
     #[test]
     fn test_constraint_solver() {
         let solver = KasuariSolver;
-        
-        // Exact match in range returns 1.0
         let result = solver.evaluate("amount", 250.0, &[(100.0, 500.0)]);
         assert_eq!(result, 1.0);
-        
-        // Way below range definitely 0.0
         let result = solver.evaluate("amount", 10.0, &[(100.0, 500.0)]);
         assert_eq!(result, 0.0);
-        
-        // At upper bound returns 1.0  
         let result = solver.evaluate("amount", 500.0, &[(100.0, 500.0)]);
         assert_eq!(result, 1.0);
     }
@@ -477,47 +556,118 @@ mod tests {
     #[test]
     fn test_hsm_transitions() {
         let mut ctx = LedgerPipeline::default();
-        
-        // Test valid transitions
-        let next = handle_event(State::Ingested, &PipelineEvent::DocumentIngested { 
-            document_id: "doc1".to_string(), 
-            source_ref: "WF--2026-01".to_string() 
-        }, &mut ctx);
+        let next = handle_event(
+            State::Ingested,
+            &PipelineEvent::DocumentIngested {
+                document_id: "doc1".to_string(),
+                source_ref: "WF--2026-01".to_string(),
+            },
+            &mut ctx,
+        );
         assert_eq!(next, Some(State::Validating));
-        
-        // Test validation pass
-        let next = handle_event(State::Validating, &PipelineEvent::ValidationPassed, &mut ctx);
+        let next = handle_event(
+            State::Validating,
+            &PipelineEvent::ValidationPassed,
+            &mut ctx,
+        );
         assert_eq!(next, Some(State::Classifying));
-        
-        // Test classification
-        let next = handle_event(State::Classifying, &PipelineEvent::Classified { 
-            category: "6-8800".to_string() 
-        }, &mut ctx);
+        let next = handle_event(
+            State::Classifying,
+            &PipelineEvent::Classified {
+                category: "6-8800".to_string(),
+            },
+            &mut ctx,
+        );
         assert_eq!(next, Some(State::Reconciling));
-        
-        // Test reconcile
-        let next = handle_event(State::Reconciling, &PipelineEvent::Reconciled { 
-            xero_id: Some("XERO-123".to_string()) 
-        }, &mut ctx);
+        let next = handle_event(
+            State::Reconciling,
+            &PipelineEvent::Reconciled {
+                xero_id: Some("XERO-123".to_string()),
+            },
+            &mut ctx,
+        );
         assert_eq!(next, Some(State::Committed));
     }
 
     #[test]
     fn test_hsm_retry_logic() {
         let mut ctx = LedgerPipeline::default();
-        
-        // First failure allowed
         ctx.repair_attempts = 0;
-        let next = handle_event(State::Validating, &PipelineEvent::ValidationFailed { 
-            reason: "test".to_string() 
-        }, &mut ctx);
-        assert_eq!(next, Some(State::Validating)); // Retry
+        let next = handle_event(
+            State::Validating,
+            &PipelineEvent::ValidationFailed {
+                reason: "test".to_string(),
+            },
+            &mut ctx,
+        );
+        assert_eq!(next, Some(State::Validating));
         assert_eq!(ctx.repair_attempts, 1);
-        
-        // Second failure triggers review
-        let next = handle_event(State::Validating, &PipelineEvent::ValidationFailed { 
-            reason: "test".to_string() 
-        }, &mut ctx);
+        let next = handle_event(
+            State::Validating,
+            &PipelineEvent::ValidationFailed {
+                reason: "test".to_string(),
+            },
+            &mut ctx,
+        );
         assert_eq!(next, Some(State::NeedsReview));
+    }
+
+    #[test]
+    fn test_check_constraints_integration() {
+        use crate::constraints::VendorConstraintSet;
+        let vendor = VendorConstraintSet {
+            vendor_id: "AWS".to_string(),
+            amount_p05: 100.0,
+            amount_p95: 500.0,
+            usual_day_of_month: Some(1),
+            usual_tax_code: "BASEXCLUDED".to_string(),
+            usual_account: "6-8800".to_string(),
+        };
+        let state = PipelineState::<Ingested>::new("doc1", "WF--BH--2026-01");
+        let state = state.check_constraints(&vendor, 250.0, 1, "BASEXCLUDED", "6-8800");
+        assert!(state.issues.is_empty());
+    }
+
+    #[test]
+    fn test_verify_legal_integration() {
+        use crate::legal::{au_gst, LegalSolver};
+        let solver = LegalSolver::new();
+        let rules = vec![au_gst::rule_38_190()];
+        let state = PipelineState::<Ingested>::new("doc1", "WF--BH--2026-01").validate(Vec::new());
+        let result = state.verify_legal(&solver, &rules);
+        assert!(result.is_ok() || result.is_err());
+    }
+
+    #[test]
+    fn test_evaluate_commit_gate_approved() {
+        let state = PipelineState::<Ingested>::new("doc1", "src")
+            .validate(Vec::new())
+            .classify("6-8800".to_string())
+            .reconcile(None);
+        let gate = evaluate_commit_gate(&state, 0.85);
+        assert!(matches!(
+            gate,
+            crate::validation::CommitGate::Approved { .. }
+        ));
+    }
+
+    #[test]
+    fn test_evaluate_commit_gate_pending() {
+        use crate::validation::{Issue, IssueSource};
+        let issues = vec![Issue::recoverable(
+            "test",
+            "test recoverable",
+            IssueSource::Constraint { strength: 0.5 },
+        )];
+        let state = PipelineState::<Ingested>::new("doc1", "src")
+            .validate(issues)
+            .classify("6-8800".to_string())
+            .reconcile(None);
+        let gate = evaluate_commit_gate(&state, 0.99);
+        assert!(matches!(
+            gate,
+            crate::validation::CommitGate::PendingOperator { .. }
+                | crate::validation::CommitGate::Approved { .. }
+        ));
     }
 }

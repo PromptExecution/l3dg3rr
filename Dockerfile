@@ -3,7 +3,13 @@
 # ── dependency cache layer (cargo-chef) ──────────────────────────────────────
 FROM rust:1-bookworm AS chef
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libz3-dev \
+    && apt-get install -y --no-install-recommends \
+        libz3-dev \
+        libgtk-3-dev \
+        libwebkit2gtk-4.1-dev \
+        libayatana-appindicator3-dev \
+        librsvg2-dev \
+        patchelf \
     && rm -rf /var/lib/apt/lists/*
 RUN cargo install cargo-chef --locked
 WORKDIR /app
@@ -26,8 +32,8 @@ COPY docs ./docs
 COPY rules ./rules
 COPY scripts ./scripts
 
-RUN cargo test --workspace --all-features
-RUN cargo build -p ledgerr-mcp --release --bin ledgerr-mcp-server
+RUN cargo test --workspace --features 'audit,autoresearch,b00t,classification,core,default,events,full,hsm,legacy,legal-z3,llm,local-llm,mistralrs-llm,ontology,reconciliation,self-update,tax,xero'
+RUN cargo build -p ledgerr-mcp --release --bin ledgerr-mcp-server --features 'audit,autoresearch,b00t,classification,core,default,events,full,hsm,legacy,legal-z3,llm,local-llm,mistralrs-llm,ontology,reconciliation,self-update,tax,xero'
 
 # ── runtime ───────────────────────────────────────────────────────────────────
 FROM debian:bookworm-slim AS runtime
