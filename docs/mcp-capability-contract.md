@@ -18,7 +18,7 @@ The default catalog is intentionally small: 9 top-level `ledgerr_*` tools. Each 
 | `ledgerr_tax` | tax summaries, evidence, ambiguity review, workbook export | `assist`, `evidence_chain`, `ambiguity_review`, `schedule_summary`, `export_workbook` |
 | `ledgerr_ontology` | ontology query/export/write operations | `query_path`, `export_snapshot`, `upsert_entities`, `upsert_edges` |
 | `ledgerr_xero` | Xero accounting integration: contacts, accounts, bank accounts, entity linking | `get_auth_url`, `exchange_code`, `fetch_contacts`, `search_contacts`, `fetch_accounts`, `fetch_bank_accounts`, `fetch_invoices`, `link_entity`, `sync_catalog` |
-| `ledgerr_evidence` | evidence traceability: provenance gaps, transaction lineage, review badges | `provenance_gaps`, `trace_tx` |
+| `ledgerr_evidence` | evidence traceability: provenance gaps, transaction lineage, review badges, graph summary and node queries | `provenance_gaps`, `trace_tx`, `summary`, `list_nodes`, `node_detail` |
 
 The concrete parser, action enums, field aliases, and JSON Schemas all live in [crates/ledgerr-mcp/src/contract.rs](../crates/ledgerr-mcp/src/contract.rs).
 

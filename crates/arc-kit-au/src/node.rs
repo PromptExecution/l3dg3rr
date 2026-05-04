@@ -38,6 +38,7 @@ impl NodeId {
             "prop" => NodeType::ModelProposal,
             "approval" => NodeType::OperatorApproval,
             "wb" => NodeType::WorkbookRow,
+            "vi" => NodeType::ValidationIssue,
             _ => NodeType::Unknown,
         }
     }
@@ -370,6 +371,30 @@ mod tests {
         assert_eq!(id.0, "doc:abc123");
         assert_eq!(id.node_type(), NodeType::SourceDoc);
         assert_eq!(id.hash(), "abc123");
+    }
+
+    #[test]
+    fn node_id_type_round_trips_for_all_variants() {
+        let cases = [
+            (NodeType::SourceDoc, "doc"),
+            (NodeType::ExtractedRow, "row"),
+            (NodeType::Transaction, "tx"),
+            (NodeType::Classification, "cls"),
+            (NodeType::ModelProposal, "prop"),
+            (NodeType::OperatorApproval, "approval"),
+            (NodeType::WorkbookRow, "wb"),
+            (NodeType::ValidationIssue, "vi"),
+        ];
+        for (expected_type, prefix) in cases {
+            let id = NodeId(format!("{prefix}:somehash"));
+            assert_eq!(
+                id.node_type(),
+                expected_type,
+                "prefix '{prefix}' should map to {expected_type:?}"
+            );
+        }
+        // Unrecognized prefix → Unknown
+        assert_eq!(NodeId("zz:abc".to_string()).node_type(), NodeType::Unknown);
     }
 
     #[test]

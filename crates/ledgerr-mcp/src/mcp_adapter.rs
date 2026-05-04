@@ -407,7 +407,10 @@ pub fn error_payload(error: &ToolError) -> Value {
     }
 }
 
-#[cfg(feature = "legacy")]
+/// Return a well-formed MCP error envelope for an unknown tool name.
+///
+/// Not gated behind any feature flag because it is used by both the `legacy`
+/// dispatch path and the `b00t` external-provider path.
 pub fn unknown_tool_result(tool_name: &str) -> Value {
     json!({
         "content": [text_content(json!({
@@ -2339,6 +2342,43 @@ fn parse_ontology_entity_kind(raw: Option<&str>) -> Result<crate::OntologyEntity
 }
 
 #[cfg(feature = "legacy")]
+/// Parse a user-supplied node type string into the typed `arc_kit_au::NodeType`.
+///
+/// Accepts both canonical snake_case names and the single-char prefixes used in
+/// `NodeId` strings so operators can use either form interchangeably.
+fn parse_evidence_node_type(s: &str) -> Option<arc_kit_au::NodeType> {
+    use arc_kit_au::NodeType;
+    Some(match s {
+        "source_doc" | "doc" => NodeType::SourceDoc,
+        "extracted_row" | "row" => NodeType::ExtractedRow,
+        "transaction" | "tx" => NodeType::Transaction,
+        "classification" | "cls" => NodeType::Classification,
+        "model_proposal" | "prop" => NodeType::ModelProposal,
+        "operator_approval" | "approval" => NodeType::OperatorApproval,
+        "workbook_row" | "wb" => NodeType::WorkbookRow,
+        "validation_issue" | "vi" => NodeType::ValidationIssue,
+        _ => return None,
+    })
+}
+
+#[cfg(feature = "legacy")]
+/// Canonical snake_case label for an `arc_kit_au::NodeType` (MCP output surface).
+fn evidence_node_type_label(nt: arc_kit_au::NodeType) -> &'static str {
+    use arc_kit_au::NodeType;
+    match nt {
+        NodeType::SourceDoc => "source_doc",
+        NodeType::ExtractedRow => "extracted_row",
+        NodeType::Transaction => "transaction",
+        NodeType::Classification => "classification",
+        NodeType::ModelProposal => "model_proposal",
+        NodeType::OperatorApproval => "operator_approval",
+        NodeType::WorkbookRow => "workbook_row",
+        NodeType::ValidationIssue => "validation_issue",
+        NodeType::Unknown => "unknown",
+    }
+}
+
+#[cfg(feature = "legacy")]
 pub fn handle_evidence_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
     use crate::contract::parse_evidence;
 
@@ -2419,6 +2459,125 @@ pub fn handle_evidence_tool(service: &TurboLedgerService, arguments: &Value) -> 
                         "message": "No evidence chain found for this transaction.",
                     }))],
                     "isError": false
+                }),
+            }
+        }
+        EvidenceArgs::Summary => {
+            let evidence = match service.evidence.lock() {
+                Ok(e) => e,
+                Err(_) => {
+                    return error_envelope(&ToolError::Internal(
+                        "evidence mutex poisoned".to_string(),
+                    ))
+                }
+            };
+            // Single pass over all nodes to build per-type counts.
+            let mut counts: std::collections::HashMap<&'static str, usize> =
+                std::collections::HashMap::new();
+            for node in evidence.all_nodes() {
+                *counts
+                    .entry(evidence_node_type_label(node.node_type()))
+                    .or_insert(0) += 1;
+            }
+            let node_counts = json!({
+                "source_docs":        counts.get("source_doc").copied().unwrap_or(0),
+                "extracted_rows":     counts.get("extracted_row").copied().unwrap_or(0),
+                "transactions":       counts.get("transaction").copied().unwrap_or(0),
+                "classifications":    counts.get("classification").copied().unwrap_or(0),
+                "model_proposals":    counts.get("model_proposal").copied().unwrap_or(0),
+                "operator_approvals": counts.get("operator_approval").copied().unwrap_or(0),
+                "workbook_rows":      counts.get("workbook_row").copied().unwrap_or(0),
+                "validation_issues":  counts.get("validation_issue").copied().unwrap_or(0),
+            });
+            let wq = evidence.work_queue_summary();
+            json!({
+                "content": [text_content(json!({
+                    "action": "summary",
+                    "total_nodes": evidence.node_count(),
+                    "total_edges": evidence.edge_count(),
+                    "node_counts": node_counts,
+                    "work_queue": {
+                        "total_transactions":    wq.total_transactions,
+                        "ready_to_review":       wq.ready_to_review,
+                        "blocked":               wq.blocked,
+                        "exported":              wq.exported,
+                        "with_validation_issues":wq.with_validation_issues,
+                    },
+                }))],
+                "isError": false
+            })
+        }
+        EvidenceArgs::ListNodes { node_type } => {
+            let evidence = match service.evidence.lock() {
+                Ok(e) => e,
+                Err(_) => {
+                    return error_envelope(&ToolError::Internal(
+                        "evidence mutex poisoned".to_string(),
+                    ))
+                }
+            };
+            let nodes: Vec<&arc_kit_au::EvidenceNode> = match node_type {
+                Some(ref nt) => match parse_evidence_node_type(nt) {
+                    Some(parsed) => evidence.nodes_of_type(parsed),
+                    None => {
+                        return json!({
+                            "content": [text_content(json!({
+                                "error": format!(
+                                    "Unknown node type: {nt}. Valid types: \
+                                     source_doc, extracted_row, transaction, classification, \
+                                     model_proposal, operator_approval, workbook_row, validation_issue"
+                                ),
+                            }))],
+                            "isError": true,
+                        })
+                    }
+                },
+                None => evidence.all_nodes().iter().collect(),
+            };
+            let node_summaries: Vec<_> = nodes
+                .iter()
+                .map(|n| {
+                    json!({
+                        "node_id":   n.node_id().to_string(),
+                        "node_type": evidence_node_type_label(n.node_type()),
+                    })
+                })
+                .collect();
+            json!({
+                "content": [text_content(json!({
+                    "action": "list_nodes",
+                    "count":  node_summaries.len(),
+                    "nodes":  node_summaries,
+                }))],
+                "isError": false
+            })
+        }
+        EvidenceArgs::NodeDetail { node_id } => {
+            let evidence = match service.evidence.lock() {
+                Ok(e) => e,
+                Err(_) => {
+                    return error_envelope(&ToolError::Internal(
+                        "evidence mutex poisoned".to_string(),
+                    ))
+                }
+            };
+            let id = arc_kit_au::NodeId(node_id.clone());
+            match evidence.get_node(&id) {
+                Some(node) => json!({
+                    "content": [text_content(json!({
+                        "action":  "node_detail",
+                        "node_id": node_id,
+                        "node":    node,
+                    }))],
+                    "isError": false
+                }),
+                None => json!({
+                    "content": [text_content(json!({
+                        "action":  "node_detail",
+                        "node_id": node_id,
+                        "error":   "Node not found in evidence graph",
+                    }))],
+                    "isError": true,
                 }),
             }
         }

@@ -139,8 +139,14 @@ pub const PUBLISHED_TOOLS: [ToolContractSpec; 9] = [
     },
     ToolContractSpec {
         name: EVIDENCE_TOOL,
-        purpose: "evidence traceability: provenance gaps, transaction lineage, review badges",
-        actions: &["provenance_gaps", "trace_tx"],
+        purpose: "evidence traceability: provenance gaps, transaction lineage, review badges, graph summary and node queries",
+        actions: &[
+            "provenance_gaps",
+            "trace_tx",
+            "summary",
+            "list_nodes",
+            "node_detail",
+        ],
     },
 ];
 
@@ -593,7 +599,20 @@ pub enum EvidenceArgs {
     #[serde(rename = "provenance_gaps")]
     ProvenanceGaps,
     #[serde(rename = "trace_tx")]
-    TraceTx { tx_id: String },
+    TraceTx {
+        tx_id: String,
+    },
+    #[serde(rename = "summary")]
+    Summary,
+    #[serde(rename = "list_nodes")]
+    ListNodes {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        node_type: Option<String>,
+    },
+    #[serde(rename = "node_detail")]
+    NodeDetail {
+        node_id: String,
+    },
 }
 
 pub fn parse_evidence(arguments: &Value) -> Result<EvidenceArgs, ToolError> {
