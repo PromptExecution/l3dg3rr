@@ -5129,6 +5129,19 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
+=======
+name = "ledgerr-mcp-core"
+version = "1.8.1"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
+>>>>>>> 3b1996b (fix(tauri/mece): restore CSS, wire EvidenceState, fix dashboard command + XSS + auto-refresh)
 name = "ledgerr-xero"
 version = "1.8.0"
 dependencies = [
