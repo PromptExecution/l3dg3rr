@@ -5464,6 +5464,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "ledgerr-focus"
+version = "1.8.1"
+dependencies = [
+ "arrow",
+ "blake3",
+ "chrono",
+ "regex",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "ledgerr-host"
 version = "1.8.1"
 dependencies = [
@@ -5515,6 +5530,7 @@ dependencies = [
  "chrono",
  "crossbeam",
  "ledger-core",
+ "ledgerr-focus",
  "ledgerr-llm",
  "ledgerr-mcp",
  "ledgerr-mcp-core",
