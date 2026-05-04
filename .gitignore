@@ -18,5 +18,4 @@
 .env
 .env.*
 book/book/
-prd.md
-target/
+.codebase-memory/

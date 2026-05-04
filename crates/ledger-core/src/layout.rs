@@ -1,5 +1,5 @@
 use crate::graph::{create_pipeline_edges, create_pipeline_nodes};
-use glam::{Vec3, Vec2};
+use glam::{Vec2, Vec3};
 use std::collections::HashMap;
 
 pub fn iso_project(p: Vec3, scale: f32, origin: Vec2) -> Vec2 {
@@ -32,10 +32,7 @@ impl ForceLayout {
         let velocities = HashMap::new();
         for (i, _node) in nodes.iter().enumerate() {
             let angle = (i as f32) * std::f32::consts::TAU / nodes.len() as f32;
-            positions.insert(
-                i,
-                Vec3::new(angle.cos() * 100.0, 0.0, angle.sin() * 100.0),
-            );
+            positions.insert(i, Vec3::new(angle.cos() * 100.0, 0.0, angle.sin() * 100.0));
         }
         Self {
             positions,

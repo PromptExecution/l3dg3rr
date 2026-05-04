@@ -113,9 +113,9 @@ impl EvidenceStore {
 
 #[cfg(test)]
 mod tests {
-    use crate::node::Confidence;
     use super::*;
     use crate::builder::EvidenceBuilder;
+    use crate::node::Confidence;
     use crate::node::{Classification, ExtractedRow, SourceDoc, Transaction};
     use chrono::TimeZone;
     use chrono::Utc;

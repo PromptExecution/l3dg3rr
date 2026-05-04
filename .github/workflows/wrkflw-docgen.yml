@@ -1,0 +1,159 @@
+# wrkflw-local-docgen: local visualization pipeline test workflow
+# Run with: wrkflw run .github/workflows/wrkflw-docgen.yml
+#
+# IMPORTANT:
+# - Uses `emulation` runtime (Docker not required) — steps run as host processes
+# - Assumes host has: Rust toolchain, cargo, node, just, mdBook toolchain installed
+# - wrkflw copies the repo into a sandboxed temp dir — use relative file paths
+# - Each stage does fresh `cargo build` in sandbox — no shared target dir
+# - Expected runtime for full 9-stage run: 20-60+ minutes
+# - ${{ }} expressions, `needs.<id>.result`, `toJSON(needs)` NOT supported in wrkflw
+#
+# PERFORMANCE NOTE:
+# Stages S1-S10 currently test correctness only. No performance/large-dataset benchmarks
+# exist. A future stage could use `hyperfine` or `cargo bench` to benchmark visualization
+# rendering with datasets of 1000+ ontology nodes, or to profile fresh cargo build times.
+name: wrkflw-local-docgen
+
+on:
+  workflow_dispatch:
+
+env:
+  # sccache on PATH shares its cache daemon across all emulation-mode stages
+  # (wrkflw secure-emulation runs as host processes — no sandboxing of the daemon).
+  # If sccache is not installed, RUSTC_WRAPPER is silently ignored by cargo.
+  RUSTC_WRAPPER: sccache
+  SCCACHE_DIR: ${{ runner.temp || '/tmp' }}/sccache
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # Stage 1: Rust unit tests for mdbook-rhai-mermaid parser/emitter
+  stage-1-rhai-parser-tests:
+    name: "S1 Rhai Parser Tests"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run mdbook-rhai-mermaid unit tests
+        run: |
+          cargo test -p mdbook-rhai-mermaid 2>&1 | tee parser-test-output.txt
+
+  # Stage 2: ledger-core iso/isometric lint tests
+  stage-2-iso-lint:
+    name: "S2 Iso Lint Tests"
+    needs: [stage-1-rhai-parser-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run iso lint tests
+        run: |
+          cargo test -p ledger-core --test iso_lint --features legal-z3 2>&1 | tee iso-lint-output.txt
+
+  # Stage 3: ledger-core visualization tests (LayoutSolver, to_mermaid, to_html)
+  stage-3-viz-tests:
+    name: "S3 Viz/Derive Tests"
+    needs: [stage-1-rhai-parser-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run ledger-core visualization tests
+        run: |
+          cargo test -p ledger-core --features legal-z3 2>&1 | tee viz-test-output.txt
+
+  # Stage 4: ledger-core Z3 legal solver integration tests
+  stage-4-legal-z3:
+    name: "S4 Legal Z3 Integration"
+    needs: [stage-2-iso-lint, stage-3-viz-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run legal-z3 integration test
+        run: |
+          cargo test -p ledger-core --test legal_z3_integration --features legal-z3 2>&1 | tee legal-z3-output.txt
+
+  # Stage 5: Build mdBook docs with rhai→mermaid injection
+  stage-5-docgen-build:
+    name: "S5 Docgen Build"
+    needs: [stage-1-rhai-parser-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build docs
+        run: |
+          just docgen 2>&1 | tee docgen-build-output.txt
+
+      - name: Verify Mermaid injection
+        run: |
+          echo "=== Checking Mermaid injection ==="
+          grep -q 'class="mermaid"' book/book/theory.html && echo "✓ theory.html: Mermaid OK" || { echo "✗ theory.html: NO MERMAID"; exit 1; }
+          grep -q 'class="language-rhai"' book/book/theory.html && echo "✓ theory.html: Rhai blocks OK" || { echo "✗ theory.html: NO RHAI"; exit 1; }
+          grep -q 'class="mermaid"' book/book/visualize.html && echo "✓ visualize.html: Mermaid OK" || { echo "✗ visualize.html: NO MERMAID"; exit 1; }
+
+  # Stage 6: Kasuari constraint solver tests from ledger-core
+  stage-6-kasuari-constraints:
+    name: "S6 Kasuari Constraint Tests"
+    needs: [stage-2-iso-lint]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run constraint solver tests
+        run: |
+          cargo test -p ledger-core -- constraints::test 2>&1 | tee kasuari-output.txt
+          cargo test -p ledger-core -- pipeline::test 2>&1 | tee -a kasuari-output.txt
+
+  # Stage 7: Iso object lint — verify all HasVisualization impls produce valid specs
+  stage-7-iso-objects:
+    name: "S7 Iso Objects HasVisualization"
+    needs: [stage-2-iso-lint]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run iso_objects tests
+        run: |
+          cargo test -p ledger-core --features legal-z3 -- --test-threads=1 2>&1 | tee iso-objects-output.txt
+
+  # Stage 8: Live-editor JS unit tests
+  stage-8-live-editor-js:
+    name: "S8 Live Editor JS Tests"
+    needs: [stage-5-docgen-build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run live-editor unit tests
+        run: |
+          node --test book/theme/rhai-live-core.test.js 2>&1 | tee js-test-output.txt
+
+      - name: Run JS syntax checks
+        run: |
+          node -c book/theme/rhai-live-core.js
+          node -c book/theme/rhai-live.js
+
+  # Stage 9: Xero MCP smoke test (build + unit tests, no live API calls)
+  stage-9-xero-mcp:
+    name: "S9 Xero MCP Smoke"
+    needs: [stage-1-rhai-parser-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build MCP server
+        run: |
+          cargo build -p ledgerr-mcp --bin ledgerr-mcp-server 2>&1 | tee xero-mcp-output.txt
+
+      - name: Run MCP tests
+        run: |
+          cargo test -p ledgerr-mcp 2>&1 | tee -a xero-mcp-output.txt
+
+  # Stage 10: McpProvider compile-and-construct smoke test
+  stage-10-mcp-provider-smoke:
+    name: "S10 McpProvider Smoke"
+    needs: [stage-1-rhai-parser-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run McpProvider smoke tests
+        run: |
+          cargo test -p ledgerr-mcp --test mcp_provider_smoke 2>&1 | tee mcp-provider-output.txt

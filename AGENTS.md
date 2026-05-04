@@ -125,6 +125,13 @@ Future agents should follow this working loop unless the user directs otherwise:
 - memoize stable next steps, constraints, and unresolved risks back into this file when they matter for later sessions;
 - repeat until the user is satisfied.
 
+Code discovery rule (mandatory, not optional):
+- NEVER use grep/bash -r for structural code queries (function defs, callers, types, routes, imports, dependencies, architecture).
+- ALWAYS use `codebase-memory-mcp` tools (`search_graph`, `trace_path`, `get_code_snippet`, `get_architecture`, `query_graph`) for structural queries.
+- ALWAYS use `b00t-mcp` tools (`b00t_grok_ask`, `b00t_grok_learn`) for RAG-augmented knowledge retrieval.
+- Fall back to grep/glob ONLY for string literals, error messages, config values, and non-code files (Dockerfiles, shell scripts, YAML).
+- Rationale: grep -r burns CPU budget (10-30s per call), misses cross-crate relationships, and pulls irrelevant context. codebase-memory-mcp resolves in 1-3s with structural labels and relationship edges.
+
 Practical interpretation:
 - prefer one agent/sub-agent for implementation and another for targeted verification when the user explicitly wants delegation or parallel work;
 - do not treat green tests as the only completion signal if the UX, notification path, tray behavior, or host integration still lacks a real validation path;
@@ -298,6 +305,11 @@ Treat this as a standing operational gate, not a one-time migration task.
   - Legacy `l3dg3rr_*` and proxy tool names remain compatibility aliases only and should not be reintroduced into the advertised catalog.
 - 2026-04-21: Xero is now part of the advertised MCP catalog as `ledgerr_xero`, making the default published surface 8 top-level `ledgerr_*` tools.
   - Keep generated docs and AGENTS guidance aligned to `crates/ledgerr-mcp/src/contract.rs`; older references to a 7-tool surface are stale.
+- 2026-05-03: Negative/error-path testing added for the docgen pipeline.
+  - `crates/mdbook-rhai-mermaid/src/parser.rs` has 7 malformed-input tests in `#[cfg(test) mod tests]` that verify the parser never panics and gracefully degrades on misspelled keywords, missing arrows, empty targets, double arrows, and very long labels.
+  - `just docgen-check-negative` creates a temp `book/src/broken.md` with invalid cross-references, builds the book, verifies the broken links are present in the HTML output (confirming mdBook does not fail on broken links at build time), and cleans up.
+  - `just docgen-check` now also asserts that `book/book/iso-pipeline-objects.html` has at least 5 mermaid blocks.
+  - Run parser negative tests with: `cargo test -p mdbook-rhai-mermaid -- malformed`
   - Documentation hierarchy should lead with operator capabilities first, then application structure, then visualization internals.
   - Use Z3 for hard satisfiability/proof obligations and Kasuari for soft plausibility/layout constraints.
   - `ledger-core` keeps native Z3 behind the `legal-z3` feature because default local builds may not have `libz3` installed.
@@ -368,10 +380,69 @@ Treat this as a standing operational gate, not a one-time migration task.
   - Build mdBook assets before expecting `/docs/` to serve useful content; use `just host-playbook-window` for the packaged playbook launch path.
   - Windows AI / Foundry Local is selectable only, not auto-selected. Use `just windows-ai-install`, `just windows-ai-setup`, and `just windows-ai-smoke` as the verified PowerShell setup path before demoing it.
   - Do not hardcode Foundry Local port `5272` in host logic; discover the dynamic endpoint from `foundry service status` or `/openai/status`.
+- 2026-05-02: `.tomllmd` — compound structured document format established as the auto-research distillation invariant.
+  - Pipeline: `autoresearch [markdown] + tomllm => .tomllmd`
+  - Three summary levels per section: `verbatim` (full), `executive` (compressed), `epigram` (one-liner)
+  - Command interpolation via `{{ cmd: ... }}` at read time, rendered like PHP with role/tier-based truncation
+  - Entanglement invariant typing: every cross-datum ref is `name.type` validated by `entanglement.rs`
+  - Compounding: sm0l/ch0nky LLM merges two+ `.tomllmd` at different summary levels into higher-order meta-learn datum
+  - Selection by agent role tier (sm0l/ch0nky/frontier) + skill invariant tags + context window budget
+  - Full ADR stored in codebase-memory-mcp knowledge graph (manage_adr mode=update)
+- 2026-05-02: Generic McpProvider trait established as the invariant MCP interface.
+  - `crates/ledgerr-mcp/src/provider.rs` defines `McpProvider` trait + `StdioMcpProvider` (subprocess stdio transport) + `McpProviderRegistry` for discovery/routing.
+  - `crates/ledgerr-mcp/src/providers/definitions.rs` has concrete providers: `B00tProvider`, `JustProvider`, `Ir0ntologyProvider` — each wrapping an `StdioMcpProvider` over stdio MCP protocol.
+  - `McpProviderRegistry.initialize_all()` does MCP handshake + tools/list discovery; `call_tool()` dispatches by provider name or tool name.
+  - Xero is still feature-gated inside `TurboLedgerService` (legacy path). Future: refactor Xero as a `McpProvider` too.
+  - Keep `McpProvider` as the invariant — any external tool (xero, b00t, just, ir0ntology, etc.) registers the same way.
+  - Cloudflare Code Mode pattern (`search()` + `execute()` with sandboxed code execution) is the next natural evolution for large API surfaces. Consider adding a `CodeModeProvider` variant that exposes the Rhai engine as a sandbox for `search`/`execute` tools.
+  - `crates/ledgerr-mcp/src/providers/` is not yet wired into `mcp_adapter.rs` tool dispatch or `ledgerr-mcp-server.rs`. Wiring requires injecting `McpProviderRegistry` into the server binary and adding a `handle_external_tool` dispatcher that delegates to the registry.
+- 2026-05-02: Datum AST linter added to `crates/datum/src/ast.rs` with `LintSeverity` (Error/Warning/Info), `lint_ast()`, `parse_datum()` producing `DatumAst` with section hierarchy, and `validate_datum_structure()` for CI gating. Feature-gated by `real_datums` for external `_b00t_` repo tests.
+  - CI runs `cargo test -p datum` (58 standalone tests: 15 AST + 19 logic + 11 tomllmd + 11 protocol + 2 lib, no external deps).
+  - Full real-datum tests via `--features real_datums`.
+  - Logic module (`logic.rs`): NAND/NOR/ADD/WAIT/TX/RX gate types, flux capacitor meta-state requiring all ports filled, shorthand tokenizer (`&&`/`||`/`!`/`→`/`←`).
+  - Protocol module (`protocol.rs`): Z3/Kasuari-style constraint system for protocol encoding optimality (`O = P XOR B`), `KASUARI_SHORTHAND == ( && === and , || === or )`. `evaluate_protocol()`, `has_unrecoverable_violations()`, `classify_violations()` with dialect comparison table.
+  - Tomllmd module (`tomllmd.rs`): `.tomllmd` compiler with `SectionLevels` (verbatim/executive/epigram), `EntanglementRef` with type validation, compounding metadata.
+  - Ralph loop surface (`b00t-iface/src/ralph.rs`): `RalphLoopSurface<R: Researcher>` with typed `RalphLoopProperties` (TTL, cadence, crash_budget, max_iterations), `iterate()` lifecycle, governance harmonized to existing `ProcessSurface`/`SurfaceMachine`/`SurfaceHarness`.
+- 2026-05-03: wrkflw integration for local docgen visualization pipeline testing.
+  - `wrkflw` (`cargo install wrkflw`) runs GitHub Actions workflows locally without Docker via `--runtime secure-emulation`.
+  - `.github/workflows/wrkflw-docgen.yml` defines a 9-stage pipeline testing all visualization layers: Rhai parser tests (S1), iso lint (S2), viz/derive tests (S3), legal Z3 integration (S4), mdBook docgen build (S5), Kasuari constraint tests (S6), iso objects HasVisualization impls (S7), live-editor JS tests (S8), Xero MCP smoke (S9).
+  - Justfile recipes: `wrkflw-docgen-test`, `wrkflw-validate`, `wrkflw-list`, `wrkflw-job`, `wrkflw-tui`, `wrkflw-full-test`.
+  - `scripts/wrkflw_test.sh` — test harness with `--validate`, `--stage S<N>`, `--list`, `--full` modes.
+  - Use `just wrkflw-docgen-test` to run the full pipeline. Individual stages with `just wrkflw-job stage-5-docgen-build`.
+  - wrkflw validates workflow YAML first (`wrkflw validate .github/workflows/wrkflw-docgen.yml`), then executes.
+  - Secure emulation mode avoids needing Docker/Podman — wrkflw executes steps as sandboxed host processes.
+  - Important wrkflw limitations discovered:
+    - `actions/checkout@v4` is REQUIRED in each job even for local emulation (wrkflw volume-mounts empty dirs)
+    - `uses:` with composite actions (like `dtolnay/rust-toolchain@stable`) fails under emulation — use inline commands
+    - `continue-on-error: ${{ }}` expressions unsupported — use literal `true`/`false` only
+    - `needs.<id>.result` and `toJSON(needs)` expressions not supported in summary jobs
+    - Each stage does a fresh `cargo build` from scratch in its sandbox — no shared `target/` cache
+    - wrkflw secure emulation blocks `curl | sh` dangerous patterns — use `emulation` runtime instead
+    - Expected full 9-stage run: 20-60+ minutes due to recompilation
+  - During integration, wrkflw surfaced a pre-existing compilation error in `crates/ledger-core/src/observability.rs:192` (`ParseIntError` → `ObservabilityError` type mismatch, fixed).
+  - Non-obvious emergent capabilities from the Z3/Kasuari `HasVisualization` invariant:
+    - **Dual solver topology testable in one pipeline**: S4 exercises Z3 (hard legal SAT) and S6 exercises Kasuari (soft Cassowary constraints) — the `ConstraintSolver` trait bridges them, and both produce `Z3Result`/`ConstraintEvaluation` that share the same `HasVisualization` impl contract.
+    - **Z-layer stack consistency**: The 6-layer Z stack (Document→Pipeline→Constraint→Legal→FormalProof→Attestation) and the 21+ `HasVisualization` impls can be validated across all layers without needing a real ledger dataset — S2+S7 cover the full impl surface via `--test iso_lint` and `--test-threads=1`.
+    - **Cross-stage composition coverage**: The `ConstraintSolver` trait (KasuariSolver in pipeline.rs), `LayoutSolver` (visualize.rs), and `LegalSolver` (legal.rs, Z3-gated) are independent solver engines that share `Issue`, `MetaCtx`, and `CommitGate` types — wrkflw stages independently validate each while the summary signals overall contract consistency.
+    - **Docgen as integration test**: S5 (mdBook build) indirectly tests the `mdbook-rhai-mermaid` preprocessor, which uses the same `parser::Graph` types exported as a library (lib.rs) — proving the parser works both as an mdBook plugin and as a standalone library for b00t synergy_viz.
+    - **What's NOT tested**: McpProviderRegistry initialization, Xero live API calls, crash recovery/idempotency, concurrency groups, service containers, and cross-stage artifact sharing.
+- 2026-05-03: Crash recovery audit (Gap 6).
+  - **Crash recovery exists.** `TurboLedgerService` persists restart-visible state as a JSON sidecar (`{workbook}.l3dg3rr.state.json`) next to the manifest workbook path. The sidecar bundles: ingest idempotency state, transaction row cache, audit log, lifecycle event history, and HSM checkpoint.
+  - **Atomic write pattern**: `persist_state_to_path` writes to a temp file then `rename()`s to the final path — a crash during write leaves the previous valid sidecar intact.
+  - **Fail-closed on corruption**: `load_persisted_state` rejects unparseable or version-mismatched sidecars (fails closed instead of silently resetting).
+  - **Test coverage**: `crates/ledgerr-mcp/tests/restart_persistence.rs` has 3 tests covering ingest+classify+flags+audit sidecar survival, event history+replay after reload, and HSM checkpoint persistence across `from_manifest_str` boundaries.
+  - **Not covered**: Crash during classification/tool execution (sidecar write is post-hoc, not transactionally atomic with the mutation). No crash-in-the-middle fuzzing. No concurrent-writer protection (single-user assumption). No WAL/journal replay for the sidecar itself.
+  - **Idempotency layer**: Blake3 content-hash IDs make `ingest_statement_rows` idempotent at the core level regardless of sidecar state — re-ingesting the same rows after a lost sidecar produces the same tx_ids with `inserted_count: 0`.
 - 2026-04-24: README/product framing is bookkeeping-first with visual workflow graph as the organizing model.
   - Describe `l3dg3rr` as a strongly typed, ontologically linked graph of scriptable visual-first workflows for supervised AI/LLM ETL into CPA-auditable bookkeeping artifacts.
   - Keep README structure MECE: bookkeeping truth, typed domain model, ontology graph, scriptable policy, workflow control, visualization, MCP/agent boundary, and operator host.
   - Clarify Rhai surfaces separately: transaction rules use `fn classify(tx)`, workflow compiler output may emit Rhai `switch`, and docs visualization uses the narrow `match expr => Arm -> target` DSL.
+- 2026-05-03: Clippy zero-warnings baseline established, agent tooling efficiency mandate.
+  - **Code discovery rule (mandatory)**: Added explicit rule to Execution Loop section: NEVER grep -r for structural queries. ALWAYS use codebase-memory-mcp (search_graph/trace_path) or b00t-mcp (b00t_grok_ask). grep/glob only for string literals, config values, non-code files. Rationale: grep burns 10-30s CPU budget per call, misses cross-crate relationships, pulls irrelevant context; graph tools resolve in 1-3s with structural labels.
+  - **`handle_external_tool`**: Removed vestigial `_registry` parameter — function always uses `GLOBAL_PROVIDER_REGISTRY` static internally. Call site no longer creates dummy `McpProviderRegistry::new()`.
+  - **Unmapped surfaces survey**: Confirmed `ConstraintSolver`/`Verb` traits are test+visualization-only but not truly dead (exercised by xtask + iso_lint). `LedgerOperation`/`SemanticRuleSelector`/`MultiModelVerifier` are future-feature stubs, not gaps. `HasVisualization` all 20 impls exercised. 13 ledger-core modules not consumed by MCP/host is architectural intent (iso/layout/render are visualization-only).
+  - **Zero clippy warnings** across workspace (excluding pre-existing ledgerr-tauri WSL issue). Fixed: unused constants behind cfg gates, dead_code on struct fields used only in tests, large Err variant allow.
+  - **Sub-agent pattern**: Used explore sub-agents with codebase-memory-mcp for survey (returned structured report in ~30s). Compare: previous grep-based survey attempt in PR #69 took 10+ minutes of CPU with truncated output. This validated the new tooling approach.
 - 2026-05-04: Evidence graph surfaced through MCP query tools and Tauri dashboard.
   - **arc-kit-au evidence graph (PR #76, issue #52)**: Added 3 new actions to `ledgerr_evidence` MCP tool: `summary` (node/edge counts + work queue), `list_nodes` (filterable node enumeration), `node_detail` (full node by NodeId). Handler uses local `parse_node_type` rather than pulling FromStr into the arc-kit-au crate.
   - **Tauri dashboard (PR #77→#78, issue #51)**: Panels refactored from hardcoded sequential numbering to a single `PANELS` JS array (`[{id, icon, label}, ...]`). `buildUI()` generates sidebar buttons and panel divs; `panelTemplate(id)` provides panel HTML. Adding a panel = edit one array + one template entry. Zero hardcoded indices.

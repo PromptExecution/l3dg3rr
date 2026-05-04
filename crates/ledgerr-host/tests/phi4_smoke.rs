@@ -66,8 +66,8 @@ mod phi4 {
         let request = ModelRequest::text("Reply with only the single word: HELLO")
             .with_system_prompt("You are a terse assistant. Follow instructions exactly.");
 
-        let response = AgentRuntime::complete(&runtime, request)
-            .expect("phi4 completion should not fail");
+        let response =
+            AgentRuntime::complete(&runtime, request).expect("phi4 completion should not fail");
 
         assert!(
             !response.assistant_text.is_empty(),

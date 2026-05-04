@@ -162,6 +162,66 @@ test-phi4-mistral:
 unsloth-finetune-plan:
     @echo "TODO: install Unsloth and add a reproducible Phi-4 mini documentation fine-tuning recipe."
 
+# TODO: add cargo bench benchmark for docgen rendering pipeline performance
+# ─── Devtools (Linux) ─────────────────────────────────────────────────────
+
+# Install common developer tools missing from the base Ubuntu 24.04 image.
+# Skips tools that already exist so repeated runs are fast.
+# Tries apt first (needs sudo), falls back to cargo install where possible.
+install-devtools:
+    #!/bin/bash
+    set -euo pipefail
+    echo "=== install-devtools (Linux x86_64) ==="
+
+    # Prefer apt for system packages; skip if sudo requires a TTY
+    if sudo -n true 2>/dev/null; then
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq ripgrep fd-find bat hyperfine jq tree httpie shellcheck 2>/dev/null || true
+    else
+        echo "[skip] apt packages require interactive sudo — will use cargo fallbacks"
+    fi
+
+    # Install ripgrep via cargo if not found
+    if ! command -v rg >/dev/null 2>&1; then
+        echo "Installing ripgrep via cargo..."
+        cargo install ripgrep --quiet
+    fi
+
+    # Install fd-find via cargo if neither the upstream nor Ubuntu/Debian binary name is found
+    if ! command -v fd >/dev/null 2>&1 && ! command -v fdfind >/dev/null 2>&1; then
+        echo "Installing fd-find via cargo..."
+        cargo install fd-find --quiet
+    fi
+
+    # Install bat (syntax-highlighted pager) via cargo if neither the upstream nor Ubuntu/Debian binary name is found
+    if ! command -v bat >/dev/null 2>&1 && ! command -v batcat >/dev/null 2>&1; then
+        echo "Installing bat via cargo..."
+        cargo install bat --quiet
+    fi
+
+    # Install hyperfine (benchmark runner) via cargo if not found
+    if ! command -v hyperfine >/dev/null 2>&1; then
+        echo "Installing hyperfine via cargo..."
+        cargo install hyperfine --quiet
+    fi
+
+    # Install cargo-binstall (binary installer for Rust tools)
+    if ! command -v cargo-binstall >/dev/null 2>&1; then
+        echo "Installing cargo-binstall via cargo..."
+        cargo install cargo-binstall --quiet
+    fi
+
+    # Install jq via binstall
+    if ! command -v jq >/dev/null 2>&1 && command -v cargo-binstall >/dev/null 2>&1; then
+        echo "Installing jq via cargo-binstall..."
+        cargo binstall -y jq --quiet 2>/dev/null || true
+    fi
+
+    # Install cargo-update (for `cargo install-update -a`)
+    cargo binstall -y cargo-update --quiet 2>/dev/null || true
+
+    echo "=== done ==="
+
 gh-secrets-help:
     @echo "Expected .env values (optional):"
     @echo "  CRATES_IO_TOKEN=..."
@@ -286,7 +346,20 @@ publish-registry tag artifact-url sha256:
 ensure-cog:
     @PATH="${HOME}/.cargo/bin:${PATH}" bash -eu -o pipefail -c 'if command -v cog >/dev/null 2>&1; then echo "Using existing cog"; else echo "cog not found; installing cocogitto..."; cargo install cocogitto; fi'
 
-# Cocogitto release recipe (major|minor|patch, defaults to patch)
+# Fast test suite for release gates — skips model-inference tests that need GGUF assets.
+# phi4_produces_output and phi4_mistral_produces_output load a ~2 GB GGUF model and
+# can run for 10+ minutes; they are exercised separately via `just test-phi4`.
+test-fast:
+    cargo test --workspace --all-targets --all-features \
+        -- --skip phi4_produces_output --skip phi4_mistral_produces_output
+
+# Cocogitto release recipe (major|minor|patch, defaults to patch).
+#
+# Odd/even minor version policy (Ubuntu-style):
+#   Even minor (1.0, 1.2, 1.4, 1.8 …) — Stable. Full test gate incl. phi4 inference.
+#                                          GitHub release created. LTS supported.
+#   Odd minor  (1.1, 1.3, 1.5, 1.7 …) — Dev/Experimental. Fast test gate only.
+#                                          No GitHub release. No LTS support.
 release version="patch": ensure-cog
     #!/bin/bash
     set -euo pipefail
@@ -295,14 +368,48 @@ release version="patch": ensure-cog
         major|minor|patch) ;;
         *) echo "Invalid version: {{version}} (use major, minor, or patch)" && exit 1 ;;
     esac
-    echo "Running pre-release checks..."
-    cargo test --workspace --all-targets --all-features
+
+    # Determine what the next version will be to apply odd/even policy.
+    CURRENT=$(cog get-version)
+    CURRENT_MINOR=$(echo "$CURRENT" | cut -d. -f2)
+    if [ "{{version}}" = "minor" ]; then
+        NEXT_MINOR=$(( CURRENT_MINOR + 1 ))
+    elif [ "{{version}}" = "major" ]; then
+        NEXT_MINOR=0
+    else
+        NEXT_MINOR=$CURRENT_MINOR
+    fi
+    IS_EVEN=$(( NEXT_MINOR % 2 == 0 ))
+
+    if [ "$IS_EVEN" -eq 1 ]; then
+        echo "Stable (even minor) release — running full test suite including phi4 inference..."
+        cargo test --workspace --all-targets --all-features
+    else
+        echo "Dev (odd minor) release — running fast test suite (phi4 inference skipped)..."
+        just test-fast
+    fi
+
     ./scripts/e2e_mvp.sh
     echo "Bumping {{version}} version with cocogitto..."
     cog bump --{{version}}
     cog changelog
-    echo "Pushing tags..."
+    echo "Pushing branch and tags..."
     git push --follow-tags
+    TAG=$(cog get-version | sed 's/^/v/')
+
+    if [ "$IS_EVEN" -eq 1 ]; then
+        echo "Stable release — creating GitHub release for ${TAG}..."
+        NOTES=$(awk "/^## ${TAG//./\\.}/,/^## v[0-9]/" CHANGELOG.md \
+            | grep -v "^## v[0-9]" | sed '/^[[:space:]]*$/d' | head -80)
+        gh release create "${TAG}" \
+            --title "${TAG} (stable)" \
+            --notes "${NOTES:-See CHANGELOG.md for details.}" \
+            --latest
+        echo "GitHub release created: https://github.com/PromptExecution/l3dg3rr/releases/tag/${TAG}"
+    else
+        echo "Dev release — no GitHub release created for odd minor ${TAG}."
+        echo "Tag ${TAG} pushed. Use 'just release minor' again to reach next stable even minor."
+    fi
 
 # Show current version
 v: ensure-cog
@@ -367,4 +474,75 @@ docgen-check:
     @node -c book/theme/rhai-live.js
     @echo "Running live-editor unit tests..."
     @node --test book/theme/rhai-live-core.test.js
+    @echo "Checking iso-pipeline-objects.html has at least 5 mermaid blocks..."
+    @count=$$(grep -c 'class="mermaid"' book/book/iso-pipeline-objects.html); echo "Found $$count mermaid blocks in iso-pipeline-objects.html"; if [ "$$count" -lt 5 ]; then echo "error: expected at least 5 mermaid blocks, found $$count"; exit 1; fi; echo "✓ iso-pipeline-objects.html has $$count mermaid blocks (>= 5)"
     @echo "All documentation diagrams validated!"
+
+# Negative test: verify broken cross-references are present in output (mdBook
+# does not fail on broken links at build time — this confirms the behavior)
+docgen-check-negative:
+    @if [ ! -x ~/.cargo/bin/mdbook ]; then echo "error: mdbook not found — run: cargo install mdbook mdbook-mermaid"; exit 1; fi
+    @if [ ! -x ~/.cargo/bin/mdbook-mermaid ]; then echo "error: mdbook-mermaid not found — run: cargo install mdbook-mermaid"; exit 1; fi
+    @if [ ! -x ~/.cargo/bin/mdbook-rhai-mermaid ]; then cargo install --path crates/mdbook-rhai-mermaid --quiet; fi
+    @echo "Creating temp file with broken cross-reference..."
+    echo "# Broken Page" > book/src/broken.md
+    echo "" >> book/src/broken.md
+    echo "[bad](./nonexistent.html)" >> book/src/broken.md
+    echo "[good](./intro.html)" >> book/src/broken.md
+    echo "[relative](../nonexistent/deep.html)" >> book/src/broken.md
+    @echo "Building book with known-broken link..."
+    PATH="$$HOME/.cargo/bin:$$PATH" $$HOME/.cargo/bin/mdbook build book
+    @echo "Verifying broken link appears in output (mdBook doesn't fail at build time)..."
+    @grep -q 'href="./nonexistent.html"' book/book/broken.html && echo "✓ confirmed: nonexistent.html link present in output" || { echo "error: expected broken link not found"; rm -f book/src/broken.md; exit 1; }
+    @grep -q 'href="../nonexistent/deep.html"' book/book/broken.html && echo "✓ confirmed: deep broken link present in output" || { echo "error: expected deep broken link not found"; rm -f book/src/broken.md; exit 1; }
+    @grep -q 'href="./intro.html"' book/book/broken.html && echo "✓ confirmed: valid link also present" || { echo "error: valid link missing"; rm -f book/src/broken.md; exit 1; }
+    @echo "Cleaning up temp test file..."
+    rm -f book/src/broken.md
+    rm -rf book/book/broken.html
+    @echo "✓ docgen-check-negative passed — mdBook does not fail on broken links"
+
+# Run the McpProvider smoke test (compile-and-construct, no external binaries needed)
+test-mcp-providers:
+    cargo test -p ledgerr-mcp --test mcp_provider_smoke 2>&1 | tail -20
+
+# ─── wrkflw: local CI pipeline runner ──────────────────────────────────────
+
+# Run the wrkflw-local-docgen workflow locally using emulation mode (no Docker).
+# Tests all visualization pipeline stages: Rhai parser, iso lint, viz derive,
+# legal Z3, docgen build, Kasuari constraints, iso objects, live-editor JS.
+# Requires: cargo install wrkflw
+wrkflw-docgen-test emulation="secure-emulation":
+    @if ! command -v wrkflw >/dev/null 2>&1; then echo "error: wrkflw not found — run: cargo install wrkflw"; exit 1; fi
+    @echo "=== wrkflw: Running docgen visualization pipeline ==="
+    wrkflw run --runtime {{emulation}} .github/workflows/wrkflw-docgen.yml
+    @echo "=== wrkflw-docgen-test complete ==="
+
+# Validate the wrkflw workflow definition for syntax correctness
+wrkflw-validate:
+    @if ! command -v wrkflw >/dev/null 2>&1; then echo "error: wrkflw not found — run: cargo install wrkflw"; exit 1; fi
+    wrkflw validate --verbose .github/workflows/wrkflw-docgen.yml
+    @echo "✓ wrkflw-docgen workflow validates"
+
+# List all workflows wrkflw can discover
+wrkflw-list:
+    @if ! command -v wrkflw >/dev/null 2>&1; then echo "error: wrkflw not found — run: cargo install wrkflw"; exit 1; fi
+    wrkflw list
+
+# Run specific stages of the docgen pipeline via wrkflw with job selection
+wrkflw-job job="stage-1-rhai-parser-tests" emulation="secure-emulation":
+    @if ! command -v wrkflw >/dev/null 2>&1; then echo "error: wrkflw not found — run: cargo install wrkflw"; exit 1; fi
+    wrkflw run --job "{{job}}" --runtime {{emulation}} .github/workflows/wrkflw-docgen.yml
+
+# Open wrkflw TUI to inspect and run workflows interactively
+wrkflw-tui:
+    @if ! command -v wrkflw >/dev/null 2>&1; then echo "error: wrkflw not found — run: cargo install wrkflw"; exit 1; fi
+    wrkflw tui
+
+# Full wrkflw test: validate first, then run the full docgen pipeline
+wrkflw-full-test emulation="secure-emulation":
+    @if ! command -v wrkflw >/dev/null 2>&1; then echo "error: wrkflw not found — run: cargo install wrkflw"; exit 1; fi
+    @echo "=== Step 1: Validate ==="
+    wrkflw validate .github/workflows/wrkflw-docgen.yml
+    @echo ""
+    @echo "=== Step 2: Run docgen pipeline ==="
+    wrkflw run --runtime {{emulation}} .github/workflows/wrkflw-docgen.yml

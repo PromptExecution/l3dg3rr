@@ -1,0 +1,26 @@
+[package]
+name = "ledgerr-focus"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "FOCUS (FinOps Cost Usage Specification) — typed cost/usage records with Arrow DataFrame serde and gRPC transport contract."
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { workspace = true }
+rust_decimal = { workspace = true }
+arrow = { version = "58.2.0", optional = true }
+regex = "1"
+thiserror = "2"
+blake3 = "1.8.3"
+
+[features]
+default = ["arrow-serde"]
+arrow-serde = ["dep:arrow"]
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile = "3"

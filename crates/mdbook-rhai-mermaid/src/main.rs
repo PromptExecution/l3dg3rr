@@ -62,7 +62,11 @@ fn main() {
 /// Walk the entire book value, mutating chapter content in-place.
 fn process_book(mut book: Value) -> Value {
     // mdbook 0.5.x serializes Book with key "items"; older versions used "sections"
-    let key = if book.get("items").is_some() { "items" } else { "sections" };
+    let key = if book.get("items").is_some() {
+        "items"
+    } else {
+        "sections"
+    };
     process_sections(book.get_mut(key));
     book
 }
@@ -253,12 +257,21 @@ mod tests {
         let content = "# Title\n\n```rhai\nfn ingest() -> classify\n```\n\nSome text.\n";
         let result = inject_mermaid_blocks(content);
         assert!(result.contains("```rhai\n"), "should preserve rhai block");
-        assert!(result.contains("```mermaid\n"), "should inject mermaid block");
-        assert!(result.contains("flowchart TD\n"), "mermaid should be a flowchart");
+        assert!(
+            result.contains("```mermaid\n"),
+            "should inject mermaid block"
+        );
+        assert!(
+            result.contains("flowchart TD\n"),
+            "mermaid should be a flowchart"
+        );
         // Mermaid block must come after the rhai block.
         let rhai_pos = result.find("```rhai").unwrap();
         let mermaid_pos = result.find("```mermaid").unwrap();
-        assert!(mermaid_pos > rhai_pos, "mermaid block should be after rhai block");
+        assert!(
+            mermaid_pos > rhai_pos,
+            "mermaid block should be after rhai block"
+        );
     }
 
     #[test]
@@ -282,8 +295,7 @@ mod tests {
 
     #[test]
     fn test_inject_multiple_blocks() {
-        let content =
-            "```rhai\nfn a() -> b\n```\n\nMiddle.\n\n```rhai\nfn c() -> d\n```\n";
+        let content = "```rhai\nfn a() -> b\n```\n\nMiddle.\n\n```rhai\nfn c() -> d\n```\n";
         let result = inject_mermaid_blocks(content);
         let count = result.matches("```mermaid").count();
         assert_eq!(count, 2, "should inject one mermaid block per rhai block");
@@ -301,7 +313,10 @@ mod tests {
         let content = "```rhai\n// only a comment\n```\n";
         let result = inject_mermaid_blocks(content);
         // Graph is empty — no mermaid block should be injected.
-        assert!(!result.contains("```mermaid"), "empty graph should not inject mermaid");
+        assert!(
+            !result.contains("```mermaid"),
+            "empty graph should not inject mermaid"
+        );
     }
 
     #[test]

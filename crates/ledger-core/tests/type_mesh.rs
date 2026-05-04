@@ -4,9 +4,7 @@
 //! structurally compatible at compile time. If a type changes and breaks
 //! the mesh, these tests fail to compile — catching drift before runtime.
 
-use ledger_core::classify::{
-    ClassificationOutcome, ClassifiedTransaction, SampleTransaction,
-};
+use ledger_core::classify::{ClassificationOutcome, ClassifiedTransaction, SampleTransaction};
 use ledger_core::ingest::{deterministic_tx_id, IngestedTransaction, TransactionInput};
 use ledger_core::journal::JournalTransaction;
 use ledger_core::validation::{and_then, Disposition, Issue, IssueSource, MetaCtx, StageResult};
@@ -79,10 +77,7 @@ fn test_transaction_input_to_journal_shape() {
 
 #[test]
 fn test_classification_outcome_to_classified_shape() {
-    fn check_shape(
-        tx_id: String,
-        outcome: ClassificationOutcome,
-    ) -> ClassifiedTransaction {
+    fn check_shape(tx_id: String, outcome: ClassificationOutcome) -> ClassifiedTransaction {
         ClassifiedTransaction {
             tx_id,
             category: outcome.category,
@@ -140,9 +135,13 @@ fn test_classified_to_projection_row_requires_context() {
 
 #[test]
 fn test_validation_pipeline_mesh() {
-    let issue = Issue::recoverable("V-001", "low confidence classification", IssueSource::RhaiRule {
-        rule_id: "classify_schedule_c".into(),
-    });
+    let issue = Issue::recoverable(
+        "V-001",
+        "low confidence classification",
+        IssueSource::RhaiRule {
+            rule_id: "classify_schedule_c".into(),
+        },
+    );
     let issues = vec![issue];
 
     let initial = MetaCtx::initial();
@@ -173,7 +172,11 @@ fn test_validation_pipeline_mesh() {
 #[test]
 fn test_disposition_enum_coverage() {
     let unrecoverable = Issue::unrecoverable("E-001", "data corruption detected");
-    let recoverable = Issue::recoverable("W-001", "low confidence classification", IssueSource::Constraint { strength: 0.5 });
+    let recoverable = Issue::recoverable(
+        "W-001",
+        "low confidence classification",
+        IssueSource::Constraint { strength: 0.5 },
+    );
     let advisory = Issue::advisory("A-001", "consider reviewing category");
 
     assert_eq!(unrecoverable.disposition, Disposition::Unrecoverable);

@@ -1,14 +1,30 @@
+//! Legacy MCP adapter — direct TurboLedgerService dispatch.
+//!
+//! This module contains the original dispatch layer where each MCP tool
+//! call goes directly through `&TurboLedgerService` method calls.  It is
+//! gated behind the `legacy` feature flag for historical reference.
+//!
+//! New code should route through `actor::ServiceHandle` instead.
+//!
+//! ──ℹ── Historical snapshot ──ℹ──
+//! This code was the primary tool dispatch from 2025-Q3 through 2026-Q2.
+//! It was replaced by the actor/gate channel system in PRD-7 Phase 0-4.
+
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+#[cfg(feature = "b00t")]
+use std::sync::OnceLock;
 
 use ledger_core::ingest::{deterministic_tx_id, TransactionInput};
+#[cfg(feature = "b00t")]
+use ledgerr_mcp_core::ToolDescriptor;
 use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::{
     contract::{
-        self, AuditArgs, DocumentsArgs, EvidenceArgs, OntologyArgs, ReconciliationArgs,
-        ReviewArgs, TaxArgs, WorkflowArgs,
+        self, AuditArgs, DocumentsArgs, EvidenceArgs, OntologyArgs, ReconciliationArgs, ReviewArgs,
+        TaxArgs, WorkflowArgs,
     },
     ClassifyIngestedRequest, ClassifyTransactionRequest, DocumentInventoryRequest,
     DocumentQueueStatusRequest, EventHistoryFilter, ExportCpaWorkbookRequest, FlagStatusRequest,
@@ -21,11 +37,259 @@ use crate::{
     TaxAssistRequest, TaxEvidenceChainRequest, ToolError, TurboLedgerService, TurboLedgerTools,
 };
 
+// Global provider registry — set once at startup by the server binary.
+// Feature-gated because the registry type comes from ledgerr-mcp-core (b00t feature).
+#[cfg(feature = "b00t")]
+static GLOBAL_PROVIDER_REGISTRY: OnceLock<ledgerr_mcp_core::McpProviderRegistry> = OnceLock::new();
+
+/// Register the global provider registry for external tool dispatch.
+/// Called once at startup by the server binary.
+#[cfg(feature = "b00t")]
+pub fn set_global_provider_registry(registry: ledgerr_mcp_core::McpProviderRegistry) {
+    let _ = GLOBAL_PROVIDER_REGISTRY.set(registry);
+}
+
+/// Return all external provider tool descriptors for inclusion in tools/list.
+#[cfg(feature = "b00t")]
+fn external_tool_descriptors() -> Vec<Value> {
+    let Some(registry) = GLOBAL_PROVIDER_REGISTRY.get() else {
+        return Vec::new();
+    };
+    registry
+        .all_tool_descriptors()
+        .into_iter()
+        .map(|td: ToolDescriptor| json!({ "name": td.name, "inputSchema": td.input_schema }))
+        .collect()
+}
+
+#[cfg(not(feature = "b00t"))]
+fn external_tool_descriptors() -> Vec<Value> {
+    Vec::new()
+}
+
+// Public re-exports are always available (they're just constants).
 pub use crate::contract::{
-    AUDIT_TOOL, DOCUMENTS_TOOL, EVIDENCE_TOOL, ONTOLOGY_TOOL, RECONCILIATION_TOOL, REVIEW_TOOL,
-    TAX_TOOL, WORKFLOW_TOOL, XERO_TOOL,
+    AUDIT_TOOL, DOCUMENTS_TOOL, EVIDENCE_TOOL, FOCUS_TOOL, ONTOLOGY_TOOL, RECONCILIATION_TOOL,
+    REVIEW_TOOL, TAX_TOOL, WORKFLOW_TOOL, XERO_TOOL,
 };
 
+// ── Default dispatch ──────────────────────────────────────────────────────────
+// These always-compiled functions provide the core dispatch surface.  When the
+// `legacy` feature is active they are joined by the original direct-dispatch
+// functions (tool_names, tool_names_for, tool_input_schema, handle_*_tool, etc.)
+// which are compiled alongside these.
+
+/// Non-legacy tool descriptors: returns built-in + external provider tools.
+pub fn tool_descriptors() -> Vec<Value> {
+    let mut tools: Vec<Value> = BUILTIN_TOOL_NAMES
+        .iter()
+        .map(|name| {
+            let schema = builtin_tool_input_schema(name);
+            json!({ "name": name, "inputSchema": schema })
+        })
+        .collect();
+    let ext_tools = external_tool_descriptors();
+    for ext in ext_tools {
+        let ext_name = ext["name"].as_str().unwrap_or("");
+        if !tools.iter().any(|t| t["name"].as_str() == Some(ext_name)) {
+            tools.push(ext);
+        }
+    }
+    tools
+}
+
+pub fn handle_focus_tool(arguments: &Value) -> Value {
+    use crate::contract::parse_focus;
+    use crate::focus_tool::{self, FocusToolInput, FocusToolRecord};
+    use std::io::Write;
+
+    let request = match parse_focus(arguments) {
+        Ok(r) => r,
+        Err(err) => return error_envelope(&err),
+    };
+
+    match request {
+        crate::contract::FocusArgs::AppendFocusRecord {
+            billing_account_id,
+            service_name,
+            billed_cost,
+            effective_cost,
+            experiment_id,
+            variant,
+            agent_id,
+        } => {
+            let record = FocusToolRecord {
+                billing_account_id,
+                service_name,
+                billed_cost,
+                effective_cost,
+                experiment_id: experiment_id.clone(),
+                variant: variant.clone(),
+                agent_id: agent_id.clone(),
+            };
+            let input = FocusToolInput {
+                action: "append_focus_record".into(),
+                records: vec![record.clone()],
+                experiment_id: experiment_id.clone(),
+                personality: None,
+            };
+            match focus_tool::handle_focus_tool(input) {
+                Ok(output) => {
+                    // Persist the appended record (not the tool output) to JSONL.
+                    // Path defaults to temp dir; override with FOCUS_SIDECAR_PATH env var.
+                    // TODO: derive path from manifest/workbook path when available in context.
+                    let sidecar_path = std::env::var("FOCUS_SIDECAR_PATH")
+                        .map(std::path::PathBuf::from)
+                        .unwrap_or_else(|_| std::env::temp_dir().join("focus_records.jsonl"));
+                    match serde_json::to_string(&record) {
+                        Ok(serialized) => {
+                            match std::fs::OpenOptions::new()
+                                .create(true)
+                                .append(true)
+                                .open(&sidecar_path)
+                            {
+                                Ok(mut f) => {
+                                    if let Err(e) = writeln!(f, "{serialized}") {
+                                        tracing::warn!(
+                                            path = %sidecar_path.display(),
+                                            err = %e,
+                                            "focus_records JSONL write failed"
+                                        );
+                                    }
+                                }
+                                Err(e) => tracing::warn!(
+                                    path = %sidecar_path.display(),
+                                    err = %e,
+                                    "focus_records JSONL open failed"
+                                ),
+                            }
+                        }
+                        Err(e) => tracing::warn!(err = %e, "focus record serialization failed"),
+                    }
+                    json!({
+                        "content": [text_content(json!(output))],
+                        "isError": false
+                    })
+                }
+                Err(err) => error_envelope(&ToolError::Internal(err)),
+            }
+        }
+        crate::contract::FocusArgs::QueryFocusSummary => {
+            let input = FocusToolInput {
+                action: "query_focus_summary".into(),
+                records: vec![],
+                experiment_id: None,
+                personality: None,
+            };
+            match focus_tool::handle_focus_tool(input) {
+                Ok(output) => json!({ "content": [text_content(json!(output))], "isError": false }),
+                Err(err) => error_envelope(&ToolError::Internal(err)),
+            }
+        }
+        crate::contract::FocusArgs::ComputeFocusDelta {
+            experiment_id,
+            control_billed,
+            treatment_billed,
+        } => {
+            let input = FocusToolInput {
+                action: "compute_focus_delta".into(),
+                records: vec![
+                    FocusToolRecord {
+                        billing_account_id: "ledgrrr".into(),
+                        service_name: "experiment-eval".into(),
+                        billed_cost: control_billed,
+                        effective_cost: control_billed * 0.85,
+                        experiment_id: Some(experiment_id.clone()),
+                        variant: Some("control".into()),
+                        agent_id: None,
+                    },
+                    FocusToolRecord {
+                        billing_account_id: "ledgrrr".into(),
+                        service_name: "experiment-eval".into(),
+                        billed_cost: treatment_billed,
+                        effective_cost: treatment_billed * 0.85,
+                        experiment_id: Some(experiment_id.clone()),
+                        variant: Some("treatment".into()),
+                        agent_id: None,
+                    },
+                ],
+                experiment_id: Some(experiment_id),
+                personality: None,
+            };
+            match focus_tool::handle_focus_tool(input) {
+                Ok(output) => json!({ "content": [text_content(json!(output))], "isError": false }),
+                Err(err) => error_envelope(&ToolError::Internal(err)),
+            }
+        }
+        crate::contract::FocusArgs::ExperimentScore {
+            experiment_id,
+            personality,
+            variant: _variant,
+        } => {
+            let input = FocusToolInput {
+                action: "experiment_score".into(),
+                records: vec![],
+                experiment_id: Some(experiment_id),
+                personality,
+            };
+            match focus_tool::handle_focus_tool(input) {
+                Ok(output) => json!({ "content": [text_content(json!(output))], "isError": false }),
+                Err(err) => error_envelope(&ToolError::Internal(err)),
+            }
+        }
+    }
+}
+
+/// Hardcoded list of published tool names (always available).
+const BUILTIN_TOOL_NAMES: &[&str] = &[
+    DOCUMENTS_TOOL,
+    REVIEW_TOOL,
+    RECONCILIATION_TOOL,
+    WORKFLOW_TOOL,
+    AUDIT_TOOL,
+    TAX_TOOL,
+    ONTOLOGY_TOOL,
+    XERO_TOOL,
+    FOCUS_TOOL,
+    EVIDENCE_TOOL,
+];
+
+fn builtin_tool_input_schema(name: &str) -> Value {
+    crate::contract::tool_input_schema(name)
+}
+
+/// Returns the names of all top-level published tools.
+/// When the `legacy` feature is inactive this is derived from `BUILTIN_TOOL_NAMES`.
+#[cfg(not(feature = "legacy"))]
+pub fn tool_names() -> Vec<String> {
+    BUILTIN_TOOL_NAMES.iter().map(|s| s.to_string()).collect()
+}
+
+/// Hook for external MCP providers.  Dispatches via the global provider registry.
+#[cfg(feature = "b00t")]
+pub fn handle_external_tool(tool_name: &str, arguments: &Value) -> Value {
+    let Some(reg) = GLOBAL_PROVIDER_REGISTRY.get() else {
+        return unknown_tool_result(tool_name);
+    };
+    match reg.call_tool("", tool_name, arguments.clone()) {
+        Ok(result) => json!({
+            "content": [text_content(result)],
+            "isError": false
+        }),
+        Err(_) => unknown_tool_result(tool_name),
+    }
+}
+
+#[cfg(not(feature = "b00t"))]
+pub fn handle_external_tool(tool_name: &str, _arguments: &Value) -> Value {
+    unknown_tool_result(tool_name)
+}
+
+// ── Legacy dispatch (cfg-gated) ───────────────────────────────────────────────
+// The functions below are the original direct-dispatch path.  They are kept for
+// historical reference and are only compiled when the `legacy` feature is active.
+
+#[cfg(feature = "legacy")]
 #[allow(clippy::vec_init_then_push)]
 pub fn tool_names() -> Vec<String> {
     let mut features = Vec::new();
@@ -56,6 +320,7 @@ pub fn tool_names() -> Vec<String> {
     tool_names_for(&features)
 }
 
+#[cfg(feature = "legacy")]
 pub fn tool_names_for(features: &[&str]) -> Vec<String> {
     let mut tools = Vec::new();
 
@@ -88,23 +353,13 @@ pub fn tool_names_for(features: &[&str]) -> Vec<String> {
     tools
 }
 
-/// Return the full MCP-spec tool objects (name + inputSchema) for all enabled tools.
-/// Use this in tools/list responses — do NOT use tool_names() directly for that.
-pub fn tool_descriptors() -> Vec<Value> {
-    tool_names()
-        .into_iter()
-        .map(|name| {
-            let schema = tool_input_schema(&name);
-            json!({ "name": name, "inputSchema": schema })
-        })
-        .collect()
-}
-
 /// Returns the JSON Schema for the input arguments of a named tool.
+#[cfg(feature = "legacy")]
 pub fn tool_input_schema(name: &str) -> Value {
     contract::tool_input_schema(name)
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_list_accounts(service: &TurboLedgerService) -> Value {
     match service.list_accounts_tool(ListAccountsRequest) {
         Ok(response) => {
@@ -122,6 +377,7 @@ pub fn handle_list_accounts(service: &TurboLedgerService) -> Value {
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_document_inventory(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_document_inventory_request(arguments) {
         Ok(request) => request,
@@ -165,6 +421,7 @@ pub fn handle_document_inventory(service: &TurboLedgerService, arguments: &Value
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_get_raw_context(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_get_raw_context_request(arguments) {
         Ok(request) => request,
@@ -187,6 +444,7 @@ pub struct PipelineStatusResponse {
     pub next_hint: String,
 }
 
+#[cfg(feature = "legacy")]
 pub fn get_pipeline_status(
     manifest_ready: bool,
     rustledger_ready: bool,
@@ -220,6 +478,7 @@ pub fn get_pipeline_status(
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_pipeline_status(
     manifest_ready: bool,
     rustledger_ready: bool,
@@ -237,6 +496,7 @@ pub fn handle_pipeline_status(
     })
 }
 
+#[cfg(feature = "legacy")]
 pub fn rows_to_json_with_provenance(
     provider: &str,
     backend_tool: &str,
@@ -290,6 +550,10 @@ pub fn error_payload(error: &ToolError) -> Value {
     }
 }
 
+/// Return a well-formed MCP error envelope for an unknown tool name.
+///
+/// Not gated behind any feature flag because it is used by both the `legacy`
+/// dispatch path and the `b00t` external-provider path.
 pub fn unknown_tool_result(tool_name: &str) -> Value {
     json!({
         "content": [text_content(json!({
@@ -309,6 +573,7 @@ fn handle_plugin_info(arguments: &Value) -> Value {
     })
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_documents_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match contract::parse_documents(arguments) {
         Ok(request) => request,
@@ -527,6 +792,7 @@ pub fn handle_documents_tool(service: &TurboLedgerService, arguments: &Value) ->
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_xero_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
     use contract::{parse_xero, XeroArgs};
 
@@ -570,6 +836,7 @@ pub fn handle_xero_tool(service: &TurboLedgerService, arguments: &Value) -> Valu
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_review_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match contract::parse_review(arguments) {
         Ok(request) => request,
@@ -656,6 +923,7 @@ pub fn handle_review_tool(service: &TurboLedgerService, arguments: &Value) -> Va
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_reconciliation_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match contract::parse_reconciliation(arguments) {
         Ok(request) => request,
@@ -705,6 +973,7 @@ pub fn handle_reconciliation_tool(service: &TurboLedgerService, arguments: &Valu
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_workflow_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match contract::parse_workflow(arguments) {
         Ok(request) => request,
@@ -737,6 +1006,7 @@ pub fn handle_workflow_tool(service: &TurboLedgerService, arguments: &Value) -> 
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_audit_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match contract::parse_audit(arguments) {
         Ok(request) => request,
@@ -772,6 +1042,7 @@ pub fn handle_audit_tool(service: &TurboLedgerService, arguments: &Value) -> Val
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_tax_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match contract::parse_tax(arguments) {
         Ok(request) => request,
@@ -842,6 +1113,7 @@ pub fn handle_tax_tool(service: &TurboLedgerService, arguments: &Value) -> Value
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_ontology_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match contract::parse_ontology(arguments) {
         Ok(request) => request,
@@ -890,6 +1162,7 @@ pub fn handle_ontology_tool(service: &TurboLedgerService, arguments: &Value) -> 
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn protocol_method_not_found(id: Value, method: &str) -> Value {
     json!({
         "jsonrpc": "2.0",
@@ -955,6 +1228,7 @@ fn parse_ingest_statement_rows_request(
     })
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_ingest_pdf<T: TurboLedgerTools>(
     service: &T,
     arguments: &Value,
@@ -997,6 +1271,7 @@ pub fn handle_ingest_pdf<T: TurboLedgerTools>(
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_ingest_statement_rows<T: TurboLedgerTools>(
     service: &T,
     arguments: &Value,
@@ -1041,6 +1316,7 @@ pub fn handle_ingest_statement_rows<T: TurboLedgerTools>(
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_ontology_query_path(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_ontology_query_path_request(arguments) {
         Ok(request) => request,
@@ -1059,6 +1335,7 @@ pub fn handle_ontology_query_path(service: &TurboLedgerService, arguments: &Valu
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_ontology_export_snapshot(service: &TurboLedgerService, arguments: &Value) -> Value {
     let ontology_path = match parse_ontology_path(arguments) {
         Ok(path) => path,
@@ -1081,6 +1358,7 @@ pub fn handle_ontology_export_snapshot(service: &TurboLedgerService, arguments: 
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn dispatch_reconciliation(
     service: &TurboLedgerService,
     tool_name: &str,
@@ -1143,6 +1421,7 @@ pub fn dispatch_reconciliation(
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn dispatch_hsm(service: &TurboLedgerService, tool_name: &str, arguments: &Value) -> Value {
     match tool_name {
         "transition" => {
@@ -1237,6 +1516,7 @@ pub fn dispatch_hsm(service: &TurboLedgerService, tool_name: &str, arguments: &V
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_event_history(service: &TurboLedgerService, arguments: &Value) -> Value {
     let filter = match parse_event_history_filter(arguments) {
         Ok(filter) => filter,
@@ -1292,6 +1572,7 @@ pub fn handle_event_history(service: &TurboLedgerService, arguments: &Value) -> 
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_event_replay(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_replay_lifecycle_request(arguments) {
         Ok(request) => request,
@@ -1317,6 +1598,7 @@ pub fn handle_event_replay(service: &TurboLedgerService, arguments: &Value) -> V
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_tax_assist(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_tax_assist_request(arguments) {
         Ok(request) => request,
@@ -1359,6 +1641,7 @@ pub fn handle_tax_assist(service: &TurboLedgerService, arguments: &Value) -> Val
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_tax_evidence_chain(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_tax_evidence_chain_request(arguments) {
         Ok(request) => request,
@@ -1379,6 +1662,7 @@ pub fn handle_tax_evidence_chain(service: &TurboLedgerService, arguments: &Value
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_tax_ambiguity_review(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_tax_ambiguity_review_request(arguments) {
         Ok(request) => request,
@@ -1415,6 +1699,7 @@ pub fn handle_tax_ambiguity_review(service: &TurboLedgerService, arguments: &Val
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_classify_ingested(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_classify_ingested_request(arguments) {
         Ok(request) => request,
@@ -1445,6 +1730,7 @@ pub fn handle_classify_ingested(service: &TurboLedgerService, arguments: &Value)
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_query_flags(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_query_flags_request(arguments) {
         Ok(request) => request,
@@ -1479,6 +1765,7 @@ pub fn handle_query_flags(service: &TurboLedgerService, arguments: &Value) -> Va
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_query_audit_log(service: &TurboLedgerService, arguments: &Value) -> Value {
     let _request = match parse_query_audit_log_request(arguments) {
         Ok(request) => request,
@@ -1511,6 +1798,7 @@ pub fn handle_query_audit_log(service: &TurboLedgerService, arguments: &Value) -
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_classify_transaction(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_classify_transaction_request(arguments) {
         Ok(request) => request,
@@ -1548,6 +1836,7 @@ pub fn handle_classify_transaction(service: &TurboLedgerService, arguments: &Val
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_reconcile_excel_classification(
     service: &TurboLedgerService,
     arguments: &Value,
@@ -1588,6 +1877,7 @@ pub fn handle_reconcile_excel_classification(
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_get_schedule_summary(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_get_schedule_summary_request(arguments) {
         Ok(request) => request,
@@ -1626,6 +1916,7 @@ pub fn handle_get_schedule_summary(service: &TurboLedgerService, arguments: &Val
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_export_cpa_workbook(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_export_cpa_workbook_request(arguments) {
         Ok(request) => request,
@@ -1641,6 +1932,7 @@ pub fn handle_export_cpa_workbook(service: &TurboLedgerService, arguments: &Valu
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_ontology_upsert_entities(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_ontology_upsert_entities_request(arguments) {
         Ok(request) => request,
@@ -1656,6 +1948,7 @@ pub fn handle_ontology_upsert_entities(service: &TurboLedgerService, arguments: 
     }
 }
 
+#[cfg(feature = "legacy")]
 pub fn handle_ontology_upsert_edges(service: &TurboLedgerService, arguments: &Value) -> Value {
     let request = match parse_ontology_upsert_edges_request(arguments) {
         Ok(request) => request,
@@ -2191,6 +2484,44 @@ fn parse_ontology_entity_kind(raw: Option<&str>) -> Result<crate::OntologyEntity
     }
 }
 
+#[cfg(feature = "legacy")]
+/// Parse a user-supplied node type string into the typed `arc_kit_au::NodeType`.
+///
+/// Accepts both canonical snake_case names and the single-char prefixes used in
+/// `NodeId` strings so operators can use either form interchangeably.
+fn parse_evidence_node_type(s: &str) -> Option<arc_kit_au::NodeType> {
+    use arc_kit_au::NodeType;
+    Some(match s {
+        "source_doc" | "doc" => NodeType::SourceDoc,
+        "extracted_row" | "row" => NodeType::ExtractedRow,
+        "transaction" | "tx" => NodeType::Transaction,
+        "classification" | "cls" => NodeType::Classification,
+        "model_proposal" | "prop" => NodeType::ModelProposal,
+        "operator_approval" | "approval" => NodeType::OperatorApproval,
+        "workbook_row" | "wb" => NodeType::WorkbookRow,
+        "validation_issue" | "vi" => NodeType::ValidationIssue,
+        _ => return None,
+    })
+}
+
+#[cfg(feature = "legacy")]
+/// Canonical snake_case label for an `arc_kit_au::NodeType` (MCP output surface).
+fn evidence_node_type_label(nt: arc_kit_au::NodeType) -> &'static str {
+    use arc_kit_au::NodeType;
+    match nt {
+        NodeType::SourceDoc => "source_doc",
+        NodeType::ExtractedRow => "extracted_row",
+        NodeType::Transaction => "transaction",
+        NodeType::Classification => "classification",
+        NodeType::ModelProposal => "model_proposal",
+        NodeType::OperatorApproval => "operator_approval",
+        NodeType::WorkbookRow => "workbook_row",
+        NodeType::ValidationIssue => "validation_issue",
+        NodeType::Unknown => "unknown",
+    }
+}
+
+#[cfg(feature = "legacy")]
 pub fn handle_evidence_tool(service: &TurboLedgerService, arguments: &Value) -> Value {
     use crate::contract::parse_evidence;
 
@@ -2204,7 +2535,11 @@ pub fn handle_evidence_tool(service: &TurboLedgerService, arguments: &Value) -> 
             use arc_kit_au::ProvenanceScanner;
             let evidence = match service.evidence.lock() {
                 Ok(e) => e,
-                Err(_) => return error_envelope(&ToolError::Internal("evidence mutex poisoned".to_string())),
+                Err(_) => {
+                    return error_envelope(&ToolError::Internal(
+                        "evidence mutex poisoned".to_string(),
+                    ))
+                }
             };
             let gaps = evidence.find_missing_provenance();
             let gap_jsons: Vec<_> = gaps
@@ -2234,7 +2569,11 @@ pub fn handle_evidence_tool(service: &TurboLedgerService, arguments: &Value) -> 
             use arc_kit_au::EvidenceTracer;
             let evidence = match service.evidence.lock() {
                 Ok(e) => e,
-                Err(_) => return error_envelope(&ToolError::Internal("evidence mutex poisoned".to_string())),
+                Err(_) => {
+                    return error_envelope(&ToolError::Internal(
+                        "evidence mutex poisoned".to_string(),
+                    ))
+                }
             };
             match evidence.trace_transaction(&tx_id) {
                 Some(chain) => {
@@ -2263,6 +2602,125 @@ pub fn handle_evidence_tool(service: &TurboLedgerService, arguments: &Value) -> 
                         "message": "No evidence chain found for this transaction.",
                     }))],
                     "isError": false
+                }),
+            }
+        }
+        EvidenceArgs::Summary => {
+            let evidence = match service.evidence.lock() {
+                Ok(e) => e,
+                Err(_) => {
+                    return error_envelope(&ToolError::Internal(
+                        "evidence mutex poisoned".to_string(),
+                    ))
+                }
+            };
+            // Single pass over all nodes to build per-type counts.
+            let mut counts: std::collections::HashMap<&'static str, usize> =
+                std::collections::HashMap::new();
+            for node in evidence.all_nodes() {
+                *counts
+                    .entry(evidence_node_type_label(node.node_type()))
+                    .or_insert(0) += 1;
+            }
+            let node_counts = json!({
+                "source_docs":        counts.get("source_doc").copied().unwrap_or(0),
+                "extracted_rows":     counts.get("extracted_row").copied().unwrap_or(0),
+                "transactions":       counts.get("transaction").copied().unwrap_or(0),
+                "classifications":    counts.get("classification").copied().unwrap_or(0),
+                "model_proposals":    counts.get("model_proposal").copied().unwrap_or(0),
+                "operator_approvals": counts.get("operator_approval").copied().unwrap_or(0),
+                "workbook_rows":      counts.get("workbook_row").copied().unwrap_or(0),
+                "validation_issues":  counts.get("validation_issue").copied().unwrap_or(0),
+            });
+            let wq = evidence.work_queue_summary();
+            json!({
+                "content": [text_content(json!({
+                    "action": "summary",
+                    "total_nodes": evidence.node_count(),
+                    "total_edges": evidence.edge_count(),
+                    "node_counts": node_counts,
+                    "work_queue": {
+                        "total_transactions":    wq.total_transactions,
+                        "ready_to_review":       wq.ready_to_review,
+                        "blocked":               wq.blocked,
+                        "exported":              wq.exported,
+                        "with_validation_issues":wq.with_validation_issues,
+                    },
+                }))],
+                "isError": false
+            })
+        }
+        EvidenceArgs::ListNodes { node_type } => {
+            let evidence = match service.evidence.lock() {
+                Ok(e) => e,
+                Err(_) => {
+                    return error_envelope(&ToolError::Internal(
+                        "evidence mutex poisoned".to_string(),
+                    ))
+                }
+            };
+            let nodes: Vec<&arc_kit_au::EvidenceNode> = match node_type {
+                Some(ref nt) => match parse_evidence_node_type(nt) {
+                    Some(parsed) => evidence.nodes_of_type(parsed),
+                    None => {
+                        return json!({
+                            "content": [text_content(json!({
+                                "error": format!(
+                                    "Unknown node type: {nt}. Valid types: \
+                                     source_doc, extracted_row, transaction, classification, \
+                                     model_proposal, operator_approval, workbook_row, validation_issue"
+                                ),
+                            }))],
+                            "isError": true,
+                        })
+                    }
+                },
+                None => evidence.all_nodes().iter().collect(),
+            };
+            let node_summaries: Vec<_> = nodes
+                .iter()
+                .map(|n| {
+                    json!({
+                        "node_id":   n.node_id().to_string(),
+                        "node_type": evidence_node_type_label(n.node_type()),
+                    })
+                })
+                .collect();
+            json!({
+                "content": [text_content(json!({
+                    "action": "list_nodes",
+                    "count":  node_summaries.len(),
+                    "nodes":  node_summaries,
+                }))],
+                "isError": false
+            })
+        }
+        EvidenceArgs::NodeDetail { node_id } => {
+            let evidence = match service.evidence.lock() {
+                Ok(e) => e,
+                Err(_) => {
+                    return error_envelope(&ToolError::Internal(
+                        "evidence mutex poisoned".to_string(),
+                    ))
+                }
+            };
+            let id = arc_kit_au::NodeId(node_id.clone());
+            match evidence.get_node(&id) {
+                Some(node) => json!({
+                    "content": [text_content(json!({
+                        "action":  "node_detail",
+                        "node_id": node_id,
+                        "node":    node,
+                    }))],
+                    "isError": false
+                }),
+                None => json!({
+                    "content": [text_content(json!({
+                        "action":  "node_detail",
+                        "node_id": node_id,
+                        "error":   "Node not found in evidence graph",
+                    }))],
+                    "isError": true,
                 }),
             }
         }

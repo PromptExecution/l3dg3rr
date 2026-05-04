@@ -1,12 +1,12 @@
 //! E2E Visualization Tests for Slint UX
 //! Tests the pipeline flow visualization through the Slint UI.
 
-use ledger_core::visualize::{
-    PipelineGraph, NodeVisualState, EdgeVisual, to_html, layout::LayoutSolver,
-};
 use ledger_core::pipeline::State as PipelineState;
-use ledger_core::workflow::examples::ledger_ingest;
 use ledger_core::validation::{Issue, IssueSource};
+use ledger_core::visualize::{
+    layout::LayoutSolver, to_html, EdgeVisual, NodeVisualState, PipelineGraph,
+};
+use ledger_core::workflow::examples::ledger_ingest;
 
 /// Test: Full pipeline visualization cycle from ingest to commit.
 #[test]
@@ -22,7 +22,9 @@ fn test_e2e_pipeline_visualization() {
         graph.nodes.insert(state.id.clone(), NodeVisualState::Idle);
     }
     for trans in &wf.transitions {
-        graph.edges.push(EdgeVisual::new(&trans.from, &trans.to, &trans.event));
+        graph
+            .edges
+            .push(EdgeVisual::new(&trans.from, &trans.to, &trans.event));
     }
 
     // 3. Stage 1: Ingested -> Validating
@@ -35,9 +37,15 @@ fn test_e2e_pipeline_visualization() {
 #[test]
 fn test_high_confidence_state() {
     let mut graph = PipelineGraph::new();
-    graph.nodes.insert("Ingested".to_string(), NodeVisualState::Success);
-    graph.nodes.insert("Validating".to_string(), NodeVisualState::Active);
-    graph.nodes.insert("Classifying".to_string(), NodeVisualState::Idle);
+    graph
+        .nodes
+        .insert("Ingested".to_string(), NodeVisualState::Success);
+    graph
+        .nodes
+        .insert("Validating".to_string(), NodeVisualState::Active);
+    graph
+        .nodes
+        .insert("Classifying".to_string(), NodeVisualState::Idle);
     graph.current_state = "Validating".to_string();
     graph.accumulated_confidence = 0.92;
 
@@ -51,7 +59,9 @@ fn test_high_confidence_state() {
 #[test]
 fn test_low_confidence_warning() {
     let mut graph = PipelineGraph::new();
-    graph.nodes.insert("Validating".to_string(), NodeVisualState::Warning);
+    graph
+        .nodes
+        .insert("Validating".to_string(), NodeVisualState::Warning);
     graph.current_state = "Validating".to_string();
     graph.accumulated_confidence = 0.35;
 
@@ -63,7 +73,9 @@ fn test_low_confidence_warning() {
 #[test]
 fn test_error_state() {
     let mut graph = PipelineGraph::new();
-    graph.nodes.insert("Validating".to_string(), NodeVisualState::Error);
+    graph
+        .nodes
+        .insert("Validating".to_string(), NodeVisualState::Error);
     graph.current_state = "Validating".to_string();
     graph.accumulated_confidence = 0.0;
 
@@ -75,7 +87,9 @@ fn test_error_state() {
 #[test]
 fn test_review_state() {
     let mut graph = PipelineGraph::new();
-    graph.nodes.insert("NeedsReview".to_string(), NodeVisualState::Review);
+    graph
+        .nodes
+        .insert("NeedsReview".to_string(), NodeVisualState::Review);
     graph.current_state = "NeedsReview".to_string();
 
     let html = to_html(&graph);
@@ -87,7 +101,7 @@ fn test_review_state() {
 fn test_animation_styles() {
     let graph = PipelineGraph::new();
     let styles = graph.animation_styles();
-    
+
     assert!(styles.contains("@keyframes pulse"));
     assert!(styles.contains("@keyframes check"));
     assert!(styles.contains("@keyframes shake"));
@@ -98,16 +112,20 @@ fn test_animation_styles() {
 fn test_layout_solver() {
     let solver = LayoutSolver::new();
     let mut graph = PipelineGraph::new();
-    graph.nodes.insert("Ingested".to_string(), NodeVisualState::Success);
-    graph.nodes.insert("Validating".to_string(), NodeVisualState::Active);
+    graph
+        .nodes
+        .insert("Ingested".to_string(), NodeVisualState::Success);
+    graph
+        .nodes
+        .insert("Validating".to_string(), NodeVisualState::Active);
     graph.current_state = "Validating".to_string();
     graph.accumulated_confidence = 0.8;
 
     let layout = solver.generate_layout(&graph);
-    
+
     assert!(layout.contains_key("Ingested"));
     assert!(layout.contains_key("Validating"));
-    
+
     let (_, active_width) = layout.get("Validating").unwrap();
     let (_, ingest_width) = layout.get("Ingested").unwrap();
     assert!(*active_width > *ingest_width);
@@ -116,10 +134,12 @@ fn test_layout_solver() {
 /// Test: NodeVisualState from pipeline with issues.
 #[test]
 fn test_node_from_pipeline_with_issues() {
-    let issues = vec![
-        Issue::recoverable("test", "warning", IssueSource::TypeCheck),
-    ];
-    
+    let issues = vec![Issue::recoverable(
+        "test",
+        "warning",
+        IssueSource::TypeCheck,
+    )];
+
     let state = NodeVisualState::from_pipeline(PipelineState::Validating, 0.3, &issues);
     // Low confidence + recoverable issues = Warning
     assert_eq!(state, NodeVisualState::Warning);
@@ -129,7 +149,7 @@ fn test_node_from_pipeline_with_issues() {
 #[test]
 fn test_node_unrecoverable() {
     let issues = vec![Issue::unrecoverable("fatal", "cannot continue")];
-    
+
     let state = NodeVisualState::from_pipeline(PipelineState::Validating, 0.9, &issues);
     assert_eq!(state, NodeVisualState::Error);
 }
@@ -139,11 +159,11 @@ fn test_node_unrecoverable() {
 fn test_complete_html() {
     let wf = ledger_ingest();
     let mut graph = PipelineGraph::new();
-    
+
     for state in &wf.state {
         graph.nodes.insert(state.id.clone(), NodeVisualState::Idle);
     }
-    
+
     graph.current_state = "Classifying".to_string();
     graph.accumulated_confidence = 0.78;
     if let Some(s) = graph.nodes.get_mut("Classifying") {
@@ -151,7 +171,7 @@ fn test_complete_html() {
     }
 
     let html = to_html(&graph);
-    
+
     assert!(html.contains("<!DOCTYPE html>"));
     assert!(html.contains("mermaid"));
     assert!(html.contains("@keyframes"));
@@ -164,22 +184,24 @@ fn test_complete_html() {
 fn test_workflow_to_visualization_roundtrip() {
     let wf = ledger_ingest();
     assert!(wf.validate().is_ok());
-    
+
     let mut graph = PipelineGraph::new();
     for state in &wf.state {
         graph.nodes.insert(state.id.clone(), NodeVisualState::Idle);
     }
     for trans in &wf.transitions {
-        graph.edges.push(EdgeVisual::new(&trans.from, &trans.to, &trans.event));
+        graph
+            .edges
+            .push(EdgeVisual::new(&trans.from, &trans.to, &trans.event));
     }
-    
+
     let mermaid = graph.to_mermaid();
     assert!(mermaid.contains("stateDiagram-v2"));
-    
+
     for state in &wf.state {
         assert!(mermaid.contains(&state.id), "Missing state: {}", state.id);
     }
-    
+
     let solver = LayoutSolver::new();
     let layout = solver.generate_layout(&graph);
     assert!(!layout.is_empty());

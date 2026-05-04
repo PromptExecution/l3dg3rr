@@ -113,7 +113,12 @@ impl AppSettings {
     /// Returns (resolved_settings, Option<ProviderReadiness>) where the second
     /// element is Some when a fallback occurred (e.g., WindowsAi selected but
     /// Foundry not installed). The caller decides whether to surface the warning.
-    pub fn resolve_chat(&self) -> (ChatSettings, Option<crate::internal_openai::ProviderReadiness>) {
+    pub fn resolve_chat(
+        &self,
+    ) -> (
+        ChatSettings,
+        Option<crate::internal_openai::ProviderReadiness>,
+    ) {
         crate::internal_openai::resolve_chat_settings(self)
     }
 }
