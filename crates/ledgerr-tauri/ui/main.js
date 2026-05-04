@@ -11,7 +11,7 @@ let busy = false;
 const sidebar        = document.getElementById('sidebar');
 const collapseBtn    = document.getElementById('collapse-btn');
 const navItems       = document.querySelectorAll('.nav-item[data-panel]');
-const panels         = [0,1,2,3].map(i => document.getElementById(`panel-${i}`));
+const panels         = [0,1,2,3,4].map(i => document.getElementById(`panel-${i}`));
 
 const versionText    = document.getElementById('version-text');
 const statusBar      = document.getElementById('status-bar');
@@ -50,7 +50,25 @@ const docsStatusText = document.getElementById('docs-status-text');
 const btnOpenDocs    = document.getElementById('btn-open-docs');
 const btnLoadRhai    = document.getElementById('btn-load-rhai-mutation');
 
+const btnRefreshDash = document.getElementById('btn-refresh-dashboard');
+const blockedValue   = document.getElementById('blocked-value');
+const readyValue     = document.getElementById('ready-value');
+const exportedValue  = document.getElementById('exported-value');
+const issuesValue    = document.getElementById('issues-value');
+const evLastAction   = document.getElementById('ev-last-action');
+const evNextActions  = document.getElementById('ev-next-actions');
+const evProviderStat = document.getElementById('ev-provider-status');
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 function setStatus(text) {
   statusBar.textContent = text;
@@ -70,6 +88,7 @@ function setBusy(val) {
   btnSave.disabled       = val;
   btnOpenDocs.disabled   = val;
   btnLoadRhai.disabled   = val;
+  btnRefreshDash.disabled = val;
   sendBtn.textContent    = val ? 'Sending…' : 'Send';
   btnSave.textContent    = val ? 'Working…' : 'Save Settings';
   inputEndpoint.disabled = val;
@@ -323,6 +342,45 @@ btnLoadRhai.addEventListener('click', async () => {
   }
 });
 
+// ── Dashboard: Refresh ────────────────────────────────────────────────────────
+
+async function refreshDashboard() {
+  try {
+    const payload = await invoke('get_evidence_dashboard');
+    const q = payload.today_queue;
+    blockedValue.textContent  = q.blocked ?? '-';
+    readyValue.textContent    = q.ready_to_review ?? '-';
+    exportedValue.textContent = q.exported ?? '-';
+    issuesValue.textContent   = q.with_validation_issues ?? '-';
+    evLastAction.textContent  = q.last_action_summary ?? '';
+    evNextActions.innerHTML   = (q.next_actions || [])
+      .map(a => `<li>${escapeHtml(a)}</li>`).join('');
+    evProviderStat.innerHTML  = (q.providers || []).map(p => {
+      const r = p.readiness || {};
+      const status = r.status || r.kind || 'unknown';
+      const icon = status === 'ready' ? '✓' : (status === 'diagnostic' ? '⚠' : '?');
+      return `<div class="ev-provider-line">${escapeHtml(icon)} ${escapeHtml(String(p.label))}: ${escapeHtml(status)}</div>`;
+    }).join('') || '<div class="ev-provider-line">No providers configured</div>';
+  } catch (err) {
+    blockedValue.textContent  = '-';
+    readyValue.textContent    = '-';
+    exportedValue.textContent = '-';
+    issuesValue.textContent   = '-';
+    evLastAction.textContent  = `Error: ${err}`;
+    evNextActions.innerHTML   = '';
+    evProviderStat.textContent = '';
+  }
+}
+
+// Refresh dashboard when its panel becomes visible
+const origShowPanel = showPanel;
+showPanel = function(index) {
+  origShowPanel(index);
+  if (index === 2) refreshDashboard();
+};
+
+btnRefreshDash.addEventListener('click', refreshDashboard);
+
 // ── Initialise on load ────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -367,4 +425,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch (err) {
     setStatus(`Init error: ${err}`);
   }
+
+  // Pre-load dashboard data
+  refreshDashboard();
 });

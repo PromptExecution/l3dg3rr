@@ -47,6 +47,8 @@ pub struct TodayQueue {
     pub ready_to_review: usize,
     pub blocked: usize,
     pub exported: usize,
+    /// Transactions that have ValidationIssue nodes attached.
+    pub with_validation_issues: usize,
     pub last_action_summary: String,
     pub next_actions: Vec<String>,
 }
@@ -61,7 +63,7 @@ impl TodayQueue {
         let validation = summary.with_validation_issues;
 
         let last_action_summary = if evidence.checked {
-            if blocked == 0 && ready == 0 {
+            if blocked == 0 && ready == 0 && validation == 0 {
                 "All evidence chains are complete.".to_string()
             } else {
                 let mut parts = vec![];
@@ -117,6 +119,7 @@ impl TodayQueue {
             ready_to_review: ready,
             blocked,
             exported,
+            with_validation_issues: validation,
             last_action_summary,
             next_actions,
         }
@@ -179,5 +182,39 @@ mod tests {
             .iter()
             .any(|a| a.contains("Model setup needed") || a.contains("Configure"));
         assert!(has_model_action);
+    }
+
+    #[test]
+    fn with_validation_issues_field_is_populated() {
+        use arc_kit_au::node::{EvidenceNode, ValidationIssue};
+        use chrono::Utc;
+        let mut state = EvidenceState::new();
+        let vi = ValidationIssue {
+            tx_id: "tx_abc".to_string(),
+            rule: "amount_check".to_string(),
+            severity: "error".to_string(),
+            message: "amount out of range".to_string(),
+            actor: "pipeline".to_string(),
+            raised_at: Utc::now(),
+            resolved: false,
+        };
+        state.graph.add_node(EvidenceNode::ValidationIssue(vi)).unwrap();
+        state.refresh_gaps();
+        let queue = TodayQueue::from_state(&state, &test_settings());
+        assert_eq!(queue.with_validation_issues, 1);
+        // All chains are not "complete" while validation issues remain
+        assert!(!queue.last_action_summary.contains("All evidence chains are complete"));
+    }
+
+    #[test]
+    fn all_complete_requires_zero_validation_issues() {
+        let mut state = EvidenceState::new();
+        state.refresh_gaps();
+        let queue = TodayQueue::from_state(&state, &test_settings());
+        // Empty graph has no gaps and no validation issues — should report all complete
+        assert_eq!(queue.with_validation_issues, 0);
+        assert_eq!(queue.blocked, 0);
+        assert_eq!(queue.ready_to_review, 0);
+        assert!(queue.last_action_summary.contains("All evidence chains are complete"));
     }
 }

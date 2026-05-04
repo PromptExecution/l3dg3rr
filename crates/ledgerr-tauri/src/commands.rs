@@ -35,6 +35,18 @@ pub struct InitialState {
 }
 
 #[derive(serde::Serialize, Clone)]
+pub struct EvidenceDashboardPayload {
+    pub today_queue: serde_json::Value,
+}
+
+#[derive(serde::Serialize, Clone)]
+pub struct TxProvenancePayload {
+    pub tx_id: String,
+    pub badge: String,
+    pub badge_class: String,
+}
+
+#[derive(serde::Serialize, Clone)]
 pub struct ChatSettingsPayload {
     pub endpoint_text: String,
     pub model_text: String,
@@ -88,6 +100,43 @@ pub fn ensure_internal_endpoint(
         }
         Err(error) => Err(error.to_string()),
     }
+}
+
+// ── Evidence / Dashboard Commands ─────────────────────────────────────────────
+
+#[tauri::command]
+pub fn get_evidence_dashboard(state: tauri::State<'_, AppState>) -> Result<EvidenceDashboardPayload, String> {
+    // Load settings before acquiring the evidence lock to keep the critical
+    // section as short as possible and avoid lock-ordering issues.
+    let settings = state.store.load().map_err(|e| e.to_string())?;
+    let mut evidence = state
+        .evidence
+        .lock()
+        .map_err(|_| "evidence state is poisoned".to_string())?;
+    evidence.refresh_gaps();
+    let queue = ledgerr_host::evidence::TodayQueue::from_state(&evidence, &settings);
+    Ok(EvidenceDashboardPayload {
+        today_queue: serde_json::to_value(queue).map_err(|e| e.to_string())?,
+    })
+}
+
+#[tauri::command]
+pub fn get_tx_provenance(
+    tx_id: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<TxProvenancePayload, String> {
+    let evidence = state
+        .evidence
+        .lock()
+        .map_err(|_| "evidence state is poisoned".to_string())?;
+    let badge = evidence.provenance_badge(&tx_id);
+    let label = badge.label().to_string();
+    let css_class = badge.css_class().to_string();
+    Ok(TxProvenancePayload {
+        tx_id,
+        badge: label,
+        badge_class: css_class,
+    })
 }
 
 // ── Commands ──────────────────────────────────────────────────────────────────
