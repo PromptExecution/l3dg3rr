@@ -82,8 +82,7 @@ fn main() {
                 std::env::temp_dir().join("host-tauri-setup-ok.txt"),
                 format!("setup hook ran at {}\n", std::process::id()),
             );
-            let build = std::env::var("TAURI_BUILD_NUMBER")
-                .unwrap_or_else(|_| "0".to_string());
+            let build = env!("TAURI_BUILD_NUMBER");
             let title = format!("ledgrrr v{}+b{}", env!("CARGO_PKG_VERSION"), build);
             let w = tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("index.html".into()))
                 .title(&title)
