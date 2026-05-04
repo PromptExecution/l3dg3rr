@@ -13,7 +13,7 @@ Current planning assumptions:
 - Xero is already part of the visible `ledgerr_*` capability direction; future work should treat it as an in-flight supervised capability, not a greenfield speculative add-on.
 - Xero access should be mediated through supervised MCP worker processes/tools, not by giving raw credentials directly to the model or relying on `.env` as the long-term secret model.
 - Windows 11 desktop support matters: toast/app notifications, tray/menubar control surface, and persistent settings are first-class operator features.
-- Slint is the legacy UI shell for the desktop window; tray/docked menubar icon integration uses `tray-icon` while the Slint window is available as a fallback surface. Tauri (`crates/ledgerr-tauri`) is now the primary desktop host. CI checks the Tauri host; Slint CI is opt-in only.
+- Slint is the legacy UI shell for the desktop window; tray/docked menubar icon integration uses `tray-icon` while the Slint window is available as a fallback surface. Tauri (`crates/ledgrrr`) is now the primary desktop host. CI checks the Tauri host; Slint CI is opt-in only.
 - arc-kit-au (`crates/arc-kit-au`) is the evidence traceability layer — a native Rust adaptation of the arc-kit governance model for bookkeeping provenance. It tracks source documents → extracted rows → transactions → classifications → proposals → approvals → workbook rows as a petgraph-backed evidence graph with deterministic Blake3 node identity.
 
 Desktop control-plane milestones currently in scope:
@@ -136,6 +136,13 @@ Practical interpretation:
 - prefer one agent/sub-agent for implementation and another for targeted verification when the user explicitly wants delegation or parallel work;
 - do not treat green tests as the only completion signal if the UX, notification path, tray behavior, or host integration still lacks a real validation path;
 - when desktop/host features are being designed, verify the smallest executable slice first (for example, a real toast test before larger UI work).
+
+Force-push guard (mandatory, enforced by .git/hooks/pre-push):
+- NEVER force-push main or master. The pre-push hook blocks it at the transport level.
+- Use feature branches for all changes. If force-push is necessary on a feature branch
+  (e.g., after rebasing a solo branch), it must be a non-main branch and there must
+  be no collaborators working on the same branch.
+- The local git config has `receive.denyNonFastForwards = true` as additional safety.
 
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
@@ -436,6 +443,12 @@ Treat this as a standing operational gate, not a one-time migration task.
   - **Unmapped surfaces survey**: Confirmed `ConstraintSolver`/`Verb` traits are test+visualization-only but not truly dead (exercised by xtask + iso_lint). `LedgerOperation`/`SemanticRuleSelector`/`MultiModelVerifier` are future-feature stubs, not gaps. `HasVisualization` all 20 impls exercised. 13 ledger-core modules not consumed by MCP/host is architectural intent (iso/layout/render are visualization-only).
   - **Zero clippy warnings** across workspace (excluding pre-existing ledgerr-tauri WSL issue). Fixed: unused constants behind cfg gates, dead_code on struct fields used only in tests, large Err variant allow.
   - **Sub-agent pattern**: Used explore sub-agents with codebase-memory-mcp for survey (returned structured report in ~30s). Compare: previous grep-based survey attempt in PR #69 took 10+ minutes of CPU with truncated output. This validated the new tooling approach.
+- 2026-05-04: Evidence graph surfaced through MCP query tools and Tauri dashboard.
+  - **arc-kit-au evidence graph (PR #76, issue #52)**: Added 3 new actions to `ledgerr_evidence` MCP tool: `summary` (node/edge counts + work queue), `list_nodes` (filterable node enumeration), `node_detail` (full node by NodeId). Handler uses local `parse_node_type` rather than pulling FromStr into the arc-kit-au crate.
+  - **Tauri dashboard (PR #77→#78, issue #51)**: Panels refactored from hardcoded sequential numbering to a single `PANELS` JS array (`[{id, icon, label}, ...]`). `buildUI()` generates sidebar buttons and panel divs; `panelTemplate(id)` provides panel HTML. Adding a panel = edit one array + one template entry. Zero hardcoded indices.
+  - **Force-push guard**: Pre-push hook installed at `.git/hooks/pre-push` that blocks non-fast-forward pushes to main/master. Documented in AGENTS.md Execution Loop section. Lesson recorded in b00t.
+  - **Lesson**: Never manually number UI panels across multiple files. Define once, generate the rest. This preserves context for future agents and avoids search noise.
+  - **Pre-existing**: Tauri build on WSL still fails (cross-filesystem path issue). Rust code correctness verified by cargo check (only the Tauri build script fails — documented CI exclusion).
 
 
 <!-- GSD:profile-start -->

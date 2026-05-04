@@ -765,8 +765,6 @@ Phase 2 (ongoing)
 | `candle` GPU-backend complexity on Windows | Medium | Low | Gate behind `cfg(feature = "candle-embeddings")`; keep Jaccard fallback as default |
 | Z3 symbolic refactor changes test behavior | Low | Medium | Wrapped in `#[cfg(test)]` property tests: symbolic solver output must match if/else output for all known facts |
 | `enum_dispatch` incompatible with associated types on `Verb` | Medium | High | Test with `cargo check` before committing; fallback: keep `Box<dyn Verb>` for `Verb` only, `enum_dispatch` for `LedgerOperation` |
-| Edition 2024 breaks Slint macro output | Medium | High | Test `cargo build -p ledgerr-tauri` after each phase; keep edition-2021 on `ledgerr-tauri` if needed |
-| `cargo nextest` requires nightly `dev` proc-macro support | Low | Medium | `cargo nextest` works on stable; test with `cargo nextest run` before CI swap |
 | `proptest` shrinks find latent bug in financial hash | Low | High | Feature — this is the *goal*; property tests are designed to find these |
 | `cargo-fuzz` catches panic in parser but fix requires parser refactor | Medium | Low | Pure gain — finding panics in untrusted input parsing is the purpose |
 

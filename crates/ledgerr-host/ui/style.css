@@ -482,7 +482,7 @@ button:disabled {
   flex-shrink: 0;
 }
 
-/* ── Dashboard panel ───────────────────────────────────────────────────────── */
+/* ── Dashboard panel ────────────────────────────────────────────────────────── */
 .evidence-summary {
   display: flex;
   gap: 12px;

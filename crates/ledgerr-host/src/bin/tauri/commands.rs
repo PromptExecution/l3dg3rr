@@ -15,7 +15,52 @@ use ledgerr_host::internal_openai::{
 };
 use ledgerr_host::settings::ChatSettings;
 
-use crate::state::AppState;
+use super::state::AppState;
+
+// ── Test harness config ───────────────────────────────────────────────────────
+
+#[derive(serde::Serialize, Clone)]
+pub struct TestHarnessConfig {
+    pub kill_delay_ms: u64,
+    pub screenshot_path: String,
+    pub pkg_version: String,
+    pub build_number: String,
+}
+
+#[tauri::command]
+pub fn get_cargo_pkg_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+#[tauri::command]
+pub fn write_dom_dump(dump: String) -> String {
+    let path = std::env::temp_dir().join("host-tauri-dom-dump.txt");
+    match std::fs::write(&path, &dump) {
+        Ok(()) => format!("wrote {} bytes to {}", dump.len(), path.display()),
+        Err(e) => format!("write error: {e}"),
+    }
+}
+
+#[tauri::command]
+pub fn get_test_harness_config() -> TestHarnessConfig {
+    let _ = std::fs::write(
+        std::env::temp_dir().join("host-tauri-ipc-alive.txt"),
+        format!("get_test_harness_config called\n"),
+    );
+    TestHarnessConfig {
+        kill_delay_ms: std::env::var("TAURI_TEST_KILL_DELAY")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0),
+        screenshot_path: std::env::var("TAURI_TEST_SCREENSHOT_PATH")
+            .ok()
+            .unwrap_or_default(),
+        pkg_version: env!("CARGO_PKG_VERSION").to_string(),
+        build_number: std::env::var("TAURI_BUILD_NUMBER")
+            .ok()
+            .unwrap_or_default(),
+    }
+}
 
 // ── Shared payload types ──────────────────────────────────────────────────────
 
@@ -483,4 +528,46 @@ pub fn open_docs_playbook(
             "{endpoint_status} Could not open browser ({e}) — open manually: {url}"
         )),
     }
+}
+
+// ── Evidence dashboard ────────────────────────────────────────────────────────
+
+#[derive(serde::Serialize, Clone)]
+pub struct EvidenceDashboardPayload {
+    pub today_queue: ledgerr_host::evidence::TodayQueue,
+}
+
+#[tauri::command]
+pub fn get_evidence_dashboard(
+    state: tauri::State<'_, AppState>,
+) -> Result<EvidenceDashboardPayload, String> {
+    let evidence = state
+        .evidence
+        .lock()
+        .map_err(|_| "evidence lock poisoned".to_string())?;
+    let settings = state.store.load().map_err(|e| e.to_string())?;
+    let today_queue = ledgerr_host::evidence::TodayQueue::from_state(&evidence, &settings);
+    Ok(EvidenceDashboardPayload { today_queue })
+}
+
+#[derive(serde::Serialize, Clone)]
+pub struct ProvenancePayload {
+    pub badge: String,
+    pub css_class: String,
+}
+
+#[tauri::command]
+pub fn get_tx_provenance(
+    tx_id: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<ProvenancePayload, String> {
+    let evidence = state
+        .evidence
+        .lock()
+        .map_err(|_| "evidence lock poisoned".to_string())?;
+    let badge = evidence.provenance_badge(&tx_id);
+    Ok(ProvenancePayload {
+        badge: badge.label().to_string(),
+        css_class: badge.css_class().to_string(),
+    })
 }

@@ -1,22 +1,12 @@
 {
-  "productName": "l3dg3rr",
-  "identifier": "ventures.elastic.l3dg3rr",
+  "productName": "ledgrrr",
+  "identifier": "ventures.elastic.ledgrrr",
   "build": {
     "frontendDist": "ui"
   },
   "app": {
     "withGlobalTauri": true,
-    "windows": [
-      {
-        "title": "l3dg3rr",
-        "width": 1100,
-        "height": 760,
-        "center": true,
-        "resizable": true,
-        "decorations": true,
-        "visible": true
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; connect-src ipc: http://ipc.localhost; style-src 'self' 'unsafe-inline'"
     }
