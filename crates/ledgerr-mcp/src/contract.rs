@@ -30,6 +30,7 @@ pub const AUDIT_TOOL: &str = "ledgerr_audit";
 pub const TAX_TOOL: &str = "ledgerr_tax";
 pub const ONTOLOGY_TOOL: &str = "ledgerr_ontology";
 pub const XERO_TOOL: &str = "ledgerr_xero";
+pub const FOCUS_TOOL: &str = "ledgerr_focus";
 pub const EVIDENCE_TOOL: &str = "ledgerr_evidence";
 pub const CALENDAR_TOOL: &str = "list_calendar_events";
 pub const SHAPE_TOOL: &str = "get_document_shape";
@@ -50,12 +51,13 @@ pub const TOOL_REGISTRY: &[&str] = &[
     TAX_TOOL,
     ONTOLOGY_TOOL,
     XERO_TOOL,
+    FOCUS_TOOL,
     EVIDENCE_TOOL,
     CALENDAR_TOOL,
     SHAPE_TOOL,
 ];
 
-pub const PUBLISHED_TOOLS: [ToolContractSpec; 9] = [
+pub const PUBLISHED_TOOLS: [ToolContractSpec; 10] = [
     ToolContractSpec {
         name: DOCUMENTS_TOOL,
         purpose: "document intake (PDF, image, CSV), tagging, filesystem metadata sync",
@@ -135,6 +137,16 @@ pub const PUBLISHED_TOOLS: [ToolContractSpec; 9] = [
             "fetch_invoices",
             "link_entity",
             "sync_catalog",
+        ],
+    },
+    ToolContractSpec {
+        name: FOCUS_TOOL,
+        purpose: "FOCUS (FinOps Cost Usage Spec) v1.3 cost/usage records, FocusDelta comparison, experiment scoring",
+        actions: &[
+            "append_focus_record",
+            "query_focus_summary",
+            "compute_focus_delta",
+            "experiment_score",
         ],
     },
     ToolContractSpec {
@@ -592,6 +604,39 @@ pub fn parse_xero(arguments: &Value) -> Result<XeroArgs, ToolError> {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "action", deny_unknown_fields)]
+pub enum FocusArgs {
+    #[serde(rename = "append_focus_record")]
+    AppendFocusRecord {
+        billing_account_id: String,
+        service_name: String,
+        billed_cost: f64,
+        effective_cost: f64,
+        experiment_id: Option<String>,
+        variant: Option<String>,
+        agent_id: Option<String>,
+    },
+    #[serde(rename = "query_focus_summary")]
+    QueryFocusSummary,
+    #[serde(rename = "compute_focus_delta")]
+    ComputeFocusDelta {
+        experiment_id: String,
+        control_billed: f64,
+        treatment_billed: f64,
+    },
+    #[serde(rename = "experiment_score")]
+    ExperimentScore {
+        experiment_id: String,
+        score: f64,
+        variant: String,
+    },
+}
+
+pub fn parse_focus(arguments: &Value) -> Result<FocusArgs, ToolError> {
+    parse_args(arguments)
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "action", deny_unknown_fields)]
 pub enum EvidenceArgs {
     #[serde(rename = "provenance_gaps")]
     ProvenanceGaps,
@@ -623,6 +668,7 @@ pub fn tool_input_schema(name: &str) -> Value {
         TAX_TOOL => root_schema_to_value(schema_for!(TaxArgs)),
         ONTOLOGY_TOOL => root_schema_to_value(schema_for!(OntologyArgs)),
         XERO_TOOL => root_schema_to_value(schema_for!(XeroArgs)),
+        FOCUS_TOOL => root_schema_to_value(schema_for!(FocusArgs)),
         EVIDENCE_TOOL => root_schema_to_value(schema_for!(EvidenceArgs)),
         _ => json!({ "type": "object" }),
     }

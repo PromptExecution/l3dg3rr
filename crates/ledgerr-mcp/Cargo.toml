@@ -9,6 +9,7 @@ arc-kit-au = { path = "../arc-kit-au" }
 blake3 = "1.8.3"
 chrono = { workspace = true }
 ledger-core = { version = "=1.8.1", path = "../ledger-core" }
+ledgerr-focus = { workspace = true }
 ledgerr-mcp-core = { workspace = true }
 ledgerr-xero = { version = "=1.8.1", path = "../ledgerr-xero", optional = true }
 crossbeam = "0.8"

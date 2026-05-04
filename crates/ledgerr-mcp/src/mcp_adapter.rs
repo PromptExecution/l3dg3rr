@@ -71,8 +71,8 @@ fn external_tool_descriptors() -> Vec<Value> {
 
 // Public re-exports are always available (they're just constants).
 pub use crate::contract::{
-    AUDIT_TOOL, DOCUMENTS_TOOL, EVIDENCE_TOOL, ONTOLOGY_TOOL, RECONCILIATION_TOOL, REVIEW_TOOL,
-    TAX_TOOL, WORKFLOW_TOOL, XERO_TOOL,
+    AUDIT_TOOL, DOCUMENTS_TOOL, EVIDENCE_TOOL, FOCUS_TOOL, ONTOLOGY_TOOL, RECONCILIATION_TOOL,
+    REVIEW_TOOL, TAX_TOOL, WORKFLOW_TOOL, XERO_TOOL,
 };
 
 // ── Default dispatch ──────────────────────────────────────────────────────────
@@ -100,6 +100,119 @@ pub fn tool_descriptors() -> Vec<Value> {
     tools
 }
 
+pub fn handle_focus_tool(arguments: &Value) -> Value {
+    use crate::contract::parse_focus;
+    use crate::focus_tool::{self, FocusToolInput, FocusToolRecord};
+    use std::io::Write;
+
+    let request = match parse_focus(arguments) {
+        Ok(r) => r,
+        Err(err) => return error_envelope(&err),
+    };
+
+    let result = match request {
+        crate::contract::FocusArgs::AppendFocusRecord {
+            billing_account_id,
+            service_name,
+            billed_cost,
+            effective_cost,
+            experiment_id,
+            variant,
+            agent_id,
+        } => {
+            let input = FocusToolInput {
+                action: "append_focus_record".into(),
+                records: vec![FocusToolRecord {
+                    billing_account_id,
+                    service_name,
+                    billed_cost,
+                    effective_cost,
+                    experiment_id: experiment_id.clone(),
+                    variant: variant.clone(),
+                    agent_id: agent_id.clone(),
+                }],
+                experiment_id: experiment_id.clone(),
+                personality: None,
+            };
+            focus_tool::handle_focus_tool(input)
+        }
+        crate::contract::FocusArgs::QueryFocusSummary => {
+            let input = FocusToolInput {
+                action: "query_focus_summary".into(),
+                records: vec![],
+                experiment_id: None,
+                personality: None,
+            };
+            focus_tool::handle_focus_tool(input)
+        }
+        crate::contract::FocusArgs::ComputeFocusDelta {
+            experiment_id,
+            control_billed,
+            treatment_billed,
+        } => {
+            let input = FocusToolInput {
+                action: "compute_focus_delta".into(),
+                records: vec![
+                    FocusToolRecord {
+                        billing_account_id: "ledgrrr".into(),
+                        service_name: "experiment-eval".into(),
+                        billed_cost: control_billed,
+                        effective_cost: control_billed * 0.85,
+                        experiment_id: Some(experiment_id.clone()),
+                        variant: Some("control".into()),
+                        agent_id: None,
+                    },
+                    FocusToolRecord {
+                        billing_account_id: "ledgrrr".into(),
+                        service_name: "experiment-eval".into(),
+                        billed_cost: treatment_billed,
+                        effective_cost: treatment_billed * 0.85,
+                        experiment_id: Some(experiment_id.clone()),
+                        variant: Some("treatment".into()),
+                        agent_id: None,
+                    },
+                ],
+                experiment_id: Some(experiment_id),
+                personality: None,
+            };
+            focus_tool::handle_focus_tool(input)
+        }
+        crate::contract::FocusArgs::ExperimentScore {
+            experiment_id,
+            score: _score,
+            variant,
+        } => {
+            let input = FocusToolInput {
+                action: "experiment_score".into(),
+                records: vec![],
+                experiment_id: Some(experiment_id),
+                personality: Some(variant),
+            };
+            focus_tool::handle_focus_tool(input)
+        }
+    };
+
+    match result {
+        Ok(output) => {
+            // Persist to JSONL sidecar
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open("focus_records.jsonl")
+            {
+                let _ = writeln!(f, "{}", serde_json::to_string(&output).unwrap_or_default());
+            }
+            json!({
+                "content": [text_content(json!(output))],
+                "isError": false
+            })
+        }
+        Err(err) => {
+            error_envelope(&ToolError::Internal(err))
+        }
+    }
+}
+
 /// Hardcoded list of published tool names (always available).
 const BUILTIN_TOOL_NAMES: &[&str] = &[
     DOCUMENTS_TOOL,
@@ -110,6 +223,7 @@ const BUILTIN_TOOL_NAMES: &[&str] = &[
     TAX_TOOL,
     ONTOLOGY_TOOL,
     XERO_TOOL,
+    FOCUS_TOOL,
     EVIDENCE_TOOL,
 ];
 

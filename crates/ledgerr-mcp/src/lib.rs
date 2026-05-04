@@ -25,6 +25,7 @@ pub mod calendar_tool;
 pub mod contract;
 pub mod gate;
 pub mod events;
+pub mod focus_tool;
 pub mod hsm;
 pub mod mcp_adapter;
 pub mod ontology;
