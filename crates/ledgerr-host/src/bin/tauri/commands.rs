@@ -480,3 +480,45 @@ pub fn open_docs_playbook(
         )),
     }
 }
+
+// ── Evidence dashboard ────────────────────────────────────────────────────────
+
+#[derive(serde::Serialize, Clone)]
+pub struct EvidenceDashboardPayload {
+    pub today_queue: ledgerr_host::evidence::TodayQueue,
+}
+
+#[tauri::command]
+pub fn get_evidence_dashboard(
+    state: tauri::State<'_, AppState>,
+) -> Result<EvidenceDashboardPayload, String> {
+    let evidence = state
+        .evidence
+        .lock()
+        .map_err(|_| "evidence lock poisoned".to_string())?;
+    let settings = state.store.load().map_err(|e| e.to_string())?;
+    let today_queue = ledgerr_host::evidence::TodayQueue::from_state(&evidence, &settings);
+    Ok(EvidenceDashboardPayload { today_queue })
+}
+
+#[derive(serde::Serialize, Clone)]
+pub struct ProvenancePayload {
+    pub badge: String,
+    pub css_class: String,
+}
+
+#[tauri::command]
+pub fn get_tx_provenance(
+    tx_id: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<ProvenancePayload, String> {
+    let evidence = state
+        .evidence
+        .lock()
+        .map_err(|_| "evidence lock poisoned".to_string())?;
+    let badge = evidence.provenance_badge(&tx_id);
+    Ok(ProvenancePayload {
+        badge: badge.label().to_string(),
+        css_class: badge.css_class().to_string(),
+    })
+}

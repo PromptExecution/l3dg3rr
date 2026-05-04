@@ -47,6 +47,7 @@ pub struct TodayQueue {
     pub ready_to_review: usize,
     pub blocked: usize,
     pub exported: usize,
+    pub with_validation_issues: usize,
     pub last_action_summary: String,
     pub next_actions: Vec<String>,
 }
@@ -117,6 +118,7 @@ impl TodayQueue {
             ready_to_review: ready,
             blocked,
             exported,
+            with_validation_issues: validation,
             last_action_summary,
             next_actions,
         }

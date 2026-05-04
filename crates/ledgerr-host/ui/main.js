@@ -10,6 +10,7 @@ var PANELS=[
   {id:'docs',icon:'DK',label:'Docs Playbook'},
 ];
 var activePanel=0;
+var DASH_PANEL_INDEX=PANELS.findIndex(function(p){return p.id==='dash'});
 
 function showPanel(i){
   activePanel=i;
@@ -20,6 +21,7 @@ function showPanel(i){
   document.querySelectorAll('.nav-item[data-panel-index]').forEach(function(b,j){
     b.classList.toggle('active',j===i);
   });
+  if(i===DASH_PANEL_INDEX)refreshDashboard();
 }
 
 function panelTemplate(id){
@@ -52,23 +54,58 @@ function buildUI(){
   }catch(e){console.error('[ui] buildUI err:',e)}
 }
 
+function readinessLabel(r){
+  if(!r)return'Unknown';
+  if(r==='ready')return'Ready';
+  if(r.setup_needed)return'Setup needed';
+  if(r.unavailable)return'Unavailable';
+  if(r.diagnostic)return'Diagnostic';
+  return String(r);
+}
+
+function setTextSafe(el,text){
+  if(el)el.textContent=text!=null?String(text):'';
+}
+
 function refreshDashboard(){
   var api=window.__TAURI__;
   if(!api)return;
   api.core.invoke('get_evidence_dashboard').then(function(p){
     var q=p.today_queue||{};
-    var bid=document.getElementById('blocked-value');if(bid)bid.textContent=q.blocked??'-';
-    var rid=document.getElementById('ready-value');if(rid)rid.textContent=q.ready_to_review??'-';
-    var eid=document.getElementById('exported-value');if(eid)eid.textContent=q.exported??'-';
-    var iid=document.getElementById('issues-value');if(iid)iid.textContent=q.with_validation_issues??'-';
-    var la=document.getElementById('ev-last-action');if(la)la.textContent=q.last_action_summary??'';
-    var na=document.getElementById('ev-next-actions');if(na)na.innerHTML=(q.next_actions||[]).map(function(a){return '<li>'+a+'</li>'}).join('');
-  }).catch(function(){});
+    setTextSafe(document.getElementById('blocked-value'),q.blocked??'-');
+    setTextSafe(document.getElementById('ready-value'),q.ready_to_review??'-');
+    setTextSafe(document.getElementById('exported-value'),q.exported??'-');
+    setTextSafe(document.getElementById('issues-value'),q.with_validation_issues??'-');
+    setTextSafe(document.getElementById('ev-last-action'),q.last_action_summary??'');
+    var na=document.getElementById('ev-next-actions');
+    if(na){
+      na.innerHTML='';
+      (q.next_actions||[]).forEach(function(a){
+        var li=document.createElement('li');
+        li.textContent=a;
+        na.appendChild(li);
+      });
+    }
+    var ps=document.getElementById('ev-provider-status');
+    if(ps){
+      ps.innerHTML='';
+      (q.providers||[]).forEach(function(prov){
+        var d=document.createElement('div');
+        d.className='ev-provider-line';
+        d.textContent=(prov.display_name||prov.label)+': '+readinessLabel(prov.readiness);
+        ps.appendChild(d);
+      });
+    }
+  }).catch(function(err){
+    var sb=document.getElementById('status-bar');
+    if(sb)sb.textContent='Dashboard refresh failed: '+(err&&err.message||err||'unknown error');
+  });
 }
 
 document.addEventListener('DOMContentLoaded',function(){
   buildUI();
-  // Wire dashboard refresh
+  refreshDashboard();
+  // Wire dashboard refresh button
   var dr=document.getElementById('btn-refresh-dashboard');
   if(dr)dr.addEventListener('click',refreshDashboard);
   // Wire settings
