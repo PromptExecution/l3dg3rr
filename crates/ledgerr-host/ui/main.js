@@ -21,7 +21,7 @@ function showPanel(i){
   document.querySelectorAll('.nav-item[data-panel-index]').forEach(function(b,j){
     b.classList.toggle('active',j===i);
   });
-  if(i===DASH_PANEL_INDEX)refreshDashboard();
+  if(DASH_PANEL_INDEX!==-1&&i===DASH_PANEL_INDEX)refreshDashboard();
 }
 
 function panelTemplate(id){
@@ -92,7 +92,7 @@ function refreshDashboard(){
       (q.providers||[]).forEach(function(prov){
         var d=document.createElement('div');
         d.className='ev-provider-line';
-        d.textContent=(prov.display_name||prov.label)+': '+readinessLabel(prov.readiness);
+        d.textContent=`${prov.display_name||prov.label}: ${readinessLabel(prov.readiness)}`;
         ps.appendChild(d);
       });
     }
