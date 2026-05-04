@@ -888,4 +888,3 @@ impl EvidenceStore {
 ```
 
 A single `#[cfg]` annotation in one file is all that's needed to make `arc-kit-au` WASM-compilable today. This is consistent with the existing `#[cfg(target_os = "linux")]` pattern on `xattr` in `fs_meta.rs`.
->>>>>>> refs/rewritten/onto
