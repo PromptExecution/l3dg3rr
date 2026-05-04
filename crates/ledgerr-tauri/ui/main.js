@@ -61,6 +61,15 @@ const evProviderStat = document.getElementById('ev-provider-status');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function setStatus(text) {
   statusBar.textContent = text;
 }
@@ -79,6 +88,7 @@ function setBusy(val) {
   btnSave.disabled       = val;
   btnOpenDocs.disabled   = val;
   btnLoadRhai.disabled   = val;
+  btnRefreshDash.disabled = val;
   sendBtn.textContent    = val ? 'Sending…' : 'Send';
   btnSave.textContent    = val ? 'Working…' : 'Save Settings';
   inputEndpoint.disabled = val;
@@ -343,15 +353,22 @@ async function refreshDashboard() {
     exportedValue.textContent = q.exported ?? '-';
     issuesValue.textContent   = q.with_validation_issues ?? '-';
     evLastAction.textContent  = q.last_action_summary ?? '';
-    evNextActions.innerHTML   = (q.next_actions || []).map(a => `<li>${a}</li>`).join('');
+    evNextActions.innerHTML   = (q.next_actions || [])
+      .map(a => `<li>${escapeHtml(a)}</li>`).join('');
     evProviderStat.innerHTML  = (q.providers || []).map(p => {
       const r = p.readiness || {};
       const status = r.status || r.kind || 'unknown';
       const icon = status === 'ready' ? '✓' : (status === 'diagnostic' ? '⚠' : '?');
-      return `<div class="ev-provider-line">${icon} ${p.label}: ${status}</div>`;
+      return `<div class="ev-provider-line">${escapeHtml(icon)} ${escapeHtml(String(p.label))}: ${escapeHtml(status)}</div>`;
     }).join('') || '<div class="ev-provider-line">No providers configured</div>';
   } catch (err) {
-    evLastAction.textContent = `Error: ${err}`;
+    blockedValue.textContent  = '-';
+    readyValue.textContent    = '-';
+    exportedValue.textContent = '-';
+    issuesValue.textContent   = '-';
+    evLastAction.textContent  = `Error: ${err}`;
+    evNextActions.innerHTML   = '';
+    evProviderStat.textContent = '';
   }
 }
 

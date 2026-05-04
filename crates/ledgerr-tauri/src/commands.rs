@@ -106,11 +106,13 @@ pub fn ensure_internal_endpoint(
 
 #[tauri::command]
 pub fn get_evidence_dashboard(state: tauri::State<'_, AppState>) -> Result<EvidenceDashboardPayload, String> {
+    // Load settings before acquiring the evidence lock to keep the critical
+    // section as short as possible and avoid lock-ordering issues.
+    let settings = state.store.load().map_err(|e| e.to_string())?;
     let mut evidence = state
         .evidence
         .lock()
         .map_err(|_| "evidence state is poisoned".to_string())?;
-    let settings = state.store.load().map_err(|e| e.to_string())?;
     evidence.refresh_gaps();
     let queue = ledgerr_host::evidence::TodayQueue::from_state(&evidence, &settings);
     Ok(EvidenceDashboardPayload {
